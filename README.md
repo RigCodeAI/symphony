@@ -99,6 +99,10 @@ versioned definitions, Linux bootstrap, passing/failing demos and exact commands
 - GCP deployment and roughly twelve combined cloud/review slots are planned and require
   qualification. A build, configuration file or Terraform plan is not a live deployment.
 
+
+Trusted candidate validation is available locally through the pinned-policy runner and
+inline stage gates. See [trusted validation](docs/trusted-validation.md) for development/final commands, evidence and limits.
+
 ## Upstream and license
 
 This fork builds on [OpenAI Symphony](https://github.com/openai/symphony).

@@ -2340,3 +2340,25 @@ Extension config:
 - Cleanup and observability:
   - Operators need to know which host owns a run, where its workspace lives, and whether cleanup
     happened on the right machine.
+
+### Trusted candidate validation extension (local increment)
+
+Version-1 workstream check gates may declare `evaluator: candidate_validation` and
+inline required check/assertion/equals entries. The coordinator pins a validation
+policy outside the candidate workspace, selects all applicable checks from the
+final base/head diff, and blocks unknown scope or unavailable coverage adapters.
+Development checks are feedback only. Final validation uses a clean committed
+snapshot in an unprivileged isolated container, without producer credentials.
+
+The service stores authenticated manifests and checked log artifacts outside the
+disposable workspace. It verifies current source, candidate/base commit, pinned
+policy/environment/service identity and task/run/attempt identity before deciding
+a gate. Evaluator evidence and gate rationale are distinct records. Caller verdicts
+cannot override required assertions. Failed validation rounds have a separate
+persisted three-round limit from review fixes and transport retries. Workstream
+restart preserves pinned policy and evidence; changed service policy blocks an
+incompatible run. Existing command gates and WORKFLOW.md remain compatible.
+
+This increment provides local durable receipts and adapters, not GitHub publication
+or check enforcement, GCS archival, or Coverage Factory evaluators. See
+[trusted validation](docs/trusted-validation.md) for implemented limits and commands.

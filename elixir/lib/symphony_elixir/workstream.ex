@@ -223,6 +223,22 @@ defmodule SymphonyElixir.Workstream do
   defp normalize_stage(%{"type" => type}), do: {:error, {:invalid_stage_type, type}}
   defp normalize_stage(stage), do: {:error, {:invalid_stage_definition, stage}}
 
+  defp normalize_gate(%{"evaluator" => evaluator} = gate, stage_id) do
+    with :ok <- exact_fields(gate, ~w(evaluator required success failure), {:gate, stage_id}),
+         :ok <- validation_evaluator(evaluator, stage_id),
+         {:ok, required} <- validation_required(Map.get(gate, "required"), stage_id),
+         {:ok, success} <- gate_success(Map.get(gate, "success"), stage_id),
+         {:ok, failure} <- gate_failure(Map.get(gate, "failure"), stage_id) do
+      {:ok,
+       %{
+         evaluator: :candidate_validation,
+         required: required,
+         success: success,
+         failure: failure
+       }}
+    end
+  end
+
   defp normalize_gate(gate, stage_id) when is_map(gate) do
     with :ok <- exact_fields(gate, ~w(command timeout_ms success failure), {:gate, stage_id}),
          {:ok, command} <- command(Map.get(gate, "command"), stage_id),
@@ -234,6 +250,18 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp normalize_gate(_gate, stage_id), do: {:error, {:invalid_gate, stage_id}}
+
+  defp validation_evaluator("candidate_validation", _stage_id), do: :ok
+
+  defp validation_evaluator(value, stage_id),
+    do: {:error, {:unsupported_gate_evaluator, stage_id, value}}
+
+  defp validation_required(required, stage_id) do
+    case SymphonyElixir.ValidationPolicy.validate_required(required) do
+      {:ok, assertions} -> {:ok, assertions}
+      {:error, reason} -> {:error, {:invalid_validation_gate_required, stage_id, reason}}
+    end
+  end
 
   defp command(values, stage_id) when is_list(values) and values != [] do
     if Enum.all?(values, &(is_binary(&1) and String.trim(&1) != "")) do

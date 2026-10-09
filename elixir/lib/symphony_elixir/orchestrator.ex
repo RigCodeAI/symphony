@@ -2118,6 +2118,9 @@ defmodule SymphonyElixir.Orchestrator do
           Code.ensure_loaded!(SymphonyElixir.Workstream)
           Code.ensure_loaded!(WorkstreamRun)
           Code.ensure_loaded!(WorkstreamRunner)
+          Code.ensure_loaded!(SymphonyElixir.ValidationPolicy)
+          Code.ensure_loaded!(SymphonyElixir.Validation)
+          Code.ensure_loaded!(SymphonyElixir.ValidationCommand)
 
           with {:ok, store} <- WorkstreamStore.start_link(path: path, owner: self()),
                {:ok, runs} <- WorkstreamStore.load(store) do
@@ -2181,12 +2184,27 @@ defmodule SymphonyElixir.Orchestrator do
   defp existing_or_new_workstream(_state, run, _task_id, _path, _inputs, _opts) when is_map(run), do: {:ok, run}
 
   defp existing_or_new_workstream(state, nil, task_id, path, inputs, opts) do
-    with true <- Enum.all?(opts, fn {key, value} -> key in [:workspace, :workspace_root, :codex_command, :branch, :issue_id] and is_binary(value) end),
+    with true <-
+           Enum.all?(opts, fn {key, value} ->
+             key in [
+               :workspace,
+               :workspace_root,
+               :codex_command,
+               :branch,
+               :issue_id,
+               :validation_policy,
+               :validation_archive,
+               :validation_scratch,
+               :validation_base
+             ] and is_binary(value)
+           end),
          {:ok, definition, workspace} <- WorkstreamRunner.prepare(path, inputs, opts),
          :ok <- database_outside_workspace(state.workstreams.store_path, workspace),
-         false <- Enum.any?(state.workstreams.runs, fn {_id, run} -> run.workspace == workspace end) do
-      {:ok, root} = SymphonyElixir.PathSafety.canonicalize(opts[:workspace_root])
-      {:ok, WorkstreamRun.new(task_id, definition, workspace, Keyword.put(opts, :workspace_root, root))}
+         false <- Enum.any?(state.workstreams.runs, fn {_id, run} -> run.workspace == workspace end),
+         {:ok, root} <- SymphonyElixir.PathSafety.canonicalize(opts[:workspace_root]),
+         execution_opts = Keyword.put(opts, :workspace_root, root),
+         {:ok, execution} <- WorkstreamRunner.pin_execution_context(execution_opts, workspace, definition) do
+      {:ok, WorkstreamRun.new(task_id, definition, workspace, execution_opts, execution)}
     else
       true -> {:error, :workspace_already_owned}
       false -> {:error, :invalid_workstream_execution_options}
