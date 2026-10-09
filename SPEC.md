@@ -2,18 +2,33 @@
 
 ## Local file-defined workstreams (version 1 extension)
 
-The Elixir implementation additionally provides an opt-in synchronous local
-workstream command, independent of the existing tracker-driven `WORKFLOW.md`
-entry point. See [the concrete schema and commands](docs/local-workstreams.md).
-It supports agent stages and executable checks, with declared named inputs and
-outputs, inline exit-status gates, and repair edges bounded to at most three
-additional dispatches per gate per invocation. Invalid definitions, references,
-input dependencies, transitions and unbounded cycles reject before dispatch.
-Resolved workstream, agent, instruction and shared `SKILL.md` text/digests are
-pinned once per invocation. Checks consume declared metadata and inspect the
-dedicated workspace; the service owns advancement. This increment does not
-persist runs, implement waits or integrations, publish PRs, or merge candidates.
-The existing workflow and scheduler contracts below are unchanged.
+The Elixir implementation provides opt-in local workstreams alongside the tracker-driven
+`WORKFLOW.md` contract. See [the schema and commands](docs/local-workstreams.md) and
+[durable local recovery](docs/durable-workstreams.md). Definitions contain agent stages,
+executable checks and human waits, with declared inputs/outputs, inline exit-status gates,
+and repair edges bounded to three additional dispatches per gate. Invalid definitions,
+references, data dependencies, transitions and unbounded cycles reject before dispatch.
+
+The existing orchestrator can own manually queued durable runs with SQLite storage.
+One coordinator holds the database write lock. Enqueue pins resolved workstream, agent,
+instruction and skill text/digests, execution context, and service policy digests. Each
+stage attempt and outgoing operation is committed before execution; the completion event,
+observed gate outcome, artifacts, counters and next stage commit together. Duplicate input
+identities cannot create another run or repeat a completion. Conflicting event payloads
+are rejected. Human waits retain resolved inputs and artifact identities, release execution
+capacity, and accept their declared JSON outputs once for the current wait identity.
+
+Coordinator-only restart preserves local workers. Workers retain their result until its
+durable acknowledgement. Recovery redelivers an existing receipt, acknowledges an already
+committed receipt, or reserves capacity and blocks on uncertain liveness. A missing BEAM
+process is not proof that its external process or side effect ended. Only a trusted adapter
+may reconcile an existing outcome or prove termination/non-application before retry.
+Transport retries preserve the side-effect identity and do not reset repair counters.
+Transactional migrations fail startup clearly and preserve previously committed data.
+
+This is a controlled local alpha. Durable mode does not poll a tracker, publish PRs, merge,
+or implement remote-worker fencing and integrations. The existing tracker-mode workflow,
+supervision and in-memory scheduling behavior remain compatible and unchanged.
 
 Status: Draft v1 (language-agnostic)
 

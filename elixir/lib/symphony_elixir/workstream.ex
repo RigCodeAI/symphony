@@ -209,6 +209,17 @@ defmodule SymphonyElixir.Workstream do
     end
   end
 
+  defp normalize_stage(%{"type" => "human_wait"} = stage) do
+    with :ok <- exact_fields(stage, ~w(id type inputs outputs prompt next), {:stage, Map.get(stage, "id")}),
+         {:ok, id} <- required_name(Map.get(stage, "id"), :stage_id),
+         {:ok, inputs} <- names(Map.get(stage, "inputs"), {:stage_inputs, id}),
+         {:ok, outputs} <- names(Map.get(stage, "outputs"), {:stage_outputs, id}),
+         {:ok, prompt} <- required_name(Map.get(stage, "prompt"), {:stage_prompt, id}),
+         {:ok, next} <- stage_next(Map.get(stage, "next"), {:stage_next, id}) do
+      {:ok, %{id: id, type: :human_wait, inputs: inputs, outputs: outputs, prompt: prompt, next: next}}
+    end
+  end
+
   defp normalize_stage(%{"type" => type}), do: {:error, {:invalid_stage_type, type}}
   defp normalize_stage(stage), do: {:error, {:invalid_stage_definition, stage}}
 
@@ -248,6 +259,18 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp gate_success(value, stage_id), do: {:error, {:invalid_gate_success, stage_id, value}}
+
+  defp stage_next("complete", _context), do: {:ok, :complete}
+
+  defp stage_next(value, context) when is_binary(value) do
+    if String.trim(value) == "" do
+      {:error, {:invalid_stage_next, context, value}}
+    else
+      {:ok, value}
+    end
+  end
+
+  defp stage_next(value, context), do: {:error, {:invalid_stage_next, context, value}}
 
   defp gate_failure("blocked", _stage_id), do: {:ok, :blocked}
 
@@ -422,6 +445,17 @@ defmodule SymphonyElixir.Workstream do
       not Map.has_key?(stages, next) -> {:error, {:unknown_stage_transition, id, next}}
       stages[next].type != :check -> {:error, {:agent_must_transition_to_check, id, next}}
       true -> :ok
+    end
+  end
+
+  defp validate_stage_transition(_id, %{type: :human_wait, next: :complete}, _stages), do: :ok
+
+  defp validate_stage_transition(id, %{type: :human_wait, next: next}, stages)
+       when is_binary(next) do
+    if Map.has_key?(stages, next) do
+      :ok
+    else
+      {:error, {:unknown_stage_transition, id, next}}
     end
   end
 
@@ -648,6 +682,8 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp stage_success_targets(%{type: :agent, next: next}), do: [next]
+  defp stage_success_targets(%{type: :human_wait, next: next}) when is_binary(next), do: [next]
+  defp stage_success_targets(%{type: :human_wait}), do: []
   defp stage_success_targets(%{type: :check, gate: %{success: success}}) when is_binary(success), do: [success]
   defp stage_success_targets(%{type: :check}), do: []
 

@@ -30,9 +30,14 @@ Keep responses plain and simple. Avoid overly technical or flowery language.
 - Give each subagent a clear deliverable and explicit file/module ownership for edits.
   Tell it other agents may be working and not to revert their edits. Avoid simultaneous
   writers to the same files. The main agent integrates and verifies results.
-- For non-trivial changes, use an independent adversarial review of the design and
-  adjacent failure paths. This development review does not satisfy a factory validation
-  gate or authorize merging.
+- During alpha development, use one concise self-review and focused behavior tests.
+  Add independent review only for a specific material risk, not as a mandatory second
+  pass. Keep compilation, focused changed-behavior tests and essential restart, data-loss
+  and credential checks. Broad CI is non-blocking for alpha merges; run it in the
+  background and review results before engineer handoff. Known failures in changed
+  functionality block merging; do not bypass GitHub-enforced protection.
+  Formal review processes resume after the alpha is ready; factory validation gates
+  remain separate from development review.
 - These settings apply to subagents developing this repository. Factory cloud/review
   agent definitions have separately configured and qualified runtime settings.
 
@@ -111,8 +116,10 @@ Extend existing owners; do not introduce a second scheduler. Paths below are und
   coding turn here. Preserve configured workspace-root safety checks.
 - Follow [elixir/README.md](elixir/README.md) for setup. From `elixir/`, use
   `mise exec -- mix setup`, `mise exec -- mix build`, and focused
-  `mise exec -- mix test <test-file>`. Elixir code changes require
-  `mise exec -- make all` before handoff; follow nested guidance for specs and PR bodies.
+  `mise exec -- mix test <test-file>`. During alpha, compile and run focused tests for Elixir changes before merge;
+  run `mise exec -- make all` or equivalent broad CI before engineer handoff.
+  This alpha exception overrides nested full-suite-before-each-handoff guidance.
+  Follow nested guidance for specs and PR bodies.
 - Test observable behavior, especially restart, duplicate delivery, stale evidence,
   cancellation and recovery. Execute the ticket's acceptance/verification steps and
   report missing prerequisites and unverified stages plainly.

@@ -104,7 +104,9 @@ these disposable clones. Do not push either Rig candidate.
 
 ## Version 1 contract
 
-Only `agent` and `check` stages are supported. All fields shown in the sample
+`agent`, `check` and `human_wait` stages are supported. The synchronous runner returns
+a human wait for inspection; resumption and durable state use the existing coordinator
+through [durable mode](durable-workstreams.md). All fields shown in the sample
 are required; unknown keys, unsupported versions/settings, missing files,
 duplicate names/outputs, invalid transitions, unavailable inputs, unreachable
 stages, and unbounded cycles reject before dispatch. Input JSON has exactly the
@@ -139,7 +141,7 @@ failure:
 This allows two additional repair dispatches, after the initial failure. The
 service retains the counter for the invocation and supplies the failed gate's
 redacted output to the repair turn. Exhausting the budget blocks. These counters
-are in memory; durable restart and human waits belong to DEV-232.
+are in memory for the synchronous command; durable mode stores them across restart.
 
 GNU `timeout` bounds executable checks and terminates their process group.
 Reports cap output at 64 KiB, mark truncation, remove known credential values
