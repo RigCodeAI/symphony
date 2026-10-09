@@ -62,6 +62,43 @@ defmodule SymphonyElixir.WorkstreamRunnerTest do
     [workspace: context.workspace, workspace_root: Path.join(context.root, "workspaces"), agent_executor: agent]
   end
 
+  defp definition_with_wait(context) do
+    path = definition(context, ["test", "-f", "candidate.txt"])
+
+    contents =
+      File.read!(path)
+      |> String.replace("success: complete", "success: question")
+
+    File.write!(
+      path,
+      contents <>
+        "  - id: question\n" <>
+        "    type: human_wait\n" <>
+        "    inputs: [candidate, check]\n" <>
+        "    outputs: [answer]\n" <>
+        "    prompt: What should happen next?\n" <>
+        "    next: after-wait\n" <>
+        "  - id: after-wait\n" <>
+        "    type: agent\n" <>
+        "    inputs: [answer]\n" <>
+        "    outputs: [followup]\n" <>
+        "    agent: worker\n" <>
+        "    prompt: Apply the answer.\n" <>
+        "    next: final-check\n" <>
+        "  - id: final-check\n" <>
+        "    type: check\n" <>
+        "    inputs: [followup]\n" <>
+        "    outputs: []\n" <>
+        "    gate:\n" <>
+        "      command: [\"true\"]\n" <>
+        "      timeout_ms: 1000\n" <>
+        "      success: complete\n" <>
+        "      failure: blocked\n"
+    )
+
+    path
+  end
+
   test "real executable gate advances after an observable agent change", context do
     agent = fn workspace, prompt, issue, opts ->
       assert prompt =~ "Shared procedure"
@@ -90,6 +127,107 @@ defmodule SymphonyElixir.WorkstreamRunnerTest do
     assert report.status == :blocked
     assert List.last(report.attempts).result == %{status: :ok, evidence: %{exit_status: 7, output: "assertion failed\n", truncated: false, timed_out: false}}
     refute Map.has_key?(report.outputs, "check")
+  end
+
+  test "synchronous runner stops at a human wait with the resolved prompt inputs", context do
+    path = definition_with_wait(context)
+
+    agent = fn workspace, _prompt, _issue, _opts ->
+      File.write!(Path.join(workspace, "candidate.txt"), "candidate")
+      send(self(), :agent_ran)
+      {:ok, %{session_id: "thread-turn"}}
+    end
+
+    assert {:ok, report} = WorkstreamRunner.run(path, %{"task" => "x"}, options(context, agent))
+    assert report.status == :waiting_for_answer
+    assert report.wait.stage == "question"
+    assert report.wait.prompt == "What should happen next?"
+    assert report.wait.inputs["candidate"].session_id == "thread-turn"
+    assert report.wait.inputs["check"].exit_status == 0
+    assert length(report.attempts) == 2
+    assert_received :agent_ran
+    refute_received :agent_ran
+    refute Map.has_key?(report.outputs, "answer")
+  end
+
+  test "prepare returns the safe canonical workspace and execute_stage runs only the named stage", context do
+    path = definition(context, ["test", "-f", "candidate.txt"])
+
+    agent = fn workspace, _prompt, _issue, _opts ->
+      File.write!(Path.join(workspace, "candidate.txt"), "candidate")
+      {:ok, %{session_id: "thread-turn"}}
+    end
+
+    opts = options(context, agent)
+
+    assert {:ok, definition, workspace} = WorkstreamRunner.prepare(path, %{"task" => "x"}, opts)
+    assert workspace == context.workspace
+
+    assert {:error, {:missing_workspace_option, :workspace}} =
+             WorkstreamRunner.prepare(path, %{"task" => "x"}, workspace_root: Path.join(context.root, "workspaces"))
+
+    state = %{workspace: workspace, outputs: %{"task" => "x"}, attempts: []}
+
+    assert {:ok, %{session_id: "thread-turn", workspace: ^workspace}} =
+             WorkstreamRunner.execute_stage("implement", definition, state, opts)
+
+    assert File.exists?(Path.join(workspace, "candidate.txt"))
+
+    assert {:ok, %{exit_status: 0}} =
+             WorkstreamRunner.execute_stage("validate", definition, %{state | outputs: %{"candidate" => %{}}}, opts)
+  end
+
+  test "execution_context resolves the command to persist with a run", context do
+    explicit = WorkstreamRunner.execution_context(workspace_root: context.root, codex_command: "codex app-server")
+    assert explicit == %{workspace_root: context.root, codex_command: "codex app-server"}
+
+    resolved = WorkstreamRunner.execution_context(workspace_root: context.root)
+    assert resolved.workspace_root == context.root
+    escaped_path = String.replace(System.get_env("PATH", ""), "'", "'\\''")
+    assert String.contains?(resolved.codex_command, "env PATH='" <> escaped_path <> "' codex --disable apps")
+    assert resolved.codex_command == WorkstreamRunner.execution_context(workspace_root: context.root).codex_command
+  end
+
+  test "workspace revalidation rejects a changed canonical path", context do
+    path = definition(context, ["true"])
+    agent = fn _, _, _, _ -> flunk("must not dispatch") end
+    opts = options(context, agent)
+
+    assert {:ok, definition, workspace} = WorkstreamRunner.prepare(path, %{"task" => "x"}, opts)
+    original = workspace <> "-original"
+    File.rename!(workspace, original)
+    File.ln_s!(original, workspace)
+
+    assert {:error, :workspace_path_changed} =
+             WorkstreamRunner.validate_workspace(workspace, Path.join(context.root, "workspaces"), definition)
+  end
+
+  test "execute_stage revalidates the workspace before agents and checks", context do
+    path = definition(context, ["true"])
+    agent = fn _, _, _, _ -> flunk("must not dispatch") end
+    opts = options(context, agent)
+
+    assert {:ok, definition, workspace} = WorkstreamRunner.prepare(path, %{"task" => "x"}, opts)
+    File.rm_rf!(Path.join(workspace, ".git"))
+    state = %{workspace: workspace, outputs: %{"task" => "x", "candidate" => %{}}, attempts: []}
+
+    assert {:error, :workspace_requires_dedicated_clone} =
+             WorkstreamRunner.execute_stage("implement", definition, state, opts)
+
+    assert {:error, :workspace_requires_dedicated_clone} =
+             WorkstreamRunner.execute_stage("validate", definition, state, opts)
+  end
+
+  test "execute_stage leaves human waits to the coordinator", context do
+    path = definition_with_wait(context)
+    agent = fn _, _, _, _ -> {:ok, %{session_id: "thread-turn"}} end
+    opts = options(context, agent)
+
+    assert {:ok, definition, workspace} = WorkstreamRunner.prepare(path, %{"task" => "x"}, opts)
+    state = %{workspace: workspace, outputs: %{"candidate" => %{}, "check" => %{}}, attempts: []}
+
+    assert {:error, :human_wait_requires_coordinator} =
+             WorkstreamRunner.execute_stage("question", definition, state, opts)
   end
 
   test "repair cycles stop at the declared budget", context do

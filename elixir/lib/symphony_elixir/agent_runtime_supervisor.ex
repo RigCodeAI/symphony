@@ -24,11 +24,12 @@ defmodule SymphonyElixir.AgentRuntimeSupervisor do
         id: task_supervisor_name
       ),
       Supervisor.child_spec(
-        {SymphonyElixir.Orchestrator, name: orchestrator_name, task_supervisor: task_supervisor_name},
+        {SymphonyElixir.Orchestrator, Keyword.merge(opts, name: orchestrator_name, task_supervisor: task_supervisor_name)},
         id: orchestrator_name
       )
     ]
 
-    Supervisor.init(children, strategy: :one_for_all)
+    strategy = if Keyword.has_key?(opts, :workstream_store_path), do: :one_for_one, else: :one_for_all
+    Supervisor.init(children, strategy: strategy)
   end
 end

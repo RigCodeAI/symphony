@@ -144,6 +144,126 @@ defmodule SymphonyElixir.WorkstreamTest do
              Workstream.load(context.workstream_path, %{"request" => "task"})
   end
 
+  test "loads human waits and permits their normal transition to every stage type or complete", context do
+    File.write!(context.workstream_path, """
+    version: 1
+    name: local-demo
+    inputs: [request]
+    agents:
+      worker: ../agents/worker.yml
+    entry: implement
+    stages:
+      - id: implement
+        type: agent
+        inputs: [request]
+        outputs: [patch]
+        agent: worker
+        prompt: Implement the requested change.
+        next: verify
+      - id: verify
+        type: check
+        inputs: [patch]
+        outputs: [check]
+        gate:
+          command: ["true"]
+          timeout_ms: 2000
+          success: question
+          failure: blocked
+      - id: question
+        type: human_wait
+        inputs: [patch]
+        outputs: [answer]
+        prompt: What should happen next?
+        next: followup
+      - id: followup
+        type: agent
+        inputs: [answer]
+        outputs: [followup-result]
+        agent: worker
+        prompt: Apply the answer.
+        next: followup-check
+      - id: followup-check
+        type: check
+        inputs: [followup-result]
+        outputs: []
+        gate:
+          command: ["true"]
+          timeout_ms: 2000
+          success: second-question
+          failure: blocked
+      - id: second-question
+        type: human_wait
+        inputs: [followup-result]
+        outputs: [intermediate-answer]
+        prompt: Confirm the result.
+        next: third-question
+      - id: third-question
+        type: human_wait
+        inputs: [intermediate-answer]
+        outputs: [human-answer]
+        prompt: Confirm one more thing.
+        next: final-check
+      - id: final-check
+        type: check
+        inputs: [human-answer]
+        outputs: []
+        gate:
+          command: ["true"]
+          timeout_ms: 2000
+          success: complete
+          failure: blocked
+    """)
+
+    assert {:ok, loaded} = load(context)
+
+    assert loaded.stages["question"] == %{
+             id: "question",
+             type: :human_wait,
+             inputs: ["patch"],
+             outputs: ["answer"],
+             prompt: "What should happen next?",
+             next: "followup"
+           }
+
+    assert loaded.stages["second-question"].next == "third-question"
+    assert loaded.stages["third-question"].next == "final-check"
+    assert loaded.stages["final-check"].gate.success == :complete
+  end
+
+  test "human wait can complete directly", context do
+    add_human_wait!(context, "patch", "complete", "success: complete")
+    assert {:ok, loaded} = load(context)
+    assert loaded.stages["question"].next == :complete
+  end
+
+  test "human wait definitions accept exactly their declared fields", context do
+    add_human_wait!(context, "patch", "complete", "success: complete")
+    replace_in_file!(context.workstream_path, "prompt: Please answer.", "prompt: Please answer.\nextra: true")
+
+    assert {:error, {:invalid_definition_fields, {:stage, "question"}, [], ["extra"]}} = load(context)
+
+    File.write!(context.workstream_path, workstream_yaml())
+    add_human_wait!(context, "patch", "complete", "success: complete")
+    replace_in_file!(context.workstream_path, "prompt: Please answer.\n", "")
+
+    assert {:error, {:invalid_definition_fields, {:stage, "question"}, ["prompt"], []}} = load(context)
+  end
+
+  test "rejects unknown human wait transitions and inputs missing on an incoming path", context do
+    add_human_wait!(context, "missing", "unknown-stage", "success: complete")
+    assert {:error, {:unknown_stage_transition, "question", "unknown-stage"}} = load(context)
+
+    File.write!(context.workstream_path, workstream_yaml())
+    add_human_wait!(context, "missing", "complete", "success: complete")
+    assert {:error, {:stage_inputs_unavailable, "question", ["missing"]}} = load(context)
+  end
+
+  test "rejects an unbounded cycle through a human wait", context do
+    add_human_wait!(context, "patch", "implement", "success: complete")
+
+    assert {:error, {:unbounded_workstream_cycle, _}} = load(context)
+  end
+
   test "rejects stage inputs that are not available on every incoming path", context do
     replace_in_file!(context.workstream_path, "outputs: [patch]", "outputs: [other]")
 
@@ -500,6 +620,20 @@ defmodule SymphonyElixir.WorkstreamTest do
   end
 
   defp load(context), do: Workstream.load(context.workstream_path, %{"request" => "task"})
+
+  defp add_human_wait!(context, inputs, next, success_line) do
+    replace_in_file!(context.workstream_path, success_line, "success: question")
+
+    append_to_file!(
+      context.workstream_path,
+      "  - id: question\n" <>
+        "    type: human_wait\n" <>
+        "    inputs: [#{inputs}]\n" <>
+        "    outputs: [answer]\n" <>
+        "    prompt: Please answer.\n" <>
+        "    next: #{next}\n"
+    )
+  end
 
   defp workstream_yaml do
     """

@@ -1,0 +1,434 @@
+defmodule SymphonyElixir.DurableWorkstreamTest do
+  use ExUnit.Case, async: false
+  alias SymphonyElixir.{AgentRuntimeSupervisor, Orchestrator, WorkstreamStore}
+
+  setup do
+    root = Path.join(System.tmp_dir!(), "durable-smoke-#{System.unique_integer([:positive])}")
+    workspace = Path.join(root, "workspaces/rig")
+    File.mkdir_p!(workspace)
+    {_, 0} = System.cmd("git", ["init", "--quiet", workspace])
+    File.write!(Path.join(root, "instructions.md"), "Pinned instructions")
+    File.write!(Path.join(root, "SKILL.md"), "Pinned skill")
+
+    File.write!(Path.join(root, "agent.yaml"), """
+    version: 1
+    name: controlled
+    model: gpt-6-luna
+    reasoning_effort: medium
+    daybreak: false
+    approval_policy: never
+    sandbox: workspace-write
+    instructions: [instructions.md]
+    skills: [SKILL.md]
+    """)
+
+    path = Path.join(root, "flow.yaml")
+
+    File.write!(path, """
+    version: 1
+    name: controlled-local
+    inputs: [task]
+    agents:
+      worker: agent.yaml
+    entry: implement
+    stages:
+      - id: implement
+        type: agent
+        inputs: [task]
+        outputs: [candidate]
+        agent: worker
+        prompt: Create a candidate.
+        next: validate
+      - id: validate
+        type: check
+        inputs: [candidate]
+        outputs: [validation]
+        gate:
+          command: [sh, -c, "printf checked >> effects; test -f candidate"]
+          timeout_ms: 1000
+          success: decision
+          failure:
+            repair: implement
+            max_attempts: 1
+      - id: decision
+        type: human_wait
+        inputs: [candidate, validation]
+        outputs: [answer]
+        prompt: Continue the local demo?
+        next: complete
+    """)
+
+    context = %{root: root, workspace: workspace, path: path, db: Path.join(root, "state/runs.sqlite"), options: [workspace: workspace, workspace_root: Path.join(root, "workspaces")]}
+    on_exit(fn -> File.rm_rf!(root) end)
+    context
+  end
+
+  defp runtime(context, executor, extra \\ []) do
+    suffix = System.unique_integer([:positive])
+    supervisor = Module.concat(__MODULE__, "Runtime#{suffix}")
+    coordinator = Module.concat(__MODULE__, "Coordinator#{suffix}")
+    tasks = Module.concat(__MODULE__, "Tasks#{suffix}")
+    opts = [name: supervisor, orchestrator_name: coordinator, task_supervisor_name: tasks, workstream_store_path: context.db, stage_executor: executor] ++ extra
+    pid = start_supervised!({AgentRuntimeSupervisor, opts}, id: supervisor)
+    %{pid: pid, supervisor: supervisor, coordinator: coordinator, tasks: tasks}
+  end
+
+  defp restart(runtime) do
+    old = Process.whereis(runtime.coordinator)
+    ref = Process.monitor(old)
+    Process.exit(old, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^old, :killed}
+
+    await(fn ->
+      case Process.whereis(runtime.coordinator) do
+        pid when is_pid(pid) and pid != old ->
+          try do
+            if is_map(GenServer.call(pid, :snapshot)), do: pid
+          catch
+            :exit, _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+    end)
+  end
+
+  defp await(fun, tries \\ 200)
+  defp await(_fun, 0), do: flunk("observable state did not converge")
+
+  defp await(fun, tries) do
+    case fun.() do
+      nil ->
+        Process.sleep(10)
+        await(fun, tries - 1)
+
+      false ->
+        Process.sleep(10)
+        await(fun, tries - 1)
+
+      value ->
+        value
+    end
+  end
+
+  defp run_state(runtime, id, status) do
+    await(fn ->
+      case Orchestrator.workstream_state(runtime.coordinator, id) do
+        {:ok, %{status: ^status} = report} -> report
+        _ -> nil
+      end
+    end)
+  end
+
+  defp queue(runtime, context, event \\ "queue", task \\ "task") do
+    assert {:ok, id} = Orchestrator.queue_workstream(runtime.coordinator, event, task, context.path, %{"task" => "controlled smoke"}, context.options)
+    id
+  end
+
+  defp normal_executor(stage, definition, run, opts) do
+    if stage.type == :agent do
+      File.write!(Path.join(run.workspace, "candidate"), "candidate")
+      {:ok, %{session_id: "controlled-session", thread_id: "controlled-thread", model: definition.agents["worker"].model}}
+    else
+      SymphonyElixir.WorkstreamRunner.execute_stage(stage, definition, run, opts)
+    end
+  end
+
+  test "restart retains pinned definitions, artifacts, workspace, waits and idempotent answers", c do
+    runtime = runtime(c, &normal_executor/4)
+    id = queue(runtime, c)
+    before = run_state(runtime, id, :waiting_for_answer)
+    assert before.workspace == c.workspace
+    assert before.session_id == "controlled-session"
+    assert [%{gate: nil}, %{gate: :passed}, %{status: :waiting}] = before.attempts
+    assert File.read!(Path.join(c.workspace, "effects")) == "checked"
+    File.write!(Path.join(c.root, "SKILL.md"), "Updated skill for future runs")
+    restart(runtime)
+    after_restart = run_state(runtime, id, :waiting_for_answer)
+    assert after_restart == before
+    assert {:ok, ^id} = Orchestrator.queue_workstream(runtime.coordinator, "queue", "task", c.path, %{"task" => "controlled smoke"}, c.options)
+    assert queue(runtime, c, "redelivery", "task") == id
+    assert {:error, :event_identity_conflict} = Orchestrator.queue_workstream(runtime.coordinator, "queue", "task", c.path, %{"task" => "changed"}, c.options)
+    wait_id = before.pending_wait.id
+    assert {:error, :invalid_human_wait_outputs} = Orchestrator.answer_workstream(runtime.coordinator, "bad", id, wait_id, %{})
+    assert {:error, :invalid_human_wait_outputs} = Orchestrator.answer_workstream(runtime.coordinator, "bad", id, wait_id, %{"answer" => self()})
+    assert :ok = Orchestrator.answer_workstream(runtime.coordinator, "answer", id, wait_id, %{"answer" => "yes"})
+    assert :ok = Orchestrator.answer_workstream(runtime.coordinator, "answer", id, wait_id, %{"answer" => "yes"})
+    assert {:error, :event_identity_conflict} = Orchestrator.answer_workstream(runtime.coordinator, "answer", id, wait_id, %{"answer" => "no"})
+    complete = run_state(runtime, id, :complete)
+    assert complete.outputs["answer"] == "yes"
+    assert length(complete.attempts) == 3
+    assert Task.Supervisor.children(runtime.tasks) == []
+    other = Path.join(c.root, "workspaces/other")
+    File.mkdir_p!(other)
+    {_, 0} = System.cmd("git", ["init", "--quiet", other])
+    assert {:ok, new_id} = Orchestrator.queue_workstream(runtime.coordinator, "new", "new-task", c.path, %{"task" => "new"}, Keyword.put(c.options, :workspace, other))
+    newer = run_state(runtime, new_id, :waiting_for_answer)
+    refute newer.definitions == before.definitions
+    assert newer.id != id
+  end
+
+  test "restart at a real committed stage boundary runs only the pending next stage", c do
+    runtime = runtime(c, &normal_executor/4, auto_advance: false)
+    id = queue(runtime, c)
+    assert run_state(runtime, id, :ready).phase == :queued
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    boundary = run_state(runtime, id, :ready)
+    assert boundary.stage_id == "validate"
+    assert length(boundary.attempts) == 1
+    restart(runtime)
+    assert run_state(runtime, id, :ready) == boundary
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    checked = run_state(runtime, id, :ready)
+    assert checked.stage_id == "decision"
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    wait = run_state(runtime, id, :waiting_for_answer)
+    assert length(wait.attempts) == 3
+    assert File.read!(Path.join(c.workspace, "effects")) == "checked"
+  end
+
+  test "caller event IDs cannot shadow a future internal operation event", c do
+    runtime = runtime(c, &normal_executor/4, auto_advance: false)
+    id = queue(runtime, c)
+    # This is exactly the next internal start-event identity before it exists.
+    collision = "#{id}/implement/1/start"
+    assert queue(runtime, c, collision, "task") == id
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    boundary = run_state(runtime, id, :ready)
+    assert boundary.stage_id == "validate"
+    restart(runtime)
+    assert run_state(runtime, id, :ready) == boundary
+    store = :sys.get_state(runtime.coordinator).workstreams.store
+    assert {:ok, %{event: %{kind: :stage_started}}} = WorkstreamStore.event(store, collision)
+    assert {:ok, %{event: %{kind: :queued}}} = WorkstreamStore.event(store, "input/" <> collision)
+  end
+
+  test "supervised coordinator restart reconciles original live worker and accepts its receipt once", c do
+    parent = self()
+
+    executor = fn stage, definition, run, opts ->
+      if stage.type == :agent do
+        send(parent, {:started, self(), run.current_attempt_id})
+
+        receive do
+          :finish -> normal_executor(stage, definition, run, opts)
+        end
+      else
+        normal_executor(stage, definition, run, opts)
+      end
+    end
+
+    runtime = runtime(c, executor)
+    id = queue(runtime, c)
+    assert_receive {:started, worker, attempt_id}
+    first = run_state(runtime, id, :executing)
+    restart(runtime)
+    assert Process.alive?(worker)
+    assert Task.Supervisor.children(runtime.tasks) == [worker]
+    assert run_state(runtime, id, :executing).workspace == first.workspace
+    send(worker, :finish)
+    wait = run_state(runtime, id, :waiting_for_answer)
+    refute_receive {:started, _, _}
+    send(Process.whereis(runtime.coordinator), {:workstream_result, id, attempt_id, worker, {:ok, %{session_id: "replayed"}}})
+    assert {:ok, ^wait} = Orchestrator.workstream_state(runtime.coordinator, id)
+    assert File.read!(Path.join(c.workspace, "effects")) == "checked"
+  end
+
+  test "unknown worker liveness reserves capacity and blocks replacement across restart", c do
+    parent = self()
+
+    executor = fn _stage, _definition, _run, _opts ->
+      send(parent, {:started, self()})
+
+      receive do
+        :never -> {:error, :not_expected}
+      end
+    end
+
+    runtime = runtime(c, executor)
+    id = queue(runtime, c)
+    assert_receive {:started, worker}
+    Process.exit(worker, :kill)
+    pending = run_state(runtime, id, :reconciling)
+    assert pending.phase == :reconciling
+    restart(runtime)
+    assert :ok = Orchestrator.reconcile_workstreams(runtime.coordinator)
+    assert length(run_state(runtime, id, :reconciling).attempts) == 1
+    assert Task.Supervisor.children(runtime.tasks) == []
+    refute_receive {:started, _}
+  end
+
+  test "lost action receipt reconciles known side effect without replay", c do
+    parent = self()
+
+    executor = fn stage, definition, run, opts ->
+      if stage.type == :check do
+        File.write!(Path.join(run.workspace, "effects"), "once")
+        send(parent, {:action_applied, self()})
+
+        receive do
+          :never -> {:error, :not_expected}
+        end
+      else
+        normal_executor(stage, definition, run, opts)
+      end
+    end
+
+    reconciler = fn _run, operation ->
+      if operation.type == :check, do: {:completed, {:ok, %{exit_status: 0, timed_out: false, output: "observed existing effect"}}}, else: :unknown
+    end
+
+    runtime = runtime(c, executor, workstream_reconciler: reconciler)
+    id = queue(runtime, c)
+    assert_receive {:action_applied, worker}
+    Process.exit(worker, :kill)
+    pending = run_state(runtime, id, :reconciling)
+    operation_id = pending.current_attempt_id
+    restart(runtime)
+    recovered = run_state(runtime, id, :waiting_for_answer)
+    assert recovered.operations[operation_id].status == :completed
+    assert File.read!(Path.join(c.workspace, "effects")) == "once"
+    refute_receive {:action_applied, _}
+    restart(runtime)
+    assert length(run_state(runtime, id, :waiting_for_answer).attempts) == 3
+  end
+
+  test "repair and transport counters persist and a failing check stays blocked", c do
+    parent = self()
+
+    executor = fn stage, _definition, run, _opts ->
+      if stage.type == :agent do
+        send(parent, {:attempt, run.repairs, self()})
+
+        receive do
+          :finish -> {:ok, %{session_id: "controlled"}}
+        end
+      else
+        {:ok, %{exit_status: 1, timed_out: false, output: "required assertion failed"}}
+      end
+    end
+
+    runtime = runtime(c, executor, workstream_reconciler: fn _, _ -> :terminated end)
+    id = queue(runtime, c)
+    assert_receive {:attempt, repairs, first}
+    assert repairs == %{}
+    Process.exit(first, :kill)
+    run_state(runtime, id, :reconciling)
+    restart(runtime)
+    assert_receive {:attempt, _, replacement}
+    send(replacement, :finish)
+    assert_receive {:attempt, %{"validate" => 1}, repaired}
+    executing = run_state(runtime, id, :executing)
+    assert executing.transport_retries == 1
+    restart(runtime)
+    assert run_state(runtime, id, :executing).repairs == %{"validate" => 1}
+    send(repaired, :finish)
+    blocked = run_state(runtime, id, :blocked)
+    assert blocked.transport_retries == 1
+    assert blocked.repairs == %{"validate" => 1}
+    assert List.last(blocked.attempts).gate == :failed
+  end
+
+  test "a committed result is acknowledged after restart even when the previous ack was lost", c do
+    runtime = runtime(c, &normal_executor/4)
+    id = queue(runtime, c)
+    run_state(runtime, id, :waiting_for_answer)
+    state = :sys.get_state(runtime.coordinator)
+    run = state.workstreams.runs[id]
+    completed = Enum.find(run.attempts, &(&1.type == :check))
+    parent = self()
+
+    worker =
+      Task.Supervisor.async_nolink(runtime.tasks, fn ->
+        Process.put(:symphony_workstream, %{run_id: id, attempt_id: completed.id, operation_id: completed.id})
+        send(parent, :receipt_ready)
+
+        receive do
+          {:workstream_ack, _} -> :acked
+        end
+      end)
+
+    assert_receive :receipt_ready
+    restart(runtime)
+    assert Task.await(worker) == :acked
+    assert length(run_state(runtime, id, :waiting_for_answer).attempts) == 3
+  end
+
+  test "a fresh BEAM process restores the actual run and executable evidence", c do
+    executor = fn stage, definition, run, opts ->
+      case normal_executor(stage, definition, run, opts) do
+        {:ok, evidence} -> {:ok, Map.put(evidence, :custom_producer_metadata, %{opaque_custom_key: "retained"})}
+        error -> error
+      end
+    end
+
+    runtime = runtime(c, executor)
+    id = queue(runtime, c)
+    saved = run_state(runtime, id, :waiting_for_answer)
+    store = :sys.get_state(runtime.coordinator).workstreams.store
+    monitor = Process.monitor(store)
+    assert :ok = stop_supervised(runtime.supervisor)
+    assert_receive {:DOWN, ^monitor, :process, ^store, _}
+
+    script = """
+    for app <- [:yaml_elixir, :jason, :exqlite], do: {:ok, _} = Application.ensure_all_started(app)
+    {:ok, runtime} = SymphonyElixir.AgentRuntimeSupervisor.start_link(name: FreshRuntime,
+      orchestrator_name: FreshCoordinator, task_supervisor_name: FreshTasks,
+      workstream_store_path: #{inspect(c.db)})
+    {:ok, report} = SymphonyElixir.Orchestrator.workstream_state(FreshCoordinator, #{inspect(id)})
+    IO.puts(Jason.encode!(report))
+    Supervisor.stop(runtime)
+    """
+
+    paths = Enum.flat_map(:code.get_path(), fn path -> ["-pa", to_string(path)] end)
+    {json, status} = System.cmd("elixir", paths ++ ["-e", script], stderr_to_stdout: true)
+    assert status == 0, json
+    assert Jason.decode!(json) == Jason.decode!(Jason.encode!(saved))
+  end
+
+  test "database inside a writable worker workspace rejects before dispatch", c do
+    inside = %{c | db: Path.join(c.workspace, "state/runs.sqlite")}
+    runtime = runtime(inside, &normal_executor/4)
+    assert {:error, :database_overlaps_worker_workspace} = Orchestrator.queue_workstream(runtime.coordinator, "queue", "task", c.path, %{"task" => "controlled"}, c.options)
+    assert Task.Supervisor.children(runtime.tasks) == []
+  end
+
+  test "changed service policy blocks a saved ready stage instead of silently changing its behavior", c do
+    runtime = runtime(c, &normal_executor/4, auto_advance: false)
+    id = queue(runtime, c)
+
+    :sys.replace_state(runtime.coordinator, fn state ->
+      run = put_in(state.workstreams.runs[id].policy.lifecycle_sha256, "previous-service-policy")
+      # replace_state returns the whole State; persist its modified run as an old release fixture.
+      :ok = WorkstreamStore.commit(state.workstreams.store, run.workstreams.runs[id], "previous-policy", %{kind: :old_release_fixture})
+      run
+    end)
+
+    restart(runtime)
+    blocked = run_state(runtime, id, :policy_blocked)
+    assert blocked.policy.lifecycle_sha256 == "previous-service-policy"
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    assert Task.Supervisor.children(runtime.tasks) == []
+    assert blocked.attempts == []
+  end
+
+  test "manual mode avoids tracker startup and rejects malformed requests without dispatch", c do
+    runtime = runtime(c, &normal_executor/4)
+    assert {:error, :inputs_must_be_json_data} = Orchestrator.queue_workstream(runtime.coordinator, "bad", "task", c.path, %{"task" => self()}, c.options)
+    assert {:error, :invalid_event_id} = Orchestrator.queue_workstream(runtime.coordinator, "", "task", c.path, %{"task" => "task"}, c.options)
+
+    assert {:error, :invalid_workstream_execution_options} =
+             Orchestrator.queue_workstream(runtime.coordinator, "opts", "task", c.path, %{"task" => "task"}, c.options ++ [agent_executor: fn -> :ok end])
+
+    assert Task.Supervisor.children(runtime.tasks) == []
+    id = queue(runtime, c)
+    run_state(runtime, id, :waiting_for_answer)
+    assert {:error, :workspace_already_owned} = Orchestrator.queue_workstream(runtime.coordinator, "other", "other", c.path, %{"task" => "task"}, c.options)
+    assert {:error, :unknown_workstream_run} = Orchestrator.workstream_state(runtime.coordinator, "unknown")
+    store = :sys.get_state(runtime.coordinator).workstreams.store
+    assert {:ok, [stored]} = WorkstreamStore.load(store)
+    assert stored.id == id
+    assert stored.definition.definitions[Path.join(c.root, "SKILL.md")].text == "Pinned skill"
+  end
+end
