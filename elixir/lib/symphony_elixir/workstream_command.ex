@@ -54,7 +54,8 @@ defmodule SymphonyElixir.WorkstreamCommand do
       {^port, {:exit_status, status}} ->
         # Also stop children left behind by a command that exited before its timeout.
         System.cmd("kill", ["-KILL", "--", "-#{group_id}"], stderr_to_stdout: true)
-        safe_output = output |> redact() |> valid_utf8()
+        {safe_output, expanded} = output |> redact() |> valid_utf8() |> bounded_output()
+        truncated = truncated or expanded
         {:ok, %{exit_status: status, output: safe_output, truncated: truncated, timed_out: status in [124, 137]}}
     end
   end
@@ -68,10 +69,23 @@ defmodule SymphonyElixir.WorkstreamCommand do
   end
 
   defp valid_utf8(output) do
+    output |> utf8_chunks([]) |> IO.iodata_to_binary()
+  end
+
+  defp utf8_chunks(output, chunks) do
     case :unicode.characters_to_binary(output) do
-      valid when is_binary(valid) -> valid
-      {:error, valid, <<_invalid, rest::binary>>} -> valid <> "�" <> valid_utf8(rest)
-      {:incomplete, valid, _rest} -> valid <> "�"
+      valid when is_binary(valid) -> Enum.reverse([valid | chunks])
+      {:error, valid, <<_invalid, rest::binary>>} -> utf8_chunks(rest, ["�", valid | chunks])
+      {:incomplete, valid, _rest} -> Enum.reverse(["�", valid | chunks])
+    end
+  end
+
+  defp bounded_output(output) when byte_size(output) <= @max_output, do: {output, false}
+
+  defp bounded_output(output) do
+    case :unicode.characters_to_binary(binary_part(output, 0, @max_output)) do
+      valid when is_binary(valid) -> {valid, true}
+      {:incomplete, valid, _rest} -> {valid, true}
     end
   end
 end

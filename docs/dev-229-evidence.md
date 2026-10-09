@@ -76,6 +76,9 @@ The worker reused the signed-in ChatGPT session through a temporary local auth
 file. No API key was used. Git clone credentials were removed before dispatch.
 Reports retain only session/model metadata and redacted gate output, not auth
 files, prompts, or raw app-server traffic.
+After saving the reports and diffs, temporary authentication files were removed
+and all four disposable worker containers and both local snapshots were deleted.
+The Rig candidate clones were inside those workers and were not published.
 
 ## Exact run and test commands
 
@@ -127,8 +130,8 @@ ran sequentially with `CARGO_BUILD_JOBS=3`.
 
 | Run | Agent duration | Gate duration | Cargo wall time | Peak RSS (KiB) | Result |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Passing regression | 19.018 s | 1.369 s | 1.35 s | 270460 | 1 passed |
-| Intentionally failing regression | 20.739 s | 1.396 s | 1.38 s | 270112 | 1 failed |
+| Passing regression | 28.329 s | 1.344 s | 1.33 s | 272432 | 1 passed |
+| Intentionally failing regression | 33.887 s | 1.371 s | 1.35 s | 270244 | 1 failed |
 
 GNU time's RSS measurement covers the Cargo command and its descendants; it
 is not total worker or model memory. These numbers establish only a small
@@ -137,7 +140,7 @@ focused-crate baseline.
 ## Development checks and review
 
 The final `mise exec -- make all` passed in the exact Linux source snapshot:
-345 tests, zero failures, six opt-in skips, 100% coverage, strict format/lint,
+346 tests, zero failures, six opt-in skips, 100% coverage, strict format/lint,
 and zero Dialyzer warnings. [Full gate log](../factory/evidence/dev-229/make-all.log).
 The [source manifest](../factory/evidence/dev-229/source.sha256.json) identifies
 all 17 implementation and definition files compared byte-for-byte with the host.

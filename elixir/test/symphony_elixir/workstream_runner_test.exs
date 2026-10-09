@@ -166,4 +166,16 @@ defmodule SymphonyElixir.WorkstreamRunnerTest do
     File.chmod!(executable, 0o700)
     assert {:ok, %{exit_status: 0, output: "workspace check"}} = WorkstreamCommand.run(["./check.sh"], context.workspace, 1000)
   end
+
+  test "Unicode replacement and redaction expansion retain the final output cap", context do
+    commands = ["head -c 65536 /dev/zero | tr '\\000' '\\377'", "yes sk-a | head -c 40000"]
+
+    for command <- commands do
+      assert {:ok, result} = WorkstreamCommand.run(["sh", "-c", command], context.workspace, 1000)
+      assert result.truncated
+      assert byte_size(result.output) <= 65_536
+      assert String.valid?(result.output)
+      assert Jason.encode!(result)
+    end
+  end
 end

@@ -1,8 +1,8 @@
 diff --git a/crates/rig-agent-hooks/src/agent.rs b/crates/rig-agent-hooks/src/agent.rs
-index 9b5a236..6560a33 100644
+index 9b5a236..7af657b 100644
 --- a/crates/rig-agent-hooks/src/agent.rs
 +++ b/crates/rig-agent-hooks/src/agent.rs
-@@ -620,4 +620,29 @@ mod tests {
+@@ -620,4 +620,25 @@ mod tests {
          );
          assert!(!outside.0.join("hooks.json").exists());
      }
@@ -15,20 +15,16 @@ index 9b5a236..6560a33 100644
 +        let directory = Directory::create();
 +        let outside = Directory::create();
 +        let executable = std::env::current_exe().unwrap();
-+        let outside_config = outside.0.join("hooks.json");
-+        let original_bytes = br#"{"hooks":{"Stop":[]}}"#;
-+        std::fs::write(&outside_config, original_bytes).unwrap();
++        let target = outside.0.join("hooks.json");
++        let original = br#"{"hooks":{"Stop":[]}}"#;
++        std::fs::write(&target, original).unwrap();
 +        std::fs::create_dir(directory.0.join(".codex")).unwrap();
-+        symlink(
-+            &outside_config,
-+            directory.0.join(".codex/hooks.json"),
-+        )
-+        .unwrap();
++        symlink(&target, directory.0.join(".codex/hooks.json")).unwrap();
 +
 +        assert_eq!(
 +            install_codex(&directory.0, &executable).unwrap_err().code,
 +            "native_agent_config_unsafe"
 +        );
-+        assert_eq!(std::fs::read(&outside_config).unwrap(), original_bytes);
++        assert_eq!(std::fs::read(&target).unwrap(), original);
 +    }
  }
