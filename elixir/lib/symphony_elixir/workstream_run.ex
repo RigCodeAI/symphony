@@ -12,8 +12,9 @@ defmodule SymphonyElixir.WorkstreamRun do
   @external_resource Path.join(__DIR__, "validation.ex")
   @external_resource Path.join(__DIR__, "validation_policy.ex")
   @external_resource Path.join(__DIR__, "validation_command.ex")
+  @external_resource Path.join(__DIR__, "candidate_git.ex")
   @external_resource Path.join(__DIR__, "workstream.ex")
-  @validation_digest ["validation.ex", "validation_policy.ex", "validation_command.ex", "workstream.ex"]
+  @validation_digest ["validation.ex", "validation_policy.ex", "validation_command.ex", "candidate_git.ex", "workstream.ex"]
                      |> Enum.map(&File.read!(Path.join(__DIR__, &1)))
                      |> IO.iodata_to_binary()
                      |> then(fn source -> :crypto.hash(:sha256, source) end)
@@ -199,8 +200,8 @@ defmodule SymphonyElixir.WorkstreamRun do
   end
 
   defp workspace_branch(workspace) do
-    case System.cmd("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], cd: workspace, stderr_to_stdout: true) do
-      {branch, 0} -> String.trim(branch)
+    case SymphonyElixir.CandidateGit.run(workspace, ["symbolic-ref", "--quiet", "--short", "HEAD"]) do
+      {:ok, branch} -> String.trim(branch)
       _ -> nil
     end
   end

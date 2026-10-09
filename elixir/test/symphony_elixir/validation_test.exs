@@ -205,6 +205,57 @@ defmodule SymphonyElixir.ValidationTest do
   end
 end
 
+defmodule SymphonyElixir.ValidationGitSafetyTest do
+  use ExUnit.Case, async: true
+  alias SymphonyElixir.{Validation, ValidationPolicy}
+
+  test "a same-size edit cannot execute a candidate clean filter before isolation" do
+    root = Path.join(System.tmp_dir!(), "validation-git-#{System.unique_integer([:positive])}")
+    workspace = Path.join(root, "candidate")
+    marker = Path.join(root, "executed")
+    File.mkdir_p!(workspace)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    for args <- [["init", "--quiet"], ["config", "user.name", "Fixture"], ["config", "user.email", "fixture@example.invalid"]] do
+      {_, 0} = System.cmd("git", args, cd: workspace)
+    end
+
+    File.write!(Path.join(workspace, "file.txt"), "before\n")
+    File.write!(Path.join(workspace, ".gitattributes"), "file.txt filter=arbitrary-worker-filter\n")
+    {_, 0} = System.cmd("git", ["add", "."], cd: workspace)
+    {_, 0} = System.cmd("git", ["commit", "--quiet", "-m", "fixture"], cd: workspace)
+    {head, 0} = System.cmd("git", ["rev-parse", "HEAD"], cd: workspace)
+    {_, 0} = System.cmd("git", ["config", "filter.arbitrary-worker-filter.clean", "touch #{marker}; cat"], cd: workspace)
+    File.write!(Path.join(workspace, "file.txt"), "after!\n")
+    File.touch!(Path.join(workspace, "file.txt"), {{2000, 1, 1}, {0, 0, 0}})
+
+    policy_path = Path.join(root, "policy.yaml")
+
+    File.write!(policy_path, """
+    version: 1
+    revision: safety-test
+    environment:
+      image: python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+      runner_version: docker-v1
+    checks:
+      - id: check
+        adapter: command
+        command: [python3, file.txt]
+        timeout_ms: 1000
+        paths: ['*']
+        result_format: exit_status
+    """)
+
+    {:ok, policy} = ValidationPolicy.load(policy_path, workspace)
+    context = %{task_id: "safe-git", run_id: "run", attempt_id: "attempt", base_sha: String.trim(head)}
+    opts = [workspace: workspace, validation_archive: Path.join(root, "archive"), validation_scratch: Path.join(root, "scratch")]
+    required = [%{check: "check", assertion: "exit_status", equals: 0}]
+    assert {:error, :dirty_candidate_commit_required} = Validation.execute(workspace, policy, context, required, opts)
+    assert {:error, :dirty_candidate_commit_required} = Validation.verify_result({:ok, %{receipt: %{}}}, policy, context, required, opts)
+    refute File.exists?(marker)
+  end
+end
+
 defmodule SymphonyElixir.ValidationStorageTest do
   use ExUnit.Case, async: true
   alias SymphonyElixir.Validation

@@ -7,12 +7,13 @@ defmodule SymphonyElixir.Validation do
   Docker executes candidate code without mounts or producer credentials. GCS
   archival and GitHub check/publication adapters belong to later increments.
   """
-  alias SymphonyElixir.{PathSafety, ValidationCommand, ValidationPolicy}
+  alias SymphonyElixir.{CandidateGit, PathSafety, ValidationCommand, ValidationPolicy}
   @source_root Path.expand("../../..", __DIR__)
   @version "candidate-validation-v1"
   @external_resource Path.join(__DIR__, "validation_policy.ex")
   @external_resource Path.join(__DIR__, "validation_command.ex")
-  @service_digest [__ENV__.file, Path.join(__DIR__, "validation_policy.ex"), Path.join(__DIR__, "validation_command.ex")]
+  @external_resource Path.join(__DIR__, "candidate_git.ex")
+  @service_digest [__ENV__.file, Path.join(__DIR__, "validation_policy.ex"), Path.join(__DIR__, "validation_command.ex"), Path.join(__DIR__, "candidate_git.ex")]
                   |> Enum.map(&File.read!/1)
                   |> IO.iodata_to_binary()
                   |> then(&:crypto.hash(:sha256, &1))
@@ -149,10 +150,10 @@ defmodule SymphonyElixir.Validation do
     with {:ok, head} <- git(workspace, ["rev-parse", "--verify", "HEAD^{commit}"]),
          {:ok, base} <- git(workspace, ["rev-parse", "--verify", Map.fetch!(context, :base_sha) <> "^{commit}"]),
          {:ok, tree} <- git(workspace, ["rev-parse", "HEAD^{tree}"]),
-         {:ok, status} <- git(workspace, ["status", "--porcelain=v1", "--untracked-files=normal"]),
+         {:ok, status} <- git(workspace, ["status", "--porcelain=v1", "--untracked-files=normal", "--ignore-submodules=all"]),
          true <- mode == :development or status == "",
          {:ok, paths} <- git(workspace, ["ls-tree", "-rz", "--name-only", "HEAD"]),
-         {:ok, diff} <- git(workspace, ["diff", "--no-ext-diff", "--no-renames", "--name-only", "-z", base, head]),
+         {:ok, diff} <- git(workspace, ["diff", "--no-ext-diff", "--no-renames", "--ignore-submodules=all", "--name-only", "-z", base, head]),
          {:ok, tracked_digest} <- source_digest(workspace, split_paths(paths)) do
       changed = if mode == :development, do: development_scope(workspace, base), else: split_paths(diff)
       {:ok, %{"candidate_sha" => head, "base_sha" => base, "source_tree" => tree, "source_digest" => tracked_digest, "changed_paths" => changed}, split_paths(paths)}
@@ -163,7 +164,7 @@ defmodule SymphonyElixir.Validation do
   end
 
   defp development_scope(workspace, base) do
-    {:ok, diff} = git(workspace, ["diff", "--no-ext-diff", "--no-renames", "--name-only", "-z", base])
+    {:ok, diff} = git(workspace, ["diff", "--no-ext-diff", "--no-renames", "--ignore-submodules=all", "--name-only", "-z", base])
     split_paths(diff)
   end
 
@@ -484,10 +485,7 @@ defmodule SymphonyElixir.Validation do
   defp failed_gate(id, reason), do: %{verdict: :failed, evidence_id: id, rationale: [inspect(reason)]}
 
   defp git(workspace, args) do
-    case System.cmd("git", ["--no-replace-objects", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null" | args], cd: workspace, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, String.trim_trailing(output, "\n")}
-      {_output, status} -> {:error, {:candidate_git_error, hd(args), status}}
-    end
+    CandidateGit.run(workspace, args)
   end
 
   defp redact(output) do

@@ -76,6 +76,13 @@ no privilege escalation and no host mounts. Build commands must direct generated
 files to `/tmp` (Cargo gets `CARGO_TARGET_DIR=/tmp/target`). The image must already
 contain dependencies. Missing images do not trigger an automatic pull.
 
+Git inspection uses a private temporary metadata copy containing only regular
+object, ref, HEAD and index files. It never loads candidate config, hooks,
+alternates, or service global/system config. Inherited Git environment settings
+are cleared. Arbitrary clean/process filters named by candidate attributes have
+no configured commands to run. Base checks, workspace checks and branch lookup
+use the same boundary; links in copied metadata fail closed.
+
 The trusted service alone can reach the Docker daemon. Candidate containers get
 no daemon socket, source Git metadata, host home, API tokens, publisher/check
 credentials, policy files, or receipt-store mounts. Docker/host administrators
@@ -153,6 +160,7 @@ cd elixir
 mise exec -- mix run --no-start ../factory/scripts/validation-smoke.exs \
   /absolute/rig-source /tmp/new-dev236-demo
 SYMPHONY_RUN_VALIDATION_DOCKER=1 mise exec -- mix test \
+  test/symphony_elixir/candidate_git_test.exs \
   test/symphony_elixir/validation_test.exs \
   test/symphony_elixir/validation_policy_test.exs \
   test/symphony_elixir/validation_lifecycle_test.exs \

@@ -7,7 +7,7 @@ was committed only in a disposable local clone with pushing disabled.
 
 | Acceptance criterion | Evidence |
 | --- | --- |
-| Passing candidate receipt bound to SHA, policy/environment, commands and checksums | Real Rig architecture regression passed on candidate `f3c77e518dc84de62f4b6113692a333c0ddeae79`; receipt and identifiers below. Deterministic container fixture also passes. |
+| Passing candidate receipt bound to SHA, policy/environment, commands and checksums | Real Rig architecture regression passed on candidate `8268685d313a5dbfcf288f39c87c5f63f5989c3d`; receipt and identifiers below. Deterministic container fixture also passes. |
 | Failed, skipped-required, missing, stale and malformed results cannot qualify | `ValidationTest` exercises failures, exits 124/137, explicit service deadline, skipped/zero unittest results, missing/forged receipt, malformed assertions, corrupted artifacts, stale attempt/policy/source, and final focused-run rejection. Policy tests reject absent/incomplete/duplicate results and unavailable adapters. |
 | Source or policy weakening invalidates eligibility; feedback supports retry | The Rig demo invalidates the final receipt after a source edit and re-verifies after restoration. Fixtures reject committed source changes and candidate-owned policy edits; authenticated check/log feedback is returned. |
 | Same evaluator output, two explicit contracts, trusted service gates | `ValidationLifecycleTest` loads two YAML workstreams. A signed receipt containing `qualified=true`, `detected=false`, exit zero passes qualification and fails detection. Verdict, evidence identity and rationale are recorded separately. Forged verdict/feedback and PID metadata are discarded. |
@@ -16,7 +16,7 @@ was committed only in a disposable local clone with pushing disabled.
 ## Real check and stored identity
 
 Base Rig commit: `39d6d5d998366bf13af19eb74ae47d598ecf92bd`.
-Candidate: `f3c77e518dc84de62f4b6113692a333c0ddeae79`.
+Candidate: `8268685d313a5dbfcf288f39c87c5f63f5989c3d`.
 This adds a harmless README comment; no Rig candidate was pushed or published.
 
 Exact check, executed in the isolated clean snapshot:
@@ -29,16 +29,16 @@ python3 -m unittest discover -s tools -p test_architecture.py \
 Observed: one test, no skips, exit 0. Source digest before and after was
 `4ea2d8d496733e5e2cc2ec6a6fa3f1f8e616c3f14983de41c1c2a3c46d8d934c`.
 Policy digest: `7c435bf39be44853bdcf5c6603c376c43dae738ce9d6c0e4a07c3f5f600375b2`.
-Service implementation digest: `6569cb743ddd568475a8cac135e900db2b36cc26b8fac3007bab36e8cfcd4ff6`.
-Final receipt ID: `4da14146aa1ecbfca25109d8eef376a8e54d321181177ea2d8def57a40e037a0`.
-Manifest checksum: `dd2f8ebcc80c309d046aab690e4bc4b31565036fa157a5b191c98c449b50de3b`.
+Service implementation digest: `d28937262336b19ab598bffd7f99105b9079a5a52f3665362e129679e82cb491`.
+Final receipt ID: `1a32143ea7a0e39f82d63d7fbb8cef3092d29b471f8cf51b0a9f72c8f0bc64ec`.
+Manifest checksum: `4d7380d39d9da772e04f6ac39ba8ea25991757d729349698799c31ba1efa9908`.
 The 98-byte log has SHA-256
 `d10ffbd9f0faa72cd6837063279524e199b59fbc3d035051302a1e8dbc4b36ad`.
 The receipt additionally records the immutable base image, sealed image digest,
 resource limits, duration, assertion outcomes, timestamps and producer identity.
 
 The raw private archive, report and incremental candidate bundle are retained at
-`/private/tmp/dev236-evidence/final/` on the development host. The archive key is
+`/private/tmp/dev236-evidence/final-gitfix/` on the development host. The archive key is
 private and is not committed or printed. Service/test logs are retained under
 `/private/tmp/dev236-evidence/`. Generated logs are not part of this source PR.
 The [repeatable demo](trusted-validation.md#repeatable-demo-and-focused-checks)
@@ -51,6 +51,7 @@ files copied back, avoiding stale bind mounts. Exact final focused command:
 
 ```bash
 SYMPHONY_RUN_VALIDATION_DOCKER=1 mix test \
+  test/symphony_elixir/candidate_git_test.exs \
   test/symphony_elixir/validation_test.exs \
   test/symphony_elixir/validation_policy_test.exs \
   test/symphony_elixir/validation_lifecycle_test.exs \
@@ -61,12 +62,15 @@ SYMPHONY_RUN_VALIDATION_DOCKER=1 mix test \
 ```
 
 - Compilation with warnings as errors, format and specs checks passed.
-- Final focused run: 90 tests, zero failures. A later type-branch cleanup reran
-  the four affected lifecycle/runner files: 37 tests, zero failures.
+- Final post-review focused run: 98 tests, zero failures. This includes the
+  same-size edit regression, arbitrary clean/process filters, inherited Git
+  config, submodule filters, metadata symlinks and SHA-256 commits. The earlier
+  focused runs passed 90 tests and 37 affected lifecycle/runner tests.
 - The standalone `mix validation.run` interface produced a passing Rig receipt.
 - Earlier broad snapshot: 410 tests, zero failures, six opt-in skips; coverage
-  91.04% failed the repository's 100% threshold. The later feedback and type-branch
-  changes were verified with focused tests rather than another full-suite run.
+  91.04% failed the repository's 100% threshold. The later feedback, type-branch
+  and Git isolation changes were verified with focused tests rather than another
+  full-suite run.
 - `make all` stopped at strict Credo findings, including existing and added
   readability/complexity findings. Final Dialyzer reports only two unchanged
   `workstream_store.ex` warnings. Broad checks are non-blocking under the approved
@@ -78,6 +82,14 @@ and missing actionable repair logs. Deadline causes are owned by the service,
 not guessed from exit values. Candidate execution is unprivileged with sealed
 source, no network/host mounts and no producer credentials. No extra formal
 review was required under the alpha development override.
+
+Coordinator review reproduced candidate Git filters executing on the service
+host before isolation. The fix routes every candidate Git interaction through private
+metadata with service-owned config, clears inherited Git settings and disables
+submodule inspection. The same-size edit returns a dirty-candidate error without
+creating a host marker; both execute and receipt verification paths are covered.
+The service digest and real Rig receipt above were regenerated after this fix.
+Prior evidence remains retained under `final/` but cannot qualify this service version.
 
 This is local validation evidence. Production GitHub checks/publication, GCS
 archival and real Coverage Factory adapters remain their assigned later tickets.

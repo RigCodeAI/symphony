@@ -9,7 +9,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
   """
 
   alias SymphonyElixir.Codex.AppServer
-  alias SymphonyElixir.{PathSafety, Validation, ValidationPolicy, Workstream, WorkstreamCommand}
+  alias SymphonyElixir.{CandidateGit, PathSafety, Validation, ValidationPolicy, Workstream, WorkstreamCommand}
 
   @source_root Path.expand("../../..", __DIR__)
 
@@ -271,19 +271,8 @@ defmodule SymphonyElixir.WorkstreamRunner do
     case Keyword.fetch(opts, :validation_base) do
       {:ok, sha} when is_binary(sha) ->
         if Regex.match?(~r/\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/, sha) do
-          git_args = [
-            "--no-replace-objects",
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "rev-parse",
-            "--verify",
-            sha <> "^{commit}"
-          ]
-
-          case System.cmd("git", git_args, cd: workspace, stderr_to_stdout: true) do
-            {resolved, 0} ->
+          case CandidateGit.run(workspace, ["rev-parse", "--verify", sha <> "^{commit}"]) do
+            {:ok, resolved} ->
               if String.trim(resolved) == sha,
                 do: {:ok, sha},
                 else: {:error, :validation_base_must_be_an_existing_commit}
@@ -381,7 +370,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
 
   defp dedicated_clone(workspace) do
     with {:ok, %File.Stat{type: :directory}} <- File.lstat(Path.join(workspace, ".git")),
-         {top, 0} <- System.cmd("git", ["rev-parse", "--show-toplevel"], cd: workspace, stderr_to_stdout: true),
+         {:ok, top} <- CandidateGit.run(workspace, ["rev-parse", "--show-toplevel"]),
          {:ok, canonical_top} <- PathSafety.canonicalize(String.trim(top)),
          true <- canonical_top == workspace do
       :ok
