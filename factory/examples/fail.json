@@ -1,0 +1,3 @@
+{
+  "task": "This disposable clone is an intentional failing-gate demonstration. Add the Unix test named agent_hook_refuses_a_configuration_file_symlink in crates/rig-agent-hooks/src/agent.rs. Create a project .codex/hooks.json symlink to an outside JSON file. Deliberately assert install_codex returns Ok, although it rejects unsafe symlinks. This assertion must fail. Do not repair it or run Cargo yourself; the service runs the gate and the coordinator cleans up the disposable clone after recording failure. Do not push, commit, or publish."
+}

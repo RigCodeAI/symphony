@@ -11,6 +11,23 @@ defmodule SymphonyElixir.Codex.AppServer do
   @turn_start_id 3
   @port_line_bytes 1_048_576
   @max_stream_log_bytes 1_000
+  @disabled_dynamic_tool_secret_names [
+    "LINEAR_API_KEY",
+    "LINEAR_API_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITLAB_PAT",
+    "GITLAB_ACCESS_TOKEN",
+    "GITLAB_TOKEN",
+    "OAUTH_TOKEN",
+    "JIRA_API_TOKEN",
+    "ASANA_PAT",
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN"
+  ]
   @type session :: %{
           port: port(),
           metadata: map(),
@@ -21,7 +38,19 @@ defmodule SymphonyElixir.Codex.AppServer do
           thread_id: String.t(),
           workspace: Path.t(),
           worker_host: String.t() | nil,
-          dynamic_tool_binding: map()
+          dynamic_tool_binding: map(),
+          dynamic_tools_enabled: boolean(),
+          requested_model: String.t() | nil,
+          effective_model: String.t() | nil,
+          reasoning_effort: String.t() | nil,
+          read_timeout_ms: pos_integer() | nil,
+          turn_timeout_ms: pos_integer() | nil
+        }
+  @type invocation_settings :: %{
+          model: String.t() | nil,
+          reasoning_effort: String.t() | nil,
+          read_timeout_ms: pos_integer() | nil,
+          turn_timeout_ms: pos_integer() | nil
         }
 
   @spec run(Path.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -38,29 +67,48 @@ defmodule SymphonyElixir.Codex.AppServer do
   @spec start_session(Path.t(), keyword()) :: {:ok, session()} | {:error, term()}
   def start_session(workspace, opts \\ []) do
     worker_host = Keyword.get(opts, :worker_host)
-    dynamic_tool_binding = DynamicTool.bind()
 
-    with {:ok, expanded_workspace} <- validate_workspace_cwd(workspace, worker_host),
-         {:ok, port} <- start_port(expanded_workspace, worker_host, dynamic_tool_binding) do
+    with {:ok, expanded_workspace} <-
+           validate_workspace_cwd(workspace, worker_host, Keyword.get(opts, :workspace_root)),
+         {:ok, command} <- resolve_command(opts),
+         {:ok, session_policies} <- session_policies(expanded_workspace, worker_host, opts),
+         {:ok, dynamic_tool_binding, dynamic_tools_enabled} <- dynamic_tool_binding(opts),
+         {:ok, requested_model} <- requested_model(opts),
+         {:ok, reasoning_effort} <- reasoning_effort(opts),
+         {:ok, read_timeout_ms} <- timeout_setting(opts, :read_timeout_ms),
+         {:ok, turn_timeout_ms} <- timeout_setting(opts, :turn_timeout_ms),
+         {:ok, port} <- start_port(expanded_workspace, worker_host, dynamic_tool_binding, command) do
       metadata = port_metadata(port, worker_host)
+      invocation_settings = invocation_settings(requested_model, reasoning_effort, read_timeout_ms, turn_timeout_ms)
 
-      with {:ok, session_policies} <- session_policies(expanded_workspace, worker_host),
-           {:ok, thread_id} <-
-             do_start_session(port, expanded_workspace, session_policies, dynamic_tool_binding) do
-        {:ok,
-         %{
-           port: port,
-           metadata: metadata,
-           approval_policy: session_policies.approval_policy,
-           auto_approve_requests: session_policies.approval_policy == "never",
-           thread_sandbox: session_policies.thread_sandbox,
-           turn_sandbox_policy: session_policies.turn_sandbox_policy,
-           thread_id: thread_id,
-           workspace: expanded_workspace,
-           worker_host: worker_host,
-           dynamic_tool_binding: dynamic_tool_binding
-         }}
-      else
+      case do_start_session(
+             port,
+             expanded_workspace,
+             session_policies,
+             dynamic_tool_binding,
+             invocation_settings
+           ) do
+        {:ok, %{thread_id: thread_id, effective_model: effective_model}} ->
+          {:ok,
+           %{
+             port: port,
+             metadata: metadata,
+             approval_policy: session_policies.approval_policy,
+             auto_approve_requests: session_policies.approval_policy == "never",
+             thread_sandbox: session_policies.thread_sandbox,
+             turn_sandbox_policy: session_policies.turn_sandbox_policy,
+             thread_id: thread_id,
+             workspace: expanded_workspace,
+             worker_host: worker_host,
+             dynamic_tool_binding: dynamic_tool_binding,
+             dynamic_tools_enabled: dynamic_tools_enabled,
+             requested_model: requested_model,
+             effective_model: effective_model,
+             reasoning_effort: reasoning_effort,
+             read_timeout_ms: read_timeout_ms,
+             turn_timeout_ms: turn_timeout_ms
+           }}
+
         {:error, reason} ->
           stop_port(port)
           {:error, reason}
@@ -78,7 +126,12 @@ defmodule SymphonyElixir.Codex.AppServer do
           turn_sandbox_policy: turn_sandbox_policy,
           thread_id: thread_id,
           workspace: workspace,
-          dynamic_tool_binding: dynamic_tool_binding
+          dynamic_tool_binding: dynamic_tool_binding,
+          dynamic_tools_enabled: dynamic_tools_enabled,
+          effective_model: effective_model,
+          reasoning_effort: session_reasoning_effort,
+          read_timeout_ms: read_timeout_ms,
+          turn_timeout_ms: turn_timeout_ms
         },
         prompt,
         issue,
@@ -87,11 +140,26 @@ defmodule SymphonyElixir.Codex.AppServer do
     on_message = Keyword.get(opts, :on_message, &default_on_message/1)
 
     tool_executor =
-      Keyword.get(opts, :tool_executor, fn tool, arguments ->
-        DynamicTool.execute(tool, arguments, dynamic_tool_binding, issue: issue)
-      end)
+      if dynamic_tools_enabled do
+        Keyword.get(opts, :tool_executor, fn tool, arguments ->
+          DynamicTool.execute(tool, arguments, dynamic_tool_binding, issue: issue)
+        end)
+      else
+        fn _tool, _arguments -> %{"success" => false, "error" => "dynamic tools are disabled"} end
+      end
 
-    case start_turn(port, thread_id, prompt, issue, workspace, approval_policy, turn_sandbox_policy) do
+    reasoning_effort = Keyword.get(opts, :reasoning_effort, session_reasoning_effort)
+
+    case start_turn(
+           port,
+           thread_id,
+           prompt,
+           issue,
+           workspace,
+           approval_policy,
+           turn_sandbox_policy,
+           %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms}
+         ) do
       {:ok, turn_id} ->
         session_id = "#{thread_id}-#{turn_id}"
         Logger.info("Codex session started for #{issue_context(issue)} session_id=#{session_id}")
@@ -107,17 +175,27 @@ defmodule SymphonyElixir.Codex.AppServer do
           metadata
         )
 
-        case await_turn_completion(port, on_message, tool_executor, auto_approve_requests) do
+        case await_turn_completion(
+               port,
+               on_message,
+               tool_executor,
+               auto_approve_requests,
+               turn_timeout_ms
+             ) do
           {:ok, result} ->
             Logger.info("Codex session completed for #{issue_context(issue)} session_id=#{session_id}")
 
-            {:ok,
-             %{
-               result: result,
-               session_id: session_id,
-               thread_id: thread_id,
-               turn_id: turn_id
-             }}
+            run_result = %{
+              result: result,
+              session_id: session_id,
+              thread_id: thread_id,
+              turn_id: turn_id
+            }
+
+            run_result = put_if_present(run_result, :model, effective_model)
+            run_result = put_if_present(run_result, :reasoning_effort, reasoning_effort)
+
+            {:ok, run_result}
 
           {:error, reason} ->
             Logger.warning("Codex session ended with error for #{issue_context(issue)} session_id=#{session_id}: #{inspect(reason)}")
@@ -147,14 +225,106 @@ defmodule SymphonyElixir.Codex.AppServer do
     stop_port(port)
   end
 
-  defp validate_workspace_cwd(workspace, nil) when is_binary(workspace) do
-    expanded_workspace = Path.expand(workspace)
-    expanded_root = Config.local_workspace_root()
-    expanded_root_prefix = expanded_root <> "/"
+  defp resolve_command(opts) do
+    command = Keyword.get_lazy(opts, :command, fn -> Config.settings!().codex.command end)
 
-    with {:ok, canonical_workspace} <- PathSafety.canonicalize(expanded_workspace),
+    if is_binary(command) and String.trim(command) != "" do
+      {:ok, command}
+    else
+      {:error, {:invalid_codex_command, command}}
+    end
+  end
+
+  defp dynamic_tool_binding(opts) do
+    case Keyword.get(opts, :dynamic_tools, true) do
+      true ->
+        {:ok, DynamicTool.bind(), true}
+
+      false ->
+        {:ok,
+         %{
+           tool_specs: [],
+           secret_environment_names: @disabled_dynamic_tool_secret_names
+         }, false}
+
+      value ->
+        {:error, {:invalid_dynamic_tools_option, value}}
+    end
+  end
+
+  defp requested_model(opts) do
+    case Keyword.get(opts, :model) do
+      nil -> {:ok, nil}
+      model when is_binary(model) and byte_size(model) > 0 -> {:ok, model}
+      value -> {:error, {:invalid_codex_model, value}}
+    end
+  end
+
+  defp invocation_settings(model, reasoning_effort, read_timeout_ms, turn_timeout_ms) do
+    %{
+      model: model,
+      reasoning_effort: reasoning_effort,
+      read_timeout_ms: read_timeout_ms,
+      turn_timeout_ms: turn_timeout_ms
+    }
+  end
+
+  defp returned_thread_model(response_payload, thread_payload) do
+    returned_model(response_payload) || returned_model(thread_payload)
+  end
+
+  defp returned_model(%{"model" => model}) when is_binary(model), do: model
+  defp returned_model(%{"model" => %{"id" => model}}) when is_binary(model), do: model
+  defp returned_model(_payload), do: nil
+
+  defp reasoning_effort(opts) do
+    case Keyword.get(opts, :reasoning_effort) do
+      nil -> {:ok, nil}
+      effort when is_binary(effort) and byte_size(effort) > 0 -> {:ok, effort}
+      value -> {:error, {:invalid_reasoning_effort, value}}
+    end
+  end
+
+  defp timeout_setting(opts, option_name) do
+    case Keyword.fetch(opts, option_name) do
+      :error -> {:ok, nil}
+      {:ok, timeout} when is_integer(timeout) and timeout > 0 -> {:ok, timeout}
+      {:ok, timeout} -> {:error, {:invalid_timeout, option_name, timeout}}
+    end
+  end
+
+  defp validate_runtime_settings(%{
+         approval_policy: approval_policy,
+         thread_sandbox: thread_sandbox,
+         turn_sandbox_policy: turn_sandbox_policy
+       })
+       when (is_binary(approval_policy) or is_map(approval_policy)) and is_binary(thread_sandbox) and
+              is_map(turn_sandbox_policy) do
+    {:ok,
+     %{
+       approval_policy: approval_policy,
+       thread_sandbox: thread_sandbox,
+       turn_sandbox_policy: turn_sandbox_policy
+     }}
+  end
+
+  defp validate_runtime_settings(settings), do: {:error, {:invalid_runtime_settings, settings}}
+
+  defp validate_workspace_cwd(workspace, nil, workspace_root) when is_binary(workspace) do
+    expanded_workspace = Path.expand(workspace)
+
+    expanded_root_result =
+      case workspace_root do
+        nil -> {:ok, Config.local_workspace_root()}
+        root when is_binary(root) and root != "" -> {:ok, Path.expand(root)}
+        other -> {:error, {:invalid_workspace_root, other}}
+      end
+
+    with {:ok, expanded_root} <- expanded_root_result,
+         {:ok, canonical_workspace} <- PathSafety.canonicalize(expanded_workspace),
          {:ok, canonical_root} <- PathSafety.canonicalize(expanded_root) do
       canonical_root_prefix = canonical_root <> "/"
+      expanded_root_prefix = expanded_root <> "/"
 
       cond do
         canonical_workspace == canonical_root ->
@@ -175,7 +345,7 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
-  defp validate_workspace_cwd(workspace, worker_host)
+  defp validate_workspace_cwd(workspace, worker_host, _workspace_root)
        when is_binary(workspace) and is_binary(worker_host) do
     cond do
       String.trim(workspace) == "" ->
@@ -189,7 +359,7 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
-  defp start_port(workspace, nil, dynamic_tool_binding) do
+  defp start_port(workspace, nil, dynamic_tool_binding, command) do
     executable = System.find_executable("bash")
 
     if is_nil(executable) do
@@ -202,7 +372,10 @@ defmodule SymphonyElixir.Codex.AppServer do
             :binary,
             :exit_status,
             :stderr_to_stdout,
-            args: [~c"-lc", String.to_charlist(local_launch_command(dynamic_tool_binding))],
+            args: [
+              ~c"-lc",
+              String.to_charlist(local_launch_command(dynamic_tool_binding, command))
+            ],
             cd: String.to_charlist(workspace),
             env: tracker_secret_port_env(dynamic_tool_binding),
             line: @port_line_bytes
@@ -213,25 +386,26 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
-  defp start_port(workspace, worker_host, dynamic_tool_binding) when is_binary(worker_host) do
-    remote_command = remote_launch_command(workspace, dynamic_tool_binding)
+  defp start_port(workspace, worker_host, dynamic_tool_binding, command)
+       when is_binary(worker_host) do
+    remote_command = remote_launch_command(workspace, dynamic_tool_binding, command)
     SSH.start_port(worker_host, remote_command, line: @port_line_bytes)
   end
 
-  defp local_launch_command(dynamic_tool_binding) do
+  defp local_launch_command(dynamic_tool_binding, command) do
     [
       tracker_secret_unset_command(dynamic_tool_binding),
-      "exec #{Config.settings!().codex.command}"
+      "exec #{command}"
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" && ")
   end
 
-  defp remote_launch_command(workspace, dynamic_tool_binding) when is_binary(workspace) do
+  defp remote_launch_command(workspace, dynamic_tool_binding, command) when is_binary(workspace) do
     [
       "cd #{shell_escape(workspace)}",
       tracker_secret_unset_command(dynamic_tool_binding),
-      "exec #{Config.settings!().codex.command}"
+      "exec #{command}"
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" && ")
@@ -272,7 +446,7 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
-  defp send_initialize(port) do
+  defp send_initialize(port, read_timeout_ms) do
     payload = %{
       "method" => "initialize",
       "id" => @initialize_id,
@@ -290,86 +464,140 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     send_message(port, payload)
 
-    with {:ok, _} <- await_response(port, @initialize_id) do
+    with {:ok, _} <- await_response(port, @initialize_id, read_timeout_ms) do
       send_message(port, %{"method" => "initialized", "params" => %{}})
       :ok
     end
   end
 
-  defp session_policies(workspace, nil) do
-    Config.codex_runtime_settings(workspace)
-  end
-
-  defp session_policies(workspace, worker_host) when is_binary(worker_host) do
-    Config.codex_runtime_settings(workspace, remote: true)
-  end
-
-  defp do_start_session(port, workspace, session_policies, dynamic_tool_binding) do
-    case send_initialize(port) do
-      :ok -> start_thread(port, workspace, session_policies, dynamic_tool_binding)
-      {:error, reason} -> {:error, reason}
+  defp session_policies(workspace, nil, opts) do
+    case Keyword.fetch(opts, :runtime_settings) do
+      {:ok, runtime_settings} -> validate_runtime_settings(runtime_settings)
+      :error -> Config.codex_runtime_settings(workspace)
     end
   end
 
-  defp start_thread(
-         port,
-         workspace,
-         %{approval_policy: approval_policy, thread_sandbox: thread_sandbox},
-         dynamic_tool_binding
-       ) do
+  defp session_policies(workspace, worker_host, opts) when is_binary(worker_host) do
+    case Keyword.fetch(opts, :runtime_settings) do
+      {:ok, runtime_settings} -> validate_runtime_settings(runtime_settings)
+      :error -> Config.codex_runtime_settings(workspace, remote: true)
+    end
+  end
+
+  defp do_start_session(port, workspace, session_policies, dynamic_tool_binding, settings) do
+    case send_initialize(port, settings.read_timeout_ms) do
+      :ok ->
+        start_thread(port, workspace, session_policies, dynamic_tool_binding, settings)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp start_thread(port, workspace, session_policies, dynamic_tool_binding, settings) do
+    requested_model = settings.model
+
+    params = %{
+      "approvalPolicy" => session_policies.approval_policy,
+      "sandbox" => session_policies.thread_sandbox,
+      "cwd" => workspace,
+      "dynamicTools" => dynamic_tool_binding.tool_specs
+    }
+
+    params =
+      if is_binary(requested_model), do: Map.put(params, "model", requested_model), else: params
+
     send_message(port, %{
       "method" => "thread/start",
       "id" => @thread_start_id,
-      "params" => %{
-        "approvalPolicy" => approval_policy,
-        "sandbox" => thread_sandbox,
-        "cwd" => workspace,
-        "dynamicTools" => dynamic_tool_binding.tool_specs
-      }
+      "params" => params
     })
 
-    case await_response(port, @thread_start_id) do
-      {:ok, %{"thread" => thread_payload}} ->
-        case thread_payload do
-          %{"id" => thread_id} -> {:ok, thread_id}
-          _ -> {:error, {:invalid_thread_payload, thread_payload}}
-        end
+    case await_response(port, @thread_start_id, settings.read_timeout_ms) do
+      {:ok, response_payload} ->
+        started_thread_response(response_payload, requested_model)
 
       other ->
         other
     end
   end
 
-  defp start_turn(port, thread_id, prompt, issue, workspace, approval_policy, turn_sandbox_policy) do
+  defp started_thread_response(%{"thread" => %{"id" => thread_id} = thread_payload} = response_payload, requested_model) do
+    effective_model = returned_thread_model(response_payload, thread_payload) || requested_model
+
+    with :ok <- validate_returned_model(requested_model, effective_model) do
+      {:ok, %{thread_id: thread_id, effective_model: effective_model}}
+    end
+  end
+
+  defp started_thread_response(%{"thread" => thread_payload}, _requested_model) do
+    {:error, {:invalid_thread_payload, thread_payload}}
+  end
+
+  defp started_thread_response(response_payload, _requested_model) do
+    {:error, {:invalid_thread_response, response_payload}}
+  end
+
+  defp validate_returned_model(requested_model, effective_model)
+       when is_binary(requested_model) and is_binary(effective_model) and
+              requested_model != effective_model do
+    {:error, {:codex_model_mismatch, requested_model, effective_model}}
+  end
+
+  defp validate_returned_model(_requested_model, _effective_model), do: :ok
+
+  defp start_turn(
+         port,
+         thread_id,
+         prompt,
+         issue,
+         workspace,
+         approval_policy,
+         turn_sandbox_policy,
+         %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms}
+       ) do
+    params = %{
+      "threadId" => thread_id,
+      "input" => [
+        %{
+          "type" => "text",
+          "text" => prompt
+        }
+      ],
+      "cwd" => workspace,
+      "title" => "#{issue.identifier}: #{issue.title}",
+      "approvalPolicy" => approval_policy,
+      "sandboxPolicy" => turn_sandbox_policy
+    }
+
+    params =
+      if is_binary(reasoning_effort), do: Map.put(params, "effort", reasoning_effort), else: params
+
     send_message(port, %{
       "method" => "turn/start",
       "id" => @turn_start_id,
-      "params" => %{
-        "threadId" => thread_id,
-        "input" => [
-          %{
-            "type" => "text",
-            "text" => prompt
-          }
-        ],
-        "cwd" => workspace,
-        "title" => "#{issue.identifier}: #{issue.title}",
-        "approvalPolicy" => approval_policy,
-        "sandboxPolicy" => turn_sandbox_policy
-      }
+      "params" => params
     })
 
-    case await_response(port, @turn_start_id) do
+    case await_response(port, @turn_start_id, read_timeout_ms) do
       {:ok, %{"turn" => %{"id" => turn_id}}} -> {:ok, turn_id}
       other -> other
     end
   end
 
-  defp await_turn_completion(port, on_message, tool_executor, auto_approve_requests) do
+  defp await_turn_completion(
+         port,
+         on_message,
+         tool_executor,
+         auto_approve_requests,
+         turn_timeout_ms
+       ) do
+    timeout_ms = turn_timeout_ms || Config.settings!().codex.turn_timeout_ms
+
     receive_loop(
       port,
       on_message,
-      Config.settings!().codex.turn_timeout_ms,
+      timeout_ms,
       "",
       tool_executor,
       auto_approve_requests
@@ -892,8 +1120,9 @@ defmodule SymphonyElixir.Codex.AppServer do
     String.starts_with?(normalized_label, "approve") or String.starts_with?(normalized_label, "allow")
   end
 
-  defp await_response(port, request_id) do
-    with_timeout_response(port, request_id, Config.settings!().codex.read_timeout_ms, "")
+  defp await_response(port, request_id, timeout_ms) do
+    timeout_ms = timeout_ms || Config.settings!().codex.read_timeout_ms
+    with_timeout_response(port, request_id, timeout_ms, "")
   end
 
   defp with_timeout_response(port, request_id, timeout_ms, pending_line) do
@@ -1005,6 +1234,9 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp default_on_message(_message), do: :ok
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, key, value), do: Map.put(map, key, value)
 
   defp tool_call_name(params) when is_map(params) do
     case Map.get(params, "tool") || Map.get(params, :tool) || Map.get(params, "name") || Map.get(params, :name) do

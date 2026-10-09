@@ -1,41 +1,108 @@
-# Symphony
+# Rig Symphony
 
-Symphony turns project work into isolated, autonomous implementation runs, allowing teams to manage
-work instead of supervising coding agents.
+This is `RigCodeAI/symphony`, a fork of OpenAI Symphony and the implementation repository
+for Rig's **Factory Setup** project. We are extending the existing Elixir coordinator
+into a software factory for the separate `RigCodeAI/rig` repository.
 
-[![Symphony demo video preview](.github/media/symphony-demo-poster.jpg)](https://player.vimeo.com/video/1186371009?h=5626e4b899)
+The intended flow is a delegated Linear issue → implementation → trusted validation →
+one linked PR → independent review and bounded fixes → human merge in GitHub → archive
+and cleanup. This is the target design, not a claim that the factory is deployed.
 
-_In this [demo video](https://player.vimeo.com/video/1186371009?h=5626e4b899), Symphony monitors a Linear board for work and spawns agents to handle the tasks. The agents complete the tasks and provide proof of work: CI status, PR review feedback, complexity analysis, and walkthrough videos. When accepted, the agents land the PR safely. Engineers do not need to supervise Codex; they can manage the work at a higher level._
+## Start here
 
-> [!WARNING]
-> Symphony is a low-key engineering preview for testing in trusted environments.
+- **Working agents:** read [AGENTS.md](AGENTS.md), then
+  [elixir/AGENTS.md](elixir/AGENTS.md) for Elixir work.
+- **Current scope and acceptance criteria:** read the
+  [Factory Setup project](https://linear.app/rigai/project/factory-setup-a2dff7721c28/overview)
+  and the assigned ticket, including dependencies and discussion.
+- **Existing service contract:** [SPEC.md](SPEC.md).
+- **Current implementation, setup and tests:** [elixir/README.md](elixir/README.md).
 
-## Running Symphony
+Factory Setup tickets change this repository. The factory being built will execute Rig
+coding tasks in separate workspaces; do not confuse the repositories or run factory
+coding sessions inside this service's source checkout.
 
-### Requirements
+## Current foundation and planned additions
 
-Symphony works best in codebases that have adopted
-[harness engineering](https://openai.com/index/harness-engineering/). Symphony is the next step --
-moving from managing coding agents to managing work that needs to get done.
+The existing implementation provides tracker polling, bounded scheduling, isolated issue
+workspaces, local/SSH workers, Codex app-server execution, retries, reconciliation and a
+runtime dashboard. See the Elixir README for its current behavior and limitations.
 
-### Option 1. Make your own
+Factory Setup adds file-defined workstreams, durable run/stage records, native Linear
+delegation and questions, trusted validation and PR publication, independent reviews,
+permanent evidence, and reproducible GCP deployment. Check current code and ticket
+evidence before treating any planned addition as available.
 
-Tell your favorite coding agent to build Symphony in a programming language of your choice:
+Workstreams define stages and inline gates. Agent definitions select instructions,
+models and runtime permissions; skills supply reusable procedures. Evaluators return
+evidence, and the service enforces gates. There is no separate agent-profile object or
+reusable gate registry in the initial design.
 
-> Implement Symphony according to the following spec:
-> https://github.com/openai/symphony/blob/main/SPEC.md
+The first increments are:
 
-### Option 2. Use our experimental reference implementation
+1. [DEV-229](https://linear.app/rigai/issue/DEV-229): run a local file-defined agent stage
+   followed by an executable check, proving passing and failing gates. This demo needs
+   neither cloud infrastructure, Linear integration, Daybreak nor publication.
+2. [DEV-232](https://linear.app/rigai/issue/DEV-232): persist those runs/stages and recover
+   through restart and human waits without duplicate execution.
+3. Bind deployment, delegation, validation, publication, review and cleanup to those
+   stages through the remaining tickets. Integrate Coverage Factory's separate contracts
+   and qualify capacity after the pilot works.
 
-Check out [elixir/README.md](elixir/README.md) for instructions on how to set up your environment
-and run the Elixir-based Symphony implementation. You can also ask your favorite coding agent to
-help with the setup:
+Use live ticket dependencies to schedule work. The local files
+`docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,
+are earlier drafts. They predate the workstream additions and published ticket updates;
+their profile terminology and unpublished-ticket notes are stale. They are background,
+not the current task queue.
 
-> Set up Symphony for my repository based on
-> https://github.com/openai/symphony/blob/main/elixir/README.md
+## Build and test the existing service
 
----
+From this checkout, with [mise](https://mise.jdx.dev/) installed:
 
-## License
+```bash
+cd elixir
+mise trust
+mise install
+mise exec -- mix setup
+mise exec -- mix build
+mise exec -- make all
+```
 
-This project is licensed under the [Apache License 2.0](LICENSE).
+The pinned runtime is in [elixir/mise.toml](elixir/mise.toml). `make all` runs setup,
+build, format checks, lint, test coverage and Dialyzer. See the Elixir README for focused
+tests and opt-in live integration tests, which create external resources.
+
+To run the existing service, provide an explicitly configured workflow from `elixir/`:
+
+```bash
+mise exec -- ./bin/symphony /absolute/path/to/configured/WORKFLOW.md
+```
+
+**Do not use [elixir/WORKFLOW.md](elixir/WORKFLOW.md) unchanged for Factory Setup.** It is
+an upstream example with an upstream project/clone, different Linear statuses, rework
+that closes the old PR, an agent-driven merge path, and a cleanup hook that can close
+PRs. The factory design instead preserves one PR, waits for a human GitHub merge, and
+requires archival before cleanup. Documentation changes do not change that sample's
+runtime behavior. Existing workflow compatibility is preserved. DEV-229's local entry point is
+`mix workstream.run`; see [Local workstreams](docs/local-workstreams.md) for
+versioned definitions, Linux bootstrap, passing/failing demos and exact commands.
+
+## Factory boundaries
+
+- Extend the existing coordinator; keep one writer per task and reconcile before retrying.
+- Dispatch only explicitly delegated eligible Rig issues, preserving their human owner.
+- Bind validation and review to exact revisions. Agent claims alone do not satisfy gates.
+- Keep cloud implementation and review agents separate. The development subagent setting
+  in `AGENTS.md` does not choose production factory models.
+- Retain private, redacted evidence after workspace deletion. Keep Coverage Factory's
+  independent qualification and scoring responsibilities in that project.
+- GCP deployment and roughly twelve combined cloud/review slots are planned and require
+  qualification. A build, configuration file or Terraform plan is not a live deployment.
+
+## Upstream and license
+
+This fork builds on [OpenAI Symphony](https://github.com/openai/symphony).
+The upstream [demo](https://player.vimeo.com/video/1186371009?h=5626e4b899) illustrates
+Symphony's original workflow; it is not evidence of this factory's readiness.
+
+Licensed under the [Apache License 2.0](LICENSE).

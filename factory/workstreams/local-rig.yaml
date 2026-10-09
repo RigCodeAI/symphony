@@ -1,0 +1,32 @@
+version: 1
+name: local-rig
+inputs: [task]
+agents:
+  worker: ../agents/local-worker.yaml
+  repair: ../agents/local-repair.yaml
+entry: implement
+stages:
+  - id: implement
+    type: agent
+    inputs: [task]
+    outputs: [candidate]
+    agent: worker
+    prompt: Follow the supplied task and shared instructions. Add only the requested test. The service runs the gate afterward.
+    next: validate
+  - id: validate
+    type: check
+    inputs: [candidate]
+    outputs: [validation]
+    gate:
+      command:
+        - bash
+        - -c
+        - |
+          set -euo pipefail
+          output=$(mktemp)
+          trap 'rm -f "$output"' EXIT
+          /usr/bin/time -v cargo test --locked -p sivere-agent-hooks --lib agent::tests::agent_hook_refuses_a_configuration_file_symlink -- --exact 2>&1 | tee "$output"
+          grep -Fq 'running 1 test' "$output" || { echo 'Required regression did not execute'; exit 1; }
+      timeout_ms: 300000
+      success: complete
+      failure: blocked

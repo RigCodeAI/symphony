@@ -1,0 +1,28 @@
+diff --git a/crates/rig-agent-hooks/src/agent.rs b/crates/rig-agent-hooks/src/agent.rs
+index 9b5a236..902e60c 100644
+--- a/crates/rig-agent-hooks/src/agent.rs
++++ b/crates/rig-agent-hooks/src/agent.rs
+@@ -620,4 +620,23 @@ mod tests {
+         );
+         assert!(!outside.0.join("hooks.json").exists());
+     }
++
++    #[cfg(unix)]
++    #[test]
++    fn agent_hook_refuses_a_configuration_file_symlink() {
++        use std::os::unix::fs::symlink;
++
++        let directory = Directory::create();
++        let outside = Directory::create();
++        let executable = std::env::current_exe().unwrap();
++        let target = outside.0.join("hooks.json");
++        let original = br#"{"hooks":{"Stop":[]}}"#;
++        std::fs::write(&target, original).unwrap();
++        std::fs::create_dir(directory.0.join(".codex")).unwrap();
++        symlink(&target, directory.0.join(".codex/hooks.json")).unwrap();
++
++        let result = install_codex(&directory.0, &executable);
++        assert_eq!(std::fs::read(&target).unwrap(), original);
++        assert!(result.is_ok());
++    }
+ }
