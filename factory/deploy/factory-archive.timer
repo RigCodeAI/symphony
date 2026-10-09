@@ -1,0 +1,11 @@
+[Unit]
+Description=Archive completed pilot smoke evidence
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=factory-maintenance@archive.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

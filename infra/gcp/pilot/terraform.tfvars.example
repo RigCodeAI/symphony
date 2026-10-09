@@ -1,0 +1,16 @@
+# Safe project and capacity defaults for the confirmed pilot project.
+project_id    = "factory-511117"
+region        = "us-central1"
+zone          = "us-central1-a"
+name_prefix   = "rig-factory"
+worker_count  = 1
+compute_enabled = false
+
+# Before planning, provide the exact dated Debian image, release commit/object/hash,
+# public half of the worker SSH key, Secret Manager version numbers, billing account,
+# monthly budget amount and verified notification recipients. Secret payloads belong
+# in Secret Manager and must never be added to this file. Enable compute only after
+# the pinned release object and all referenced Secret Manager versions are present.
+
+# Optional HTTPS ingress also needs a verified DNS hostname, an explicit viewer
+# allowlist and confirmation that the project belongs to the Google organization.

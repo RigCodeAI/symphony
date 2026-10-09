@@ -1,0 +1,11 @@
+[Unit]
+Description=Rig pilot %i maintenance
+After=network-online.target
+RequiresMountsFor=/srv/factory
+ConditionPathExists=/opt/factory/current
+
+[Service]
+Type=oneshot
+ExecStart=/opt/factory/current/factory/deploy/maintenance.sh %i
+UMask=0077
+TimeoutStartSec=300

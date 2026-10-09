@@ -1,0 +1,26 @@
+[Unit]
+Description=Rig Symphony pilot coordinator
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/srv/factory
+ConditionPathExists=/opt/factory/current/factory/deploy/PILOT-WORKFLOW.md
+
+[Service]
+Type=simple
+User=factory-coordinator
+Group=factory-coordinator
+WorkingDirectory=/opt/factory/current/elixir
+ExecStart=/opt/factory/current/factory/deploy/service.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/factory /run/factory
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

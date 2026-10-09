@@ -1,0 +1,79 @@
+# Portable pilot deployment
+
+These scripts operate a pilot release extracted under
+`/opt/factory/releases/<service-revision>`. A deployment contains
+`RELEASE.json` with a 40-character `service_revision` and a root-written
+`.verified-sha256` file containing the artifact's SHA-256. Startup stages the
+desired public settings in `/etc/factory/public.pending.json`; activation checks
+that settings file against the release before it can become effective.
+
+The service source is read-only after deployment. Runtime build data, logs,
+workspaces, and evidence live under `/srv/factory`. `env.sh` pins Mix's build
+and dependency paths to the release revision and uses the separate retained
+home for the active service role.
+
+## Activate a release
+
+Run activation as root after verifying and extracting a release:
+
+```bash
+sudo /opt/factory/releases/<service-revision>/factory/deploy/activate.sh \
+  /opt/factory/releases/<service-revision>
+```
+
+Activation checks the release SHA against staged settings (or the current
+effective settings during an explicit root activation), validates both
+pass/fail workstream inputs as the service user, and atomically changes
+`/opt/factory/current`. It promotes pending public settings and saves the last
+effective settings in `/srv/factory/active-public.json` only after activation
+succeeds. Coordinator activation restarts
+`factory-coordinator.service` and waits for the localhost state endpoint. If
+restart or health fails, the previous current link and active metadata are
+restored, while the previous public settings remain effective. Worker activation
+performs the same definition checks and link
+switch without stopping an in-flight worker task; each runner already uses its
+immutable release path and rejects a run if the active release changes before
+it finishes.
+
+## Submit the worker smoke
+
+The coordinator's Symphony service uses `PILOT-WORKFLOW.md`, an idle memory
+tracker with no hooks. It listens on port 8080 on the VM's private interfaces;
+the health check uses localhost, and GCP firewall rules restrict ingress to
+load-balancer health checks and proxies when optional HTTPS ingress is enabled.
+Pilot tasks start only when an operator invokes `factory-pilot` as the
+coordinator user. Submit separate pass and fail runs with unique IDs:
+
+```bash
+sudo -u factory-coordinator -- \
+  /opt/factory/current/factory/deploy/factory-pilot submit worker-a dev230-pass-01 pass
+sudo -u factory-coordinator -- \
+  /opt/factory/current/factory/deploy/factory-pilot submit worker-a dev230-fail-01 fail
+```
+
+The command resolves the worker's private IP from public config and connects
+with `/run/factory/ssh_config`, whose host key is pinned. It passes the active
+release revision and SHA to `worker-run.sh`; the worker verifies both before
+running `mix workstream.run` from the matching immutable release. The worker
+clones `/srv/factory/seed` with `--no-local`, pins the clone to the seed HEAD,
+and replaces the fetch and push URLs with `DISABLED` before any agent turn.
+The coordinator and worker each hold a per-worker lock, and the worker rejects
+run ID reuse.
+
+The `pass` run must complete with a successful executable gate. The `fail` run
+must block on its intentionally failing gate and return a nonzero Mix status.
+The operator command treats those expected outcomes as a successful smoke run.
+Both runs keep their workspaces and evidence separate.
+
+Each worker run records `report.json`, `mix.log`, `candidate.diff`,
+`revision.json`, and `finished.json` under `/srv/factory/runs/<run-id>`. It
+redacts model credentials and common token formats before writing those files.
+The coordinator validates an allowlisted tar containing only these regular
+files, checks their hashes, and records the coordinator-side submission in
+`submission.json`. It publishes its `finished.json` marker only after that
+receipt is final. The existing root archive timer uploads completed evidence;
+this CLI does not create or publish cloud resources itself.
+
+This is an operator-driven two-run smoke for the local workstream. It does not
+add scheduler behavior to Symphony or establish durable run recovery, review,
+publication, merge, or a general remote-work protocol.
