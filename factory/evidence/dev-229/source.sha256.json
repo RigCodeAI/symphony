@@ -1,0 +1,22 @@
+{
+  "base_commit": "be10a1b79df723d6d7612b5651c8522704dafb2e",
+  "files": {
+    "elixir/lib/mix/tasks/workstream.run.ex": "5b3dbe534b74104c891c8bffe4cb1ca90e4f9aaf58e751b69387ed7df342af01",
+    "elixir/lib/symphony_elixir/codex/app_server.ex": "ec9c52cc93f1883b56ddb46d1b5dd8ace7423dd0580416e5fd1945fb847303fd",
+    "elixir/lib/symphony_elixir/workstream.ex": "d5a92479ad9b64a3ff3b2d984b5b718dbcc650fb3b90557fe5c2a5b07726162d",
+    "elixir/lib/symphony_elixir/workstream_command.ex": "2bc5066494383a302b2e6d1c546018f8a01199987d10f64063879d587e1d9aaa",
+    "elixir/lib/symphony_elixir/workstream_runner.ex": "d9642979ce5fec6e6e883425fcea23c6466e451b84725981e3772a038237efd8",
+    "elixir/test/mix/tasks/workstream_run_test.exs": "68bd655d6d4b45ec85e293aa5e03235d6cb2cc5b1735d305f185b720e7f35d09",
+    "elixir/test/symphony_elixir/app_server_options_test.exs": "4c5086ab48e15126a38e2352648a56051a4dc63f793b96c17dd1370bf61964ba",
+    "elixir/test/symphony_elixir/workstream_runner_test.exs": "3aa432242bea1f7d4b43edeccc73da479d4031dc4cb00a70d31aa875743fb6fc",
+    "elixir/test/symphony_elixir/workstream_test.exs": "ce3625dd45a50337f7a58926b2038707a9e8c69498d97a1f21d2a851ce8df9fe",
+    "factory/agents/local-repair.yaml": "003daa7981701076b2d3bc53f54928aaed815552e98cf7fa8c3b5116ea57fee7",
+    "factory/agents/local-worker.yaml": "553d97a0e81f2d1c34471053696a69c618dd3ae34504c90bd5562047a2a5eb0d",
+    "factory/examples/fail.json": "891e368666ed1f0c449cfe773a731fb66800c07782dc9493b1d96ee1fd2978a0",
+    "factory/examples/pass.json": "72c913d30e9f986ae8099e4bb4642485d4c1f80678dc861e2559b3dd4ad23647",
+    "factory/instructions/local-rig.md": "313e4796343efae8ccd8a0990f293db639b48d563319d6d55c8b95ed26cd28eb",
+    "factory/scripts/bootstrap-linux.sh": "b63585f43ec016b4a893a2d5541c3688e2c0c2309389fac5d4005156c98fea34",
+    "factory/skills/local-rig/SKILL.md": "901ebd4154ab04bc957b3992267cd0ae2c5a3efa6bbe5eb3a8dffbdc70bb87f1",
+    "factory/workstreams/local-rig.yaml": "6a9097c2c30575c066ef991237e62c133115e2fbc066421e75109bab40e2e494"
+  }
+}

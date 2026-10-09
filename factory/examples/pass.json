@@ -1,0 +1,3 @@
+{
+  "task": "Add the Unix regression test named agent_hook_refuses_a_configuration_file_symlink in crates/rig-agent-hooks/src/agent.rs. Create a project .codex/hooks.json symlink to an outside JSON file. Assert install_codex rejects it with native_agent_config_unsafe and the outside bytes are unchanged. Do not run Cargo yourself; the service will execute the real gate. Do not push, commit, or publish."
+}

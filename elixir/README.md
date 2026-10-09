@@ -1,7 +1,18 @@
 # Symphony Elixir
 
+For the file-defined local agent → executable gate, use
+[`mix workstream.run`](../docs/local-workstreams.md). It validates version 1
+definitions and runs synchronously without starting tracker polling. The
+existing `WORKFLOW.md` service remains compatible.
+
 This directory contains the current Elixir/OTP implementation of Symphony, based on
 [`SPEC.md`](../SPEC.md) at the repository root.
+
+For this fork's Factory Setup scope, first read the [root README](../README.md) and
+[root agent guidance](../AGENTS.md). This document describes the existing runtime.
+The bundled `WORKFLOW.md` is an upstream example, not a ready-to-run Rig factory
+configuration: its PR replacement, merge and cleanup policies differ from Factory Setup.
+The generic setup instructions below require a deliberately configured workflow.
 
 > [!WARNING]
 > Symphony Elixir is prototype software intended for evaluation only and is presented as-is.

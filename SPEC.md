@@ -1,5 +1,20 @@
 # Symphony Service Specification
 
+## Local file-defined workstreams (version 1 extension)
+
+The Elixir implementation additionally provides an opt-in synchronous local
+workstream command, independent of the existing tracker-driven `WORKFLOW.md`
+entry point. See [the concrete schema and commands](docs/local-workstreams.md).
+It supports agent stages and executable checks, with declared named inputs and
+outputs, inline exit-status gates, and repair edges bounded to at most three
+additional dispatches per gate per invocation. Invalid definitions, references,
+input dependencies, transitions and unbounded cycles reject before dispatch.
+Resolved workstream, agent, instruction and shared `SKILL.md` text/digests are
+pinned once per invocation. Checks consume declared metadata and inspect the
+dedicated workspace; the service owns advancement. This increment does not
+persist runs, implement waits or integrations, publish PRs, or merge candidates.
+The existing workflow and scheduler contracts below are unchanged.
+
 Status: Draft v1 (language-agnostic)
 
 Purpose: Define a service that orchestrates coding agents to get project work done.
