@@ -209,8 +209,35 @@ defmodule SymphonyElixir.Workstream do
     end
   end
 
+  defp normalize_stage(%{"type" => "human_wait"} = stage) do
+    with :ok <- exact_fields(stage, ~w(id type inputs outputs prompt next), {:stage, Map.get(stage, "id")}),
+         {:ok, id} <- required_name(Map.get(stage, "id"), :stage_id),
+         {:ok, inputs} <- names(Map.get(stage, "inputs"), {:stage_inputs, id}),
+         {:ok, outputs} <- names(Map.get(stage, "outputs"), {:stage_outputs, id}),
+         {:ok, prompt} <- required_name(Map.get(stage, "prompt"), {:stage_prompt, id}),
+         {:ok, next} <- stage_next(Map.get(stage, "next"), {:stage_next, id}) do
+      {:ok, %{id: id, type: :human_wait, inputs: inputs, outputs: outputs, prompt: prompt, next: next}}
+    end
+  end
+
   defp normalize_stage(%{"type" => type}), do: {:error, {:invalid_stage_type, type}}
   defp normalize_stage(stage), do: {:error, {:invalid_stage_definition, stage}}
+
+  defp normalize_gate(%{"evaluator" => evaluator} = gate, stage_id) do
+    with :ok <- exact_fields(gate, ~w(evaluator required success failure), {:gate, stage_id}),
+         :ok <- validation_evaluator(evaluator, stage_id),
+         {:ok, required} <- validation_required(Map.get(gate, "required"), stage_id),
+         {:ok, success} <- gate_success(Map.get(gate, "success"), stage_id),
+         {:ok, failure} <- gate_failure(Map.get(gate, "failure"), stage_id) do
+      {:ok,
+       %{
+         evaluator: :candidate_validation,
+         required: required,
+         success: success,
+         failure: failure
+       }}
+    end
+  end
 
   defp normalize_gate(gate, stage_id) when is_map(gate) do
     with :ok <- exact_fields(gate, ~w(command timeout_ms success failure), {:gate, stage_id}),
@@ -223,6 +250,18 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp normalize_gate(_gate, stage_id), do: {:error, {:invalid_gate, stage_id}}
+
+  defp validation_evaluator("candidate_validation", _stage_id), do: :ok
+
+  defp validation_evaluator(value, stage_id),
+    do: {:error, {:unsupported_gate_evaluator, stage_id, value}}
+
+  defp validation_required(required, stage_id) do
+    case SymphonyElixir.ValidationPolicy.validate_required(required) do
+      {:ok, assertions} -> {:ok, assertions}
+      {:error, reason} -> {:error, {:invalid_validation_gate_required, stage_id, reason}}
+    end
+  end
 
   defp command(values, stage_id) when is_list(values) and values != [] do
     if Enum.all?(values, &(is_binary(&1) and String.trim(&1) != "")) do
@@ -248,6 +287,18 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp gate_success(value, stage_id), do: {:error, {:invalid_gate_success, stage_id, value}}
+
+  defp stage_next("complete", _context), do: {:ok, :complete}
+
+  defp stage_next(value, context) when is_binary(value) do
+    if String.trim(value) == "" do
+      {:error, {:invalid_stage_next, context, value}}
+    else
+      {:ok, value}
+    end
+  end
+
+  defp stage_next(value, context), do: {:error, {:invalid_stage_next, context, value}}
 
   defp gate_failure("blocked", _stage_id), do: {:ok, :blocked}
 
@@ -422,6 +473,17 @@ defmodule SymphonyElixir.Workstream do
       not Map.has_key?(stages, next) -> {:error, {:unknown_stage_transition, id, next}}
       stages[next].type != :check -> {:error, {:agent_must_transition_to_check, id, next}}
       true -> :ok
+    end
+  end
+
+  defp validate_stage_transition(_id, %{type: :human_wait, next: :complete}, _stages), do: :ok
+
+  defp validate_stage_transition(id, %{type: :human_wait, next: next}, stages)
+       when is_binary(next) do
+    if Map.has_key?(stages, next) do
+      :ok
+    else
+      {:error, {:unknown_stage_transition, id, next}}
     end
   end
 
@@ -648,6 +710,8 @@ defmodule SymphonyElixir.Workstream do
   end
 
   defp stage_success_targets(%{type: :agent, next: next}), do: [next]
+  defp stage_success_targets(%{type: :human_wait, next: next}) when is_binary(next), do: [next]
+  defp stage_success_targets(%{type: :human_wait}), do: []
   defp stage_success_targets(%{type: :check, gate: %{success: success}}) when is_binary(success), do: [success]
   defp stage_success_targets(%{type: :check}), do: []
 

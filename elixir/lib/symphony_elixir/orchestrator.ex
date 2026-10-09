@@ -7,7 +7,7 @@ defmodule SymphonyElixir.Orchestrator do
   require Logger
   import Bitwise, only: [<<<: 2]
 
-  alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace}
+  alias SymphonyElixir.{AgentRunner, Config, StatusDashboard, Tracker, Workspace, WorkstreamRun, WorkstreamRunner, WorkstreamStore}
   alias SymphonyElixir.Tracker.Issue
 
   @continuation_retry_delay_ms 1_000
@@ -33,6 +33,8 @@ defmodule SymphonyElixir.Orchestrator do
       :poll_check_in_progress,
       :tick_timer_ref,
       :tick_token,
+      workstreams: nil,
+      polling_enabled: true,
       task_supervisor: SymphonyElixir.TaskSupervisor,
       running: %{},
       completed: MapSet.new(),
@@ -53,7 +55,7 @@ defmodule SymphonyElixir.Orchestrator do
 
   @impl true
   def init(opts) do
-    case Config.settings() do
+    case initial_orchestrator_settings(opts) do
       {:ok, config} ->
         now_ms = System.monotonic_time(:millisecond)
 
@@ -69,10 +71,19 @@ defmodule SymphonyElixir.Orchestrator do
           codex_rate_limits: nil
         }
 
-        run_terminal_workspace_cleanup()
-        state = schedule_tick(state, 0)
+        case init_workstreams(state, opts) do
+          {:ok, state} ->
+            if state.polling_enabled do
+              run_terminal_workspace_cleanup()
+              {:ok, schedule_tick(state, 0)}
+            else
+              send(self(), :advance_workstreams)
+              {:ok, state}
+            end
 
-        {:ok, state}
+          {:error, reason} ->
+            {:stop, reason}
+        end
 
       {:error, reason} ->
         {:stop, reason}
@@ -80,6 +91,19 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   @impl true
+  def handle_info(message, %{polling_enabled: false} = state) when message in [:tick, :run_poll_cycle], do: {:noreply, state}
+  def handle_info({:tick, _token}, %{polling_enabled: false} = state), do: {:noreply, state}
+
+  def handle_info(:advance_workstreams, %{workstreams: %{opts: opts}} = state) do
+    if Keyword.get(opts, :auto_advance, true), do: {:noreply, advance_workstreams(state)}, else: {:noreply, state}
+  end
+
+  def handle_info(:advance_workstreams, state), do: {:noreply, state}
+
+  def handle_info({:workstream_result, run_id, attempt_id, pid, result}, state) do
+    {:noreply, accept_workstream_result(state, run_id, attempt_id, pid, result)}
+  end
+
   def handle_info({:tick, tick_token}, %{tick_token: tick_token} = state)
       when is_reference(tick_token) do
     state = refresh_runtime_config(state)
@@ -131,7 +155,7 @@ defmodule SymphonyElixir.Orchestrator do
       ) do
     case find_issue_id_for_ref(running, ref) do
       nil ->
-        {:noreply, state}
+        {:noreply, workstream_worker_down(state, ref, reason)}
 
       issue_id ->
         {running_entry, state} = pop_running_entry(state, issue_id)
@@ -1405,6 +1429,79 @@ defmodule SymphonyElixir.Orchestrator do
     end
   end
 
+  @doc "Queue one local task. Duplicate events and task identities reuse the durable run."
+  @spec queue_workstream(GenServer.server(), String.t(), String.t(), Path.t(), map(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def queue_workstream(server, event_id, task_id, path, inputs, opts),
+    do: GenServer.call(server, {:queue_workstream, event_id, task_id, path, inputs, opts}, 30_000)
+
+  @spec workstream_state(GenServer.server(), String.t()) :: {:ok, map()} | {:error, term()}
+  def workstream_state(server, run_id), do: GenServer.call(server, {:workstream_state, run_id})
+
+  @spec answer_workstream(GenServer.server(), String.t(), String.t(), String.t(), map()) :: :ok | {:error, term()}
+  def answer_workstream(server, event_id, run_id, wait_id, answer),
+    do: GenServer.call(server, {:answer_workstream, event_id, run_id, wait_id, answer})
+
+  @doc "Advance ready local stages once; useful for inspecting a durable stage boundary."
+  @spec step_workstreams(GenServer.server()) :: :ok
+  def step_workstreams(server), do: GenServer.call(server, :step_workstreams)
+
+  @spec reconcile_workstreams(GenServer.server()) :: :ok
+  def reconcile_workstreams(server), do: GenServer.call(server, :reconcile_workstreams)
+
+  @impl true
+  def handle_call({:queue_workstream, event_id, task_id, path, inputs, opts}, _from, state) do
+    case queue_durable_workstream(state, input_event_key(event_id), task_id, path, inputs, opts) do
+      {:ok, run_id, updated} ->
+        send(self(), :advance_workstreams)
+        {:reply, {:ok, run_id}, updated}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  def handle_call({:workstream_state, run_id}, _from, state) do
+    result =
+      case durable_run(state, run_id) do
+        nil -> {:error, :unknown_workstream_run}
+        run -> {:ok, WorkstreamRun.report(run)}
+      end
+
+    {:reply, result, state}
+  end
+
+  def handle_call({:answer_workstream, event_id, run_id, wait_id, answer}, _from, state) do
+    event_id = input_event_key(event_id)
+    event = %{kind: :human_answer, wait_id: wait_id, fingerprint: workstream_fingerprint({run_id, wait_id, answer})}
+
+    case check_workstream_event(state, event_id, event) do
+      {:duplicate, ^run_id} ->
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+
+      :new ->
+        with run when is_map(run) <- durable_run(state, run_id),
+             {:ok, updated} <- WorkstreamRun.wait_answer(run, wait_id, answer) do
+          updated_state = commit_workstream(state, updated, event_id, event)
+          send(self(), :advance_workstreams)
+          {:reply, :ok, updated_state}
+        else
+          nil -> {:reply, {:error, :unknown_workstream_run}, state}
+          {:error, reason} -> {:reply, {:error, reason}, state}
+        end
+    end
+  end
+
+  def handle_call(:step_workstreams, _from, state), do: {:reply, :ok, advance_workstreams(state)}
+
+  def handle_call(:reconcile_workstreams, _from, state) do
+    state = recover_workstreams(state)
+    send(self(), :advance_workstreams)
+    {:reply, :ok, state}
+  end
+
   @impl true
   def handle_call(:snapshot, _from, state) do
     state = refresh_runtime_config(state)
@@ -1628,6 +1725,8 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp record_session_completion_totals(state, _running_entry), do: state
+
+  defp refresh_runtime_config(%{polling_enabled: false} = state), do: state
 
   defp refresh_runtime_config(%State{} = state) do
     config = Config.settings!()
@@ -1987,4 +2086,333 @@ defmodule SymphonyElixir.Orchestrator do
   end
 
   defp integer_like(_value), do: nil
+
+  defp json_data(value) do
+    case Jason.encode(value) do
+      {:ok, encoded} -> if Jason.decode!(encoded) == value, do: :ok, else: {:error, :inputs_must_be_json_data}
+      {:error, _} -> {:error, :inputs_must_be_json_data}
+    end
+  end
+
+  defp initial_orchestrator_settings(opts) do
+    if Keyword.has_key?(opts, :workstream_store_path) do
+      max = Keyword.get(opts, :max_concurrent_agents, 1)
+
+      if is_integer(max) and max > 0,
+        do: {:ok, %{polling: %{interval_ms: 30_000}, agent: %{max_concurrent_agents: max}}},
+        else: {:error, :invalid_workstream_capacity}
+    else
+      Config.settings()
+    end
+  end
+
+  defp init_workstreams(state, opts) do
+    case Keyword.get(opts, :workstream_store_path) do
+      nil ->
+        {:ok, state}
+
+      path ->
+        if Keyword.get(opts, :polling, false) do
+          {:error, :durable_workstreams_require_manual_mode}
+        else
+          Code.ensure_loaded!(SymphonyElixir.Workstream)
+          Code.ensure_loaded!(WorkstreamRun)
+          Code.ensure_loaded!(WorkstreamRunner)
+          Code.ensure_loaded!(SymphonyElixir.ValidationPolicy)
+          Code.ensure_loaded!(SymphonyElixir.Validation)
+          Code.ensure_loaded!(SymphonyElixir.ValidationCommand)
+
+          with {:ok, store} <- WorkstreamStore.start_link(path: path, owner: self()),
+               {:ok, runs} <- WorkstreamStore.load(store) do
+            {:ok, store_path} = SymphonyElixir.PathSafety.canonicalize(path)
+            durable = %{store: store, store_path: store_path, runs: Map.new(runs, &{&1.id, &1}), workers: %{}, opts: opts}
+            {:ok, recover_workstreams(%{state | workstreams: durable, polling_enabled: false})}
+          end
+        end
+    end
+  end
+
+  defp durable_run(%{workstreams: nil}, _id), do: nil
+  defp durable_run(state, id), do: Map.get(state.workstreams.runs, id)
+
+  defp queue_durable_workstream(%{workstreams: nil}, _event_id, _task_id, _path, _inputs, _opts), do: {:error, :durable_workstreams_disabled}
+
+  defp queue_durable_workstream(state, event_id, task_id, path, inputs, opts) do
+    event = %{kind: :queued, task_id: task_id, fingerprint: workstream_fingerprint({task_id, path, inputs, opts})}
+
+    case check_workstream_event(state, event_id, event) do
+      {:duplicate, id} -> {:ok, id, state}
+      {:error, _} = error -> error
+      :new -> queue_new_workstream_event(state, event_id, task_id, path, inputs, opts, event)
+    end
+  end
+
+  defp queue_new_workstream_event(state, event_id, task_id, path, inputs, opts, event) do
+    existing = Enum.find_value(state.workstreams.runs, fn {_id, run} -> if run.task_id == task_id, do: run end)
+
+    with :ok <- json_data(inputs),
+         true <- is_binary(task_id) and task_id != "",
+         {:ok, run} <- existing_or_new_workstream(state, existing, task_id, path, inputs, opts) do
+      case WorkstreamStore.commit(state.workstreams.store, run, event_id, event) do
+        :ok -> {:ok, run.id, put_in(state.workstreams.runs[run.id], run)}
+        {:duplicate, id} -> {:ok, id, state}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      false -> {:error, :invalid_event_or_task_identity}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp check_workstream_event(%{workstreams: nil}, _id, _event), do: {:error, :durable_workstreams_disabled}
+
+  defp check_workstream_event(state, id, event) do
+    case WorkstreamStore.event(state.workstreams.store, id) do
+      :not_found -> :new
+      {:ok, %{event: ^event, run_id: run_id}} -> {:duplicate, run_id}
+      {:ok, _} -> {:error, :event_identity_conflict}
+      {:error, _} = error -> error
+    end
+  end
+
+  # Caller IDs cannot occupy the coordinator's operation-event namespace.
+  defp input_event_key(id) when is_binary(id) and id != "", do: "input/" <> id
+  defp input_event_key(_id), do: nil
+
+  defp workstream_fingerprint(value), do: :crypto.hash(:sha256, :erlang.term_to_binary(value)) |> Base.encode16(case: :lower)
+
+  defp existing_or_new_workstream(_state, run, _task_id, _path, _inputs, _opts) when is_map(run), do: {:ok, run}
+
+  defp existing_or_new_workstream(state, nil, task_id, path, inputs, opts) do
+    with true <-
+           Enum.all?(opts, fn {key, value} ->
+             key in [
+               :workspace,
+               :workspace_root,
+               :codex_command,
+               :branch,
+               :issue_id,
+               :validation_policy,
+               :validation_archive,
+               :validation_scratch,
+               :validation_base
+             ] and is_binary(value)
+           end),
+         {:ok, definition, workspace} <- WorkstreamRunner.prepare(path, inputs, opts),
+         :ok <- database_outside_workspace(state.workstreams.store_path, workspace),
+         false <- Enum.any?(state.workstreams.runs, fn {_id, run} -> run.workspace == workspace end),
+         {:ok, root} <- SymphonyElixir.PathSafety.canonicalize(opts[:workspace_root]),
+         execution_opts = Keyword.put(opts, :workspace_root, root),
+         {:ok, execution} <- WorkstreamRunner.pin_execution_context(execution_opts, workspace, definition) do
+      {:ok, WorkstreamRun.new(task_id, definition, workspace, execution_opts, execution)}
+    else
+      true -> {:error, :workspace_already_owned}
+      false -> {:error, :invalid_workstream_execution_options}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp database_outside_workspace(database, workspace) do
+    if database == workspace or String.starts_with?(database, workspace <> "/"), do: {:error, :database_overlaps_worker_workspace}, else: :ok
+  end
+
+  defp commit_workstream(state, run, event_id, event) do
+    case WorkstreamStore.commit(state.workstreams.store, run, event_id, event) do
+      :ok ->
+        put_in(state.workstreams.runs[run.id], run)
+
+      {:duplicate, id} when id == run.id ->
+        case {WorkstreamStore.event(state.workstreams.store, event_id), WorkstreamStore.fetch(state.workstreams.store, id)} do
+          {{:ok, %{event: ^event}}, {:ok, stored}} -> put_in(state.workstreams.runs[id], stored)
+          _ -> exit(:durable_workstream_event_conflict)
+        end
+
+      {:duplicate, _id} ->
+        exit(:durable_workstream_event_conflict)
+
+      {:error, reason} ->
+        exit({:durable_workstream_commit_failed, reason})
+    end
+  end
+
+  defp advance_workstreams(%{workstreams: nil} = state), do: state
+
+  defp advance_workstreams(state) do
+    Enum.reduce(state.workstreams.runs, state, fn {id, _}, acc ->
+      run = durable_run(acc, id)
+
+      cond do
+        run.status != :ready -> acc
+        not WorkstreamRun.compatible_policy?(run) -> block_workstream_policy(acc, run)
+        run.definition.stages[run.stage_id].type != :human_wait and workstream_capacity_used(acc) >= acc.max_concurrent_agents -> acc
+        true -> start_workstream_stage(acc, run)
+      end
+    end)
+  end
+
+  defp workstream_capacity_used(state) do
+    Enum.count(state.workstreams.runs, fn {_id, run} ->
+      run.status in [:executing, :reconciling] or (run.status == :policy_blocked and match?(%{status: :executing}, run.operations[run.current_attempt_id]))
+    end) + map_size(state.running)
+  end
+
+  defp start_workstream_stage(state, run) do
+    run = WorkstreamRun.start_stage(run)
+    state = commit_workstream(state, run, run.current_attempt_id <> "/start", %{kind: :stage_started})
+
+    if run.status == :waiting_for_answer do
+      state
+    else
+      owner = self()
+
+      case Task.Supervisor.start_child(state.task_supervisor, fn -> AgentRunner.run_workstream(run, owner, state.workstreams.opts) end) do
+        {:ok, pid} ->
+          ref = Process.monitor(pid)
+          identity = %{pid: inspect(pid), boot_id: workstream_boot_id(), node: to_string(node())}
+          run = WorkstreamRun.record_worker(run, identity)
+          state = commit_workstream(state, run, run.current_attempt_id <> "/worker", %{kind: :worker_registered})
+          send(pid, :workstream_start)
+          put_in(state.workstreams.workers[run.current_attempt_id], %{pid: pid, ref: ref, run_id: run.id})
+
+        {:error, reason} ->
+          # Even an unsuccessful spawn is reconciled explicitly before any replacement.
+          updated = WorkstreamRun.uncertain(run, {:spawn_failed, reason})
+          commit_workstream(state, updated, run.current_attempt_id <> "/spawn_failed", %{kind: :reconciliation_required})
+      end
+    end
+  end
+
+  defp accept_workstream_result(%{workstreams: nil} = state, _run, _attempt, _pid, _result), do: state
+
+  defp accept_workstream_result(state, run_id, attempt_id, pid, result) do
+    case {durable_run(state, run_id), Map.get(state.workstreams.workers, attempt_id)} do
+      {%{current_attempt_id: ^attempt_id, status: status} = run, %{pid: ^pid, ref: ref}} when status in [:executing, :reconciling] ->
+        updated = WorkstreamRun.finish_stage(run, result)
+        state = commit_workstream(state, updated, attempt_id <> "/complete", %{kind: :stage_completed})
+        send(pid, {:workstream_ack, attempt_id})
+        Process.demonitor(ref, [:flush])
+        state = update_in(state.workstreams.workers, &Map.delete(&1, attempt_id))
+        send(self(), :advance_workstreams)
+        state
+
+      _ ->
+        state
+    end
+  end
+
+  defp workstream_worker_down(%{workstreams: nil} = state, _ref, _reason), do: state
+
+  defp workstream_worker_down(state, ref, reason) do
+    case Enum.find(state.workstreams.workers, fn {_id, worker} -> worker.ref == ref end) do
+      nil ->
+        state
+
+      {attempt_id, worker} ->
+        run = durable_run(state, worker.run_id)
+        state = update_in(state.workstreams.workers, &Map.delete(&1, attempt_id))
+        updated = WorkstreamRun.uncertain(run, {:worker_down_without_receipt, reason})
+        commit_workstream(state, updated, attempt_id <> "/down", %{kind: :reconciliation_required})
+    end
+  end
+
+  defp recover_workstreams(%{workstreams: nil} = state), do: state
+
+  defp recover_workstreams(state) do
+    acknowledge_committed_receipts(state)
+
+    Enum.reduce(state.workstreams.runs, state, fn {_id, run}, acc ->
+      cond do
+        run.status in [:complete, :blocked, :policy_blocked] -> acc
+        not WorkstreamRun.compatible_policy?(run) -> block_workstream_policy(acc, run)
+        run.status in [:executing, :reconciling] -> recover_workstream(acc, run)
+        true -> acc
+      end
+    end)
+  end
+
+  defp block_workstream_policy(state, run) do
+    updated = %{run | status: :policy_blocked, phase: :reconciling}
+    commit_workstream(state, updated, "#{run.id}/policy-blocked/#{WorkstreamRun.policy().lifecycle_sha256}", %{kind: :incompatible_service_policy})
+  end
+
+  defp acknowledge_committed_receipts(state) do
+    Enum.each(Task.Supervisor.children(state.task_supervisor), fn pid ->
+      case Process.info(pid, :dictionary) do
+        {:dictionary, dictionary} ->
+          case Keyword.get(dictionary, :symphony_workstream) do
+            %{run_id: run_id, attempt_id: id} ->
+              run = durable_run(state, run_id)
+              if run && match?(%{status: :completed}, run.operations[id]), do: send(pid, {:workstream_ack, id})
+
+            _ ->
+              :ok
+          end
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
+  defp recover_workstream(state, run) do
+    operation = Map.fetch!(run.operations, run.current_attempt_id)
+    worker = find_workstream_worker(state.task_supervisor, run, operation)
+
+    if is_pid(worker) do
+      workers = state.workstreams.workers
+
+      if Map.has_key?(workers, run.current_attempt_id) do
+        send(worker, {:workstream_redeliver, self()})
+        state
+      else
+        ref = Process.monitor(worker)
+        send(worker, :workstream_start)
+        send(worker, {:workstream_redeliver, self()})
+        put_in(state.workstreams.workers[run.current_attempt_id], %{pid: worker, ref: ref, run_id: run.id})
+      end
+    else
+      reconciler = Keyword.get(state.workstreams.opts, :workstream_reconciler, fn _run, _operation -> :unknown end)
+      outcome = reconciler.(run, operation)
+
+      updated =
+        case outcome do
+          {:completed, result} -> WorkstreamRun.finish_stage(run, result)
+          :terminated when operation.type == :agent -> WorkstreamRun.retry_transport(run)
+          :not_applied -> WorkstreamRun.retry_transport(run)
+          other -> WorkstreamRun.uncertain(run, other)
+        end
+
+      event_id = "#{operation.id}/reconcile/#{:crypto.strong_rand_bytes(8) |> Base.encode16()}"
+      commit_workstream(state, updated, event_id, %{kind: :reconciled, outcome: inspect(outcome)})
+    end
+  end
+
+  defp find_workstream_worker(supervisor, run, operation) do
+    if operation.worker && operation.worker.boot_id == workstream_boot_id() do
+      Enum.find(Task.Supervisor.children(supervisor), fn pid ->
+        case Process.info(pid, :dictionary) do
+          {:dictionary, dictionary} ->
+            identity = Keyword.get(dictionary, :symphony_workstream)
+            identity == %{run_id: run.id, attempt_id: run.current_attempt_id, operation_id: operation.id} and operation.worker.pid == inspect(pid)
+
+          nil ->
+            false
+        end
+      end)
+    end
+  end
+
+  defp workstream_boot_id do
+    key = {__MODULE__, :workstream_boot_id}
+
+    case :persistent_term.get(key, nil) do
+      nil ->
+        id = Base.encode16(:crypto.strong_rand_bytes(16), case: :lower)
+        :persistent_term.put(key, id)
+        id
+
+      id ->
+        id
+    end
+  end
 end

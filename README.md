@@ -43,8 +43,8 @@ The first increments are:
 1. [DEV-229](https://linear.app/rigai/issue/DEV-229): run a local file-defined agent stage
    followed by an executable check, proving passing and failing gates. This demo needs
    neither cloud infrastructure, Linear integration, Daybreak nor publication.
-2. [DEV-232](https://linear.app/rigai/issue/DEV-232): persist those runs/stages and recover
-   through restart and human waits without duplicate execution.
+2. [DEV-232](https://linear.app/rigai/issue/DEV-232): durable local runs/stages, restart
+   recovery and human waits. See [the controlled recovery demo](docs/durable-workstreams.md).
 3. Bind deployment, delegation, validation, publication, review and cleanup to those
    stages through the remaining tickets. Integrate Coverage Factory's separate contracts
    and qualify capacity after the pilot works.
@@ -98,6 +98,10 @@ versioned definitions, Linux bootstrap, passing/failing demos and exact commands
   independent qualification and scoring responsibilities in that project.
 - GCP deployment and roughly twelve combined cloud/review slots are planned and require
   qualification. A build, configuration file or Terraform plan is not a live deployment.
+
+
+Trusted candidate validation is available locally through the pinned-policy runner and
+inline stage gates. See [trusted validation](docs/trusted-validation.md) for development/final commands, evidence and limits.
 
 ## Upstream and license
 

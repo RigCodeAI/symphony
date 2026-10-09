@@ -1,0 +1,32 @@
+version: 1
+name: local-recovery
+inputs: [task]
+agents:
+  worker: ../agents/local-worker.yaml
+entry: implement
+stages:
+  - id: implement
+    type: agent
+    inputs: [task]
+    outputs: [candidate]
+    agent: worker
+    prompt: Prepare the local recovery smoke candidate. Do not publish or merge.
+    next: validate
+  - id: validate
+    type: check
+    inputs: [candidate]
+    outputs: [validation]
+    gate:
+      command:
+        - sh
+        - -c
+        - 'printf "checked\n" >> checks.log; test "$(cat candidate.txt)" = pass'
+      timeout_ms: 1000
+      success: decision
+      failure: blocked
+  - id: decision
+    type: human_wait
+    inputs: [candidate, validation]
+    outputs: [answer]
+    prompt: Continue this controlled local smoke run?
+    next: complete

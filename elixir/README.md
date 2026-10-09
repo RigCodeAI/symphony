@@ -414,3 +414,22 @@ you.
 ## License
 
 This project is licensed under the [Apache License 2.0](../LICENSE).
+
+## Durable local workstreams
+
+The existing orchestrator supports manually queued SQLite-backed local runs and human
+waits without tracker polling. Run the controlled recovery smoke from this directory:
+
+```bash
+mise exec -- mix run --no-start ../factory/scripts/recovery-smoke.exs /tmp/factory-recovery-demo
+```
+
+Use a new absolute output directory. The smoke restarts at a stage boundary and a human
+wait, checks duplicate queue/reply delivery and migration rollback, and runs real passing
+and failing executable gates. Its agents are controlled workers; it does not run a model
+or require Linear/GCP. Inspect the generated `waiting.json`, `report.json` and SQLite
+database before deleting that one disposable directory. See
+[API, recovery rules and engineer test card](../docs/durable-workstreams.md).
+
+Trusted candidate validation is available locally through the pinned-policy runner and
+inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

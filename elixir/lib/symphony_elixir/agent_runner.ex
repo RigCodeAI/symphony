@@ -5,7 +5,7 @@ defmodule SymphonyElixir.AgentRunner do
 
   require Logger
   alias SymphonyElixir.Codex.AppServer
-  alias SymphonyElixir.{Config, PromptBuilder, Tracker, Workspace}
+  alias SymphonyElixir.{Config, PromptBuilder, Tracker, Workspace, WorkstreamRunner}
   alias SymphonyElixir.Tracker.Issue
 
   @type worker_host :: String.t() | nil
@@ -32,6 +32,35 @@ defmodule SymphonyElixir.AgentRunner do
       {:error, reason} ->
         Logger.error("Agent run failed for #{issue_context(issue)}: #{inspect(reason)}")
         raise RuntimeError, "Agent run failed for #{issue_context(issue)}: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Executes one pinned durable stage and retains its receipt until the coordinator commits it.
+  A replacement coordinator can request redelivery from this same supervised process.
+  """
+  @spec run_workstream(map(), pid(), keyword()) :: :ok
+  def run_workstream(run, recipient, opts) do
+    identity = %{run_id: run.id, attempt_id: run.current_attempt_id, operation_id: run.current_attempt_id}
+    Process.put(:symphony_workstream, identity)
+
+    receive do
+      :workstream_start -> :ok
+    end
+
+    stage = Map.fetch!(run.definition.stages, run.stage_id)
+    executor = Keyword.get(opts, :stage_executor, &WorkstreamRunner.execute_stage/4)
+    result = executor.(stage, run.definition, run, Map.to_list(run.execution))
+    Process.put(:symphony_workstream_result, result)
+    deliver_workstream_receipt(identity, result, recipient)
+  end
+
+  defp deliver_workstream_receipt(identity, result, recipient) do
+    send(recipient, {:workstream_result, identity.run_id, identity.attempt_id, self(), result})
+
+    receive do
+      {:workstream_ack, id} when id == identity.attempt_id -> :ok
+      {:workstream_redeliver, recipient} -> deliver_workstream_receipt(identity, result, recipient)
     end
   end
 
