@@ -430,3 +430,6 @@ and failing executable gates. Its agents are controlled workers; it does not run
 or require Linear/GCP. Inspect the generated `waiting.json`, `report.json` and SQLite
 database before deleting that one disposable directory. See
 [API, recovery rules and engineer test card](../docs/durable-workstreams.md).
+
+Trusted candidate validation is available locally through the pinned-policy runner and
+inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

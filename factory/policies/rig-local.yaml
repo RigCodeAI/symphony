@@ -1,0 +1,12 @@
+version: 1
+revision: rig-architecture-39d6d5d-v1
+environment:
+  image: python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+  runner_version: docker-v1
+checks:
+  - id: architecture-tests
+    adapter: command
+    command: [python3, -m, unittest, discover, -s, tools, -p, test_architecture.py, -k, test_supported_node_python_consumer_passes]
+    timeout_ms: 30000
+    paths: ['*']
+    result_format: unittest

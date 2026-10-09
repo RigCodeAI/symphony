@@ -6,16 +6,43 @@ defmodule SymphonyElixir.WorkstreamRun do
 
   @policy_digest :crypto.hash(:sha256, File.read!(__ENV__.file)) |> Base.encode16(case: :lower)
 
+  @external_resource Path.join(__DIR__, "workstream_runner.ex")
   @executor_digest :crypto.hash(:sha256, File.read!(Path.join(__DIR__, "workstream_runner.ex"))) |> Base.encode16(case: :lower)
 
+  @external_resource Path.join(__DIR__, "validation.ex")
+  @external_resource Path.join(__DIR__, "validation_policy.ex")
+  @external_resource Path.join(__DIR__, "validation_command.ex")
+  @external_resource Path.join(__DIR__, "workstream.ex")
+  @validation_digest ["validation.ex", "validation_policy.ex", "validation_command.ex", "workstream.ex"]
+                     |> Enum.map(&File.read!(Path.join(__DIR__, &1)))
+                     |> IO.iodata_to_binary()
+                     |> then(fn source -> :crypto.hash(:sha256, source) end)
+                     |> Base.encode16(case: :lower)
+
   @spec policy() :: map()
-  def policy, do: %{lifecycle_sha256: @policy_digest, executor_sha256: @executor_digest, gate_policy: "exit-status-v1", version: 1}
+  def policy,
+    do: %{
+      lifecycle_sha256: @policy_digest,
+      executor_sha256: @executor_digest,
+      validation_sha256: @validation_digest,
+      gate_policy: "exit-status-v1",
+      version: 1
+    }
 
   @spec compatible_policy?(map()) :: boolean()
   def compatible_policy?(run), do: run.policy == policy()
 
   @spec new(String.t(), map(), Path.t(), keyword()) :: map()
   def new(task_id, definition, workspace, opts) do
+    execution = SymphonyElixir.WorkstreamRunner.execution_context(opts)
+    execution = Map.merge(execution, Map.get(definition, :pinned_validation_context, %{}))
+    new(task_id, definition, workspace, opts, execution)
+  end
+
+  @spec new(String.t(), map(), Path.t(), keyword(), map()) :: map()
+  def new(task_id, definition, workspace, opts, execution_context) do
+    definition = Map.delete(definition, :pinned_validation_context)
+
     %{
       id: "run-" <> Base.encode16(:crypto.strong_rand_bytes(16), case: :lower),
       task_id: task_id,
@@ -26,7 +53,7 @@ defmodule SymphonyElixir.WorkstreamRun do
       workspace: workspace,
       definition: definition,
       policy: policy(),
-      execution: SymphonyElixir.WorkstreamRunner.execution_context(opts),
+      execution: execution_context,
       status: :ready,
       phase: :queued,
       stage_id: definition.entry,
@@ -36,6 +63,8 @@ defmodule SymphonyElixir.WorkstreamRun do
       attempts: [],
       operations: %{},
       repairs: %{},
+      validation_repair_rounds: 0,
+      review_repair_rounds: 0,
       transport_retries: 0,
       retry_operation_id: nil,
       pending_wait: nil,
@@ -48,7 +77,17 @@ defmodule SymphonyElixir.WorkstreamRun do
     stage = Map.fetch!(run.definition.stages, run.stage_id)
     ordinal = length(run.attempts) + 1
     id = "#{run.id}/#{stage.id}/#{ordinal}"
-    attempt = %{id: id, stage: stage.id, type: stage.type, ordinal: ordinal, status: :executing, result: nil, gate: nil}
+
+    attempt = %{
+      id: id,
+      stage: stage.id,
+      type: stage.type,
+      ordinal: ordinal,
+      status: :executing,
+      result: nil,
+      gate: nil,
+      gate_detail: nil
+    }
 
     if stage.type == :human_wait do
       wait = %{id: id <> "/wait", prompt: stage.prompt, inputs: Map.take(run.outputs, stage.inputs), artifact_ids: Map.take(run.artifacts, stage.inputs)}
@@ -87,10 +126,11 @@ defmodule SymphonyElixir.WorkstreamRun do
   @spec finish_stage(map(), term()) :: map()
   def finish_stage(%{status: status} = run, result) when status in [:executing, :reconciling] do
     stage = Map.fetch!(run.definition.stages, run.stage_id)
+    {result, gate, gate_detail} = finish_gate(run, stage, result)
     result = json_stage_result(result)
     evidence = result_evidence(result)
-    gate = if stage.type == :check, do: if(passing_check?(result), do: :passed, else: :failed), else: nil
-    run = update_attempt(run, %{status: :completed, result: evidence, gate: gate})
+    gate = if stage.type == :check and is_nil(gate), do: if(passing_check?(result), do: :passed, else: :failed), else: gate
+    run = update_attempt(run, %{status: :completed, result: evidence, gate: gate, gate_detail: gate_detail})
     run = put_in(run.operations[run.current_attempt_id].status, :completed)
 
     case {stage.type, result} do
@@ -102,7 +142,11 @@ defmodule SymphonyElixir.WorkstreamRun do
           {:ok, value} = result
           run |> put_outputs(stage, value) |> advance(stage.gate.success)
         else
-          repair_or_block(run, stage)
+          if candidate_validation?(stage) do
+            candidate_validation_failure(run, stage)
+          else
+            repair_or_block(run, stage)
+          end
         end
 
       _ ->
@@ -163,6 +207,103 @@ defmodule SymphonyElixir.WorkstreamRun do
 
   defp update_attempt(run, changes) do
     %{run | attempts: Enum.map(run.attempts, fn attempt -> if attempt.id == run.current_attempt_id, do: Map.merge(attempt, changes), else: attempt end)}
+  end
+
+  defp finish_gate(run, %{type: :check} = stage, result) do
+    if candidate_validation?(stage) do
+      verify_candidate_result(run, stage, result)
+    else
+      {result, nil, nil}
+    end
+  end
+
+  defp finish_gate(_run, _stage, result), do: {result, nil, nil}
+
+  defp verify_candidate_result(run, stage, result) do
+    context = %{
+      task_id: run.task_id || "local",
+      run_id: run.id || "local",
+      attempt_id: run.current_attempt_id || "local",
+      base_sha: run.execution[:validation_base]
+    }
+
+    opts = [
+      workspace: run.workspace,
+      validation_archive: run.execution[:validation_archive],
+      validation_scratch: run.execution[:validation_scratch]
+    ]
+
+    case SymphonyElixir.Validation.verify_result(
+           result,
+           run.execution[:validation_policy],
+           context,
+           stage.gate.required,
+           opts
+         ) do
+      {:ok, %{verdict: verdict} = detail} when verdict in [:passed, :failed] ->
+        case verified_candidate_feedback(result, run.execution[:validation_archive]) do
+          {:ok, feedback} ->
+            {put_candidate_result(result, detail, feedback), verdict, json_value(detail)}
+
+          {:error, reason} ->
+            failed_validation_result(result, {:feedback_unavailable, reason})
+        end
+
+      {:error, reason} ->
+        failed_validation_result(result, reason)
+    end
+  rescue
+    error ->
+      failed_validation_result(result, {:validation_verification_failed, error})
+  end
+
+  defp verified_candidate_feedback({:ok, %{receipt: receipt}}, archive) do
+    case SymphonyElixir.Validation.feedback(receipt, archive) do
+      {:ok, feedback} when is_list(feedback) -> {:ok, json_value(feedback)}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp verified_candidate_feedback(_result, _archive), do: {:error, :missing_validation_receipt}
+
+  defp failed_validation_result(result, reason) do
+    failure = %{verdict: :failed, rationale: ["Validation evidence could not be verified."], evidence_id: nil}
+    detail = %{"verdict" => "failed", "verified" => false, "reason" => inspect(reason)}
+    {put_candidate_result(result, failure, nil), :failed, detail}
+  end
+
+  defp put_candidate_result(
+         {:ok, %{receipt: %{"id" => id, "manifest_sha256" => manifest_sha256}}},
+         gate,
+         feedback
+       )
+       when is_binary(id) and is_binary(manifest_sha256) and is_list(feedback) do
+    receipt = %{"id" => id, "manifest_sha256" => manifest_sha256}
+    {:ok, %{receipt: receipt, gate: gate, feedback: feedback}}
+  end
+
+  defp put_candidate_result(_result, _gate, _feedback), do: {:error, :unverified_validation_result}
+
+  defp candidate_validation?(%{type: :check, gate: %{evaluator: :candidate_validation}}), do: true
+  defp candidate_validation?(_stage), do: false
+
+  defp candidate_validation_failure(run, stage) do
+    rounds = run.validation_repair_rounds + 1
+    run = %{run | validation_repair_rounds: rounds}
+
+    case stage.gate.failure do
+      %{repair: repair, max_attempts: max_attempts} ->
+        repairs = Map.get(run.repairs, stage.id, 0)
+
+        if rounds < 3 and repairs < max_attempts do
+          %{run | repairs: Map.put(run.repairs, stage.id, repairs + 1)} |> advance(repair)
+        else
+          advance(run, :blocked)
+        end
+
+      _ ->
+        advance(run, :blocked)
+    end
   end
 
   defp passing_check?({:ok, %{exit_status: 0, timed_out: false}}), do: true

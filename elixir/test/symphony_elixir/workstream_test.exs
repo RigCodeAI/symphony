@@ -520,6 +520,56 @@ defmodule SymphonyElixir.WorkstreamTest do
     assert {:error, {:invalid_gate, "verify"}} = load(context)
   end
 
+  test "normalizes inline candidate validation gates", context do
+    replace_in_file!(
+      context.workstream_path,
+      "gate:\n  command: [sh, -c, \"test -f patch.diff\"]\n  timeout_ms: 2000\n  success: complete\n  failure: blocked",
+      "gate:\n  evaluator: candidate_validation\n  required:\n    - check: unit-tests\n      assertion: exit_status\n      equals: 0\n    - check: focused-unittest\n      assertion: test_count\n      equals: 1\n  success: complete\n  failure: blocked"
+    )
+
+    assert {:ok, workstream} = load(context)
+
+    assert workstream.stages["verify"].gate == %{
+             evaluator: :candidate_validation,
+             required: [
+               %{check: "unit-tests", assertion: "exit_status", equals: 0},
+               %{check: "focused-unittest", assertion: "test_count", equals: 1}
+             ],
+             success: :complete,
+             failure: :blocked
+           }
+  end
+
+  test "validates candidate validation gate fields and assertion uniqueness", context do
+    replace_in_file!(
+      context.workstream_path,
+      "gate:\n  command: [sh, -c, \"test -f patch.diff\"]\n  timeout_ms: 2000\n  success: complete\n  failure: blocked",
+      "gate:\n  evaluator: candidate_validation\n  required:\n    - check: unit-tests\n      assertion: exit_status\n  success: complete\n  failure: blocked"
+    )
+
+    assert {:error, {:invalid_validation_gate_required, "verify", {:invalid_required_assertion, 0, :expected_check_assertion_equals}}} = load(context)
+
+    File.write!(context.workstream_path, workstream_yaml())
+
+    replace_in_file!(
+      context.workstream_path,
+      "gate:\n  command: [sh, -c, \"test -f patch.diff\"]\n  timeout_ms: 2000\n  success: complete\n  failure: blocked",
+      "gate:\n  evaluator: candidate_validation\n  required:\n    - {check: unit-tests, assertion: exit_status, equals: 0}\n    - {check: unit-tests, assertion: exit_status, equals: 1}\n  success: complete\n  failure: blocked"
+    )
+
+    assert {:error, {:invalid_validation_gate_required, "verify", {:duplicate_required_assertion, "unit-tests", "exit_status"}}} = load(context)
+
+    File.write!(context.workstream_path, workstream_yaml())
+
+    replace_in_file!(
+      context.workstream_path,
+      "gate:\n  command: [sh, -c, \"test -f patch.diff\"]\n  timeout_ms: 2000\n  success: complete\n  failure: blocked",
+      "gate:\n  evaluator: candidate_validation\n  required:\n    - {check: unit-tests, assertion: exit_status, equals: 0, extra: true}\n  success: complete\n  failure: blocked"
+    )
+
+    assert {:error, {:invalid_validation_gate_required, "verify", {:invalid_required_assertion, 0, :expected_check_assertion_equals}}} = load(context)
+  end
+
   test "rejects invalid entries, transitions, cycles, and unreachable stages", context do
     replace_in_file!(context.workstream_path, "entry: implement", "entry: missing")
     assert {:error, {:unknown_workstream_entry, "missing"}} = load(context)

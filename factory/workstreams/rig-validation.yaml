@@ -1,0 +1,29 @@
+version: 1
+name: rig-validation
+inputs: [task]
+agents:
+  worker: ../agents/local-worker.yaml
+entry: implement
+stages:
+  - id: implement
+    type: agent
+    agent: worker
+    inputs: [task]
+    outputs: [candidate]
+    prompt: Make the requested change, use focused development validation, and commit the candidate locally. Do not publish.
+    next: validate
+  - id: validate
+    type: check
+    inputs: [candidate]
+    outputs: [validation]
+    gate:
+      evaluator: candidate_validation
+      required:
+        - check: architecture-tests
+          assertion: exit_status
+          equals: 0
+        - check: architecture-tests
+          assertion: test_count
+          equals: 1
+      success: complete
+      failure: blocked
