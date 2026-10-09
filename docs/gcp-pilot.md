@@ -23,14 +23,19 @@ validator/service stand-ins. Python and shell syntax checks passed.
 Owner self-review corrected public-settings directory access, release-path
 resolution, staged-config promotion, evidence receipt ordering and scoped host-key
 retry permissions. Local `codex login status` reports ChatGPT authentication.
-The live project read still fails with GCP reauthentication required. No Terraform
-apply, real worker run, cloud restart/recreation check or drift plan has occurred;
-no deployment completion or PR is claimed.
+GCP sign-in was refreshed and billing/quota were verified. The protected state
+bootstrap and compute-disabled pilot were applied; the staging drift plan is
+clean. The merged service compiled, its real Linux health endpoint responded,
+52 focused tests passed and the full suite passed 408 tests. The broad lint gate
+still reports existing style issues. See [the live staging receipt](dev-230-evidence.md).
+Compute remains off pending the read-only Rig credential and billing-credit
+verification. No real cloud worker run, cloud restart/recreation check or final
+deployment completion is claimed.
 
 ## Proposed pilot and approved spending input
 
 Project: `factory-511117`, expected number `292978199748`. Region `us-central1`,
-zone `us-central1-a`, pending live quota and availability checks. Start with one
+zone `us-central1-a`; live quota is sufficient, VM availability is not yet tested. Start with one
 `e2-standard-2` coordinator and one `n2-standard-16` worker. Data disks are 100
 and 500 GiB; boot disks are 30 and 50 GiB. All disks use zonal `pd-balanced`.
 `worker_count` is configurable between zero and one; DEV-244 qualifies expansion.
@@ -65,8 +70,8 @@ Prices checked on 2026-10-09: [VM pricing](https://cloud.google.com/products/com
 
 ## Restore access and verify the project
 
-The intake account was `adam@rig.ai`; its saved gcloud credentials require
-interactive reauthentication. Its default project was `rig-web`. Use explicit
+The operator account is `adam@rig.ai`; GCP CLI sign-in is working. Its default
+project remains `rig-web`. Use explicit
 project arguments and never change another project's infrastructure.
 
 ```bash
