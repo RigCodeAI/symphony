@@ -219,6 +219,7 @@ class SystemdContainmentTest(unittest.TestCase):
 
         self.workspaces = self.root / "workspaces"
         self.workspaces.mkdir(mode=0o711)
+        self.workspaces.chmod(0o711)
         self.workspace = self.workspaces / "candidate"
         self.workspace.mkdir(mode=0o700)
         os.chown(self.workspace, self.worker.pw_uid, self.worker.pw_gid)
@@ -226,6 +227,7 @@ class SystemdContainmentTest(unittest.TestCase):
         self.records.mkdir(mode=0o700)
         self.gates = self.root / "gates"
         self.gates.mkdir(mode=0o755)
+        self.gates.chmod(0o755)
 
         # The engine only needs this path to exist and marks it inaccessible in
         # the unit. A private fixture socket prevents accidentally targeting

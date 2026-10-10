@@ -203,3 +203,12 @@ DEV-231 has an open qualification PR; it is not merged into this checkpoint.
 Public webhook hostname, app installation/admin IDs, intended-worker qualification,
 remote halt proof and the real delegate/replay/stop pilot remain unverified.
 Publication remains disabled. See [live acceptance checklist](../../linear-delegation.md).
+
+### First live control installation (2026-10-10)
+
+`worker-install-first-card.log` records the approved installation on the existing
+worker at release `241e93aa0685e31657d88e26d41a02bec43eccbc`. The installer
+passed; the host card failed before operation launch because its fixture mkdir
+inherited startup umask 077. No receipt or enabled broker resulted. The fixture
+now sets its required directory modes explicitly. This is a test fixture fix,
+not evidence of successful containment.

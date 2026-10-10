@@ -1,0 +1,36 @@
+{
+  "error_type": "RuntimeError",
+  "release_sha256": "a71355d40794df14bd6a5c31b16d0bd6269e54bcbebeb2053fdcdd9eecd2f82c",
+  "service_revision": "241e93aa0685e31657d88e26d41a02bec43eccbc",
+  "stage": "systemd_qualification",
+  "status": "failed"
+}
+
+TEST_LOG_START
+Configuration installed. Service has not been enabled or started.
+Review root broker and control-account access before explicit activation.
+.E
+======================================================================
+ERROR: test_held_stop_natural_exit_and_durable_restart_proofs (__main__.SystemdContainmentTest.test_held_stop_natural_exit_and_durable_restart_proofs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/srv/factory/releases/241e93aa0685e31657d88e26d41a02bec43eccbc/factory/deploy/tests/test_worker_operation_systemd.py", line 342, in test_held_stop_natural_exit_and_durable_restart_proofs
+    identity = self.controller.prepare(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/srv/factory/releases/241e93aa0685e31657d88e26d41a02bec43eccbc/factory/deploy/worker_operation.py", line 479, in prepare
+    self._assert_storage_layout()
+  File "/srv/factory/releases/241e93aa0685e31657d88e26d41a02bec43eccbc/factory/deploy/worker_operation.py", line 1278, in _assert_storage_layout
+    self._assert_owned_directory(self.operation_dir, exact_mode=0o755)
+  File "/srv/factory/releases/241e93aa0685e31657d88e26d41a02bec43eccbc/factory/deploy/worker_operation.py", line 1273, in _assert_owned_directory
+    raise OperationUnavailable("operation directory permissions are unsafe")
+worker_operation.OperationUnavailable: operation directory permissions are unsafe
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.021s
+
+FAILED (errors=1)
+Traceback (most recent call last):
+  File "<stdin>", line 68, in <module>
+  File "<stdin>", line 11, in run
+RuntimeError: command failed: /usr/bin/python3 exit=1
+
