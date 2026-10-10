@@ -120,7 +120,7 @@ cd "$release/elixir"
 mise trust
 tools_ready=false
 for attempt in 1 2 3; do
-  if mise install erlang@28.5 elixir@1.19.5-otp-28; then
+  if mise --verbose install erlang@28.5 elixir@1.19.5-otp-28; then
     tools_ready=true
     break
   fi
