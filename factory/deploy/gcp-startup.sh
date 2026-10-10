@@ -74,7 +74,7 @@ id "$service_user" >/dev/null 2>&1 || useradd --create-home \
   --home-dir "/srv/factory/homes/$service_user" --shell /bin/bash "$service_user"
 install -d -m 0750 -o "$service_user" -g "$service_user" \
   /srv/factory/state /srv/factory/logs /srv/factory/runs /srv/factory/workspaces /srv/factory/tmp
-install -d -m 0755 /srv/factory/tools /srv/factory/mise /srv/factory/build
+install -d -m 0755 /srv/factory/tools /srv/factory/mise /srv/factory/mix /srv/factory/build
 install -d -m 0750 -o root -g "$service_user" /run/factory
 install -d -m 0700 -o "$service_user" -g "$service_user" "/srv/factory/homes/$service_user/.ssh"
 # Keep the effective config available while a candidate is being validated.
@@ -108,18 +108,28 @@ fi
 # Build the pinned coordinator/worker runner outside immutable source. Worker
 # executes the same two-stage runner over a coordinator-initiated private SSH.
 export MISE_DATA_DIR=/srv/factory/mise
+export MIX_HOME=/srv/factory/mix
 export MIX_BUILD_PATH="/srv/factory/build/$revision"
 export MIX_DEPS_PATH="$MIX_BUILD_PATH/deps"
 mkdir -p "$MIX_BUILD_PATH"
 cd "$release/elixir"
 mise trust
-mise install
+tools_ready=false
+for attempt in 1 2 3; do
+  if mise install erlang@28.5 elixir@1.19.5-otp-28; then
+    tools_ready=true
+    break
+  fi
+  sleep "$((attempt * 5))"
+done
+[[ "$tools_ready" == true ]] || { echo 'Pinned runtime installation failed after retries' >&2; exit 1; }
 mise exec -- mix local.hex --force
 mise exec -- mix local.rebar --force
 mise exec -- mix setup
 mise exec -- mix build
 chown -R "$service_user:$service_user" "$MIX_BUILD_PATH"
 chmod -R a+rX /srv/factory/mise
+chmod -R a+rX /srv/factory/mix
 chmod -R a+rX "$release"
 
 if [[ "$role" = worker ]]; then

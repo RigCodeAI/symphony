@@ -100,6 +100,7 @@ factory_load_runtime_env() {
   export FACTORY_ROOT="/opt/factory"
   export FACTORY_DATA_ROOT="/srv/factory"
   export MISE_DATA_DIR="$FACTORY_DATA_ROOT/mise"
+  export MIX_HOME="$FACTORY_DATA_ROOT/mix"
   export MISE_CACHE_DIR="$FACTORY_DATA_ROOT/homes/factory-$role/.cache/mise"
   export MISE_TRUSTED_CONFIG_PATHS="$release_dir/elixir"
   export CARGO_HOME="$FACTORY_DATA_ROOT/tools/cargo"
