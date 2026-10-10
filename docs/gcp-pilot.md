@@ -187,7 +187,12 @@ rm -r "$dev230_keydir"
 ```
 
 Pin the numeric versions returned by those uploads. Version IDs are safe inputs;
-payloads and `latest` are not. Check that the Codex auth file is subscription
+payloads and `latest` are not. The worker keeps its regular mode-0600 Codex auth
+file on the retained disk so token refresh survives restart. The same pinned
+secret ID/version preserves that file; changing the pinned version explicitly
+seeds credential rotation. Evidence and configuration object backups exclude
+this file. Protected data-disk snapshots can contain runtime authentication and
+must retain the same private access controls as the disk. Check that the uploaded Codex auth file is subscription
 authentication rather than an API key before upload. If a CLI uses a keyring,
 perform subscription sign-in on a disposable worker setup and upload its auth
 file deliberately; do not invent an export or silently switch billing modes.

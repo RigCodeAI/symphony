@@ -82,8 +82,8 @@ The fixed release pins OTP 28.5 and Elixir 1.19.5-otp-28 with three bounded inst
 retries, and shares root-owned readable Hex archives with the real service user.
 A Linux reproduction confirmed definition validation with the shared Mix home.
 The metadata/release-reader update was applied without replacing either VM.
-The idle worker was restarted to retry bootstrap. Coordinator compilation is
-still running; VM status does not establish a working service.
+The idle worker was restarted to retry bootstrap. Coordinator compilation completed with OTP 28.5 and Elixir 1.19.5.
+VM status does not establish a working service.
 
 A worker restart exposed that the metadata firewall also blocked Google's
 DNS endpoint for the unprivileged resolver. Startup now permits TCP/UDP port 53
@@ -91,7 +91,20 @@ while retaining the metadata deny. On the live coordinator, the service user
 resolved `github.com` after this change while an HTTP metadata request still
 failed immediately. The worker's failed retry had not started compilation.
 
-Fixed release revision: `f61e6b785b1bfef2cdfcfc5769e7d0f6592aaaa9`.
+Detailed startup logs then identified that the Compute startup unit leaves
+`HOME` unset. Kerl immediately rejects that environment but suppresses its error
+on a non-TTY; Hex likewise rejects the missing home. Re-entering through the
+actual root account restored its environment and `mix hex.info` succeeded on
+the coordinator. The bootstrap now uses that account setup. A focused restart
+review also identified that Codex refreshes would otherwise be lost from `/run`;
+the retained auth file and pinned-version rotation behavior were fixed before
+the first real model turn. Fifteen focused Python tests pass. A disposable Linux
+container with the actual fixed paths and a distinct worker UID confirmed
+worker-owned mode-0600 auth, root-owned source marker and same-version restart
+preservation without another secret fetch. These use synthetic credentials and
+are contract checks, not live subscription evidence.
+
+Earlier fixed release revision: `f61e6b785b1bfef2cdfcfc5769e7d0f6592aaaa9`.
 Fixed archive SHA-256:
 `563b0561af59fa891c4475aa19b8890bcc922a70b20ee306183b63cc2c1c3c37`.
 

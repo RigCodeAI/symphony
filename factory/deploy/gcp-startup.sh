@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Runs as root on a Debian 12 VM. No values of secrets are logged or persisted
-# in instance metadata, Terraform inputs, release archives or durable backups.
+# in instance metadata, Terraform inputs, release archives or object backups.
 set -Eeuo pipefail
 umask 077
 trap 'printf "FACTORY_EVENT startup_failed\n" >>/var/log/factory-events.log' ERR
 
 [[ "$EUID" -eq 0 ]] || { echo 'Startup requires root' >&2; exit 1; }
+# The Compute startup unit omits a login environment. Re-enter as the actual
+# root account so tools resolve its normal home rather than an unset HOME.
+if [[ -z "${HOME:-}" ]]; then
+  exec runuser --user root -- bash "$0" "$@"
+fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
@@ -124,6 +129,7 @@ for attempt in 1 2 3; do
     tools_ready=true
     break
   fi
+  printf 'Runtime installer failed on attempt %s\n' "$attempt" >&2
   sleep "$((attempt * 5))"
 done
 [[ "$tools_ready" == true ]] || { echo 'Pinned runtime installation failed after retries' >&2; exit 1; }
@@ -139,14 +145,16 @@ chmod -R a+rX "$release"
 if [[ "$role" = worker ]]; then
   # Secret values are fetched only as root. Git's read-only credential is scoped
   # to this bootstrap invocation, then discarded before any agent starts.
-  rm -f /run/factory/git-read /run/factory/model-auth.json
+  rm -f /run/factory/git-read
   python3 /usr/local/lib/factory/cloud_io.py secret git_read /run/factory/git-read
-  python3 /usr/local/lib/factory/cloud_io.py secret model_auth /run/factory/model-auth.json
-  jq -e '.auth_mode == "chatgpt" and .tokens.access_token and .tokens.refresh_token' \
-    /run/factory/model-auth.json >/dev/null
-  chown "$service_user:$service_user" /run/factory/model-auth.json
-  install -d -m 0700 -o "$service_user" -g "$service_user" "/srv/factory/homes/$service_user/.codex"
-  ln -sfn /run/factory/model-auth.json "/srv/factory/homes/$service_user/.codex/auth.json"
+  codex_home="/srv/factory/homes/$service_user/.codex"
+  [[ ! -L "$codex_home" ]] || { echo 'Codex home must not be a symlink' >&2; exit 1; }
+  if [[ ! -e "$codex_home" ]]; then
+    install -d -m 0700 -o "$service_user" -g "$service_user" "$codex_home"
+  fi
+  # The regular auth file lives on the retained worker disk. Preserve Codex's
+  # refreshed tokens on reboot; a changed pinned secret version seeds rotation.
+  python3 /usr/local/lib/factory/cloud_io.py model-auth
   # The qualified recipe installs tools and creates this seed once. Each smoke
   # task subsequently makes its own independent clone with publishing disabled.
   if [[ ! -d /srv/factory/seed ]]; then

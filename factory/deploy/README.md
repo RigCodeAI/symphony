@@ -10,7 +10,16 @@ that settings file against the release before it can become effective.
 The service source is read-only after deployment. Runtime build data, logs,
 workspaces, and evidence live under `/srv/factory`. `env.sh` pins Mix's build
 and dependency paths to the release revision and uses the separate retained
-home for the active service role.
+home for the active service role. Startup enters the actual root account when
+Compute's startup unit omits its home environment. Unprivileged DNS remains
+available while metadata HTTP access is blocked.
+
+The worker's regular mode-0600 `.codex/auth.json` stays on the retained disk so
+Codex can persist refreshed subscription tokens. `cloud_io.py model-auth` seeds
+it from the pinned Secret Manager version only when absent or when that explicit
+secret ID/version changes. A root-owned source marker records that choice.
+Credential files are excluded from evidence and configuration object backups;
+protected disk snapshots require the same private access as the retained disk.
 
 ## Activate a release
 

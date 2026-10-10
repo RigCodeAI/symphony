@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any
 
 SENSITIVE_KEY = re.compile(r"(?:secret|token|password|api.?key|access.?key|credential|authorization|cookie)", re.I)
+MODEL_AUTH_PATH = Path("/srv/factory/homes/factory-worker/.codex/auth.json")
+LEGACY_MODEL_AUTH_PATH = Path("/run/factory/model-auth.json")
+MAX_MODEL_AUTH_BYTES = 1024 * 1024
 TOKEN_PATTERNS = [
     re.compile(r"(?i)\b(?:sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b"),
     re.compile(r"(?i)\b(?:xox[baprs]-[A-Za-z0-9-]{12,}|npm_[A-Za-z0-9]{12,}|pypi-[A-Za-z0-9_-]{12,})\b"),
@@ -67,12 +72,66 @@ def find_report(raw: str) -> dict[str, Any] | None:
 def known_env_values() -> list[str]:
     import os
 
-    return [
+    values = [
         value
         for key, value in os.environ.items()
         if re.search(r"(?:SECRET|TOKEN|PASSWORD|API.?KEY|ACCESS.?KEY|CREDENTIAL|AUTH|COOKIE)", key, re.I)
         and len(value) >= 8
     ]
+    values.extend(known_model_auth_values())
+    return list(dict.fromkeys(values))
+
+
+def known_model_auth_values() -> list[str]:
+    values: list[str] = []
+    for path in (MODEL_AUTH_PATH, LEGACY_MODEL_AUTH_PATH):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode):
+            if path == MODEL_AUTH_PATH and os.readlink(path) == str(LEGACY_MODEL_AUTH_PATH):
+                continue
+            raise ValueError("model auth path must be a regular file for redaction")
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
+        with os.fdopen(fd, "rb") as handle:
+            info = os.fstat(handle.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                    stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > MAX_MODEL_AUTH_BYTES):
+                raise ValueError("model auth file has unsafe type, permissions, or size")
+            payload = handle.read(MAX_MODEL_AUTH_BYTES + 1)
+        if len(payload) > MAX_MODEL_AUTH_BYTES:
+            raise ValueError("model auth file exceeds the size limit")
+        try:
+            auth = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise ValueError("model auth file is not valid JSON") from None
+        tokens = auth.get("tokens") if isinstance(auth, dict) else None
+        if (not isinstance(auth, dict) or auth.get("auth_mode") != "chatgpt" or
+                not isinstance(tokens, dict) or not isinstance(tokens.get("access_token"), str) or
+                not isinstance(tokens.get("refresh_token"), str)):
+            raise ValueError("model auth file has an unsupported shape")
+
+        def collect(value: Any, key: str = "") -> None:
+            if SENSITIVE_KEY.search(key):
+                if isinstance(value, str) and len(value) >= 8:
+                    values.append(value)
+                elif isinstance(value, (dict, list)):
+                    if isinstance(value, dict):
+                        for child_key, child in value.items():
+                            collect(child, str(child_key))
+                    else:
+                        for child in value:
+                            collect(child)
+            elif isinstance(value, dict):
+                for child_key, child in value.items():
+                    collect(child, str(child_key))
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(auth)
+    return list(dict.fromkeys(values))
 
 
 def main() -> int:

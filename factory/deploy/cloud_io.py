@@ -13,6 +13,7 @@ import io
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import sqlite3
 import stat
@@ -29,6 +30,10 @@ CONFIG = Path("/etc/factory/config.json")
 PUBLIC_CONFIG = Path("/etc/factory/public.json")
 EVENTS = Path("/var/log/factory-events.log")
 DATA_ROOT = Path("/srv/factory")
+MODEL_AUTH_PATH = Path("/srv/factory/homes/factory-worker/.codex/auth.json")
+MODEL_AUTH_SOURCE = DATA_ROOT / "model-auth.source.json"
+LEGACY_MODEL_AUTH_PATH = Path("/run/factory/model-auth.json")
+MAX_MODEL_AUTH_BYTES = 1024 * 1024
 TOKEN_PATTERN = re.compile(r"(?:sk-|gh[pousr]_|github_pat_)[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 
 
@@ -97,6 +102,197 @@ class Cloud:
         return base64.b64decode(data["payload"]["data"], validate=True)
 
 
+def _read_regular_file(path, expected_uid=None, expected_mode=None, limit=MAX_MODEL_AUTH_BYTES):
+    """Read a bounded regular file without following its final path component."""
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    fd = os.open(path, flags)
+    with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > limit:
+            raise ValueError("model auth file must be a single-link regular file within the size limit")
+        if expected_uid is not None and info.st_uid != expected_uid:
+            raise ValueError("model auth file has an unexpected owner")
+        if expected_mode is not None and stat.S_IMODE(info.st_mode) != expected_mode:
+            raise ValueError("model auth file has unexpected permissions")
+        data = handle.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("model auth file exceeds the size limit")
+        return data
+
+
+def _validate_chatgpt_auth(payload):
+    try:
+        auth = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("model auth is not valid JSON") from None
+    tokens = auth.get("tokens") if isinstance(auth, dict) else None
+    if (not isinstance(auth, dict) or auth.get("auth_mode") != "chatgpt" or
+            not isinstance(tokens, dict) or
+            not isinstance(tokens.get("access_token"), str) or not tokens["access_token"].strip() or
+            not isinstance(tokens.get("refresh_token"), str) or not tokens["refresh_token"].strip()):
+        raise ValueError("model auth must contain ChatGPT access and refresh tokens")
+    return auth
+
+
+def _assert_no_symlink_components(path):
+    current = Path(path.anchor)
+    for part in Path(path).parts[1:]:
+        current = current / part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            raise ValueError("model auth path has a missing directory") from None
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            raise ValueError("model auth path contains an unsafe directory")
+
+
+def _check_directory(path, owner_uid, private=False):
+    info = Path(path).lstat()
+    mode = stat.S_IMODE(info.st_mode)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != owner_uid:
+        raise ValueError("model auth directory has an unexpected owner or type")
+    if mode & (0o077 if private else 0o022):
+        raise ValueError("model auth directory has unsafe permissions")
+
+
+def _check_model_auth_paths(auth_path, marker_path, worker_uid, root_uid, strict_paths):
+    if strict_paths:
+        _assert_no_symlink_components(auth_path.parent)
+        _assert_no_symlink_components(marker_path.parent)
+        expected_auth = MODEL_AUTH_PATH
+        expected_marker = MODEL_AUTH_SOURCE
+        if auth_path != expected_auth or marker_path != expected_marker:
+            raise ValueError("model auth paths are fixed by deployment policy")
+        _check_directory(DATA_ROOT, root_uid)
+        _check_directory(auth_path.parent.parent, worker_uid)
+        _check_directory(auth_path.parent, worker_uid, private=True)
+        _check_directory(marker_path.parent, root_uid)
+    else:
+        _check_directory(auth_path.parent, worker_uid, private=True)
+        _check_directory(marker_path.parent, root_uid)
+
+
+def _read_source_marker(marker_path, root_uid):
+    try:
+        info = marker_path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(info.st_mode):
+        raise ValueError("model auth source marker must not be a symlink")
+    payload = _read_regular_file(marker_path, expected_uid=root_uid, expected_mode=0o600, limit=4096)
+    try:
+        marker = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("model auth source marker is invalid") from None
+    if not isinstance(marker, dict):
+        raise ValueError("model auth source marker is invalid")
+    return marker
+
+
+def _atomic_private_write(path, payload, owner_uid, owner_gid):
+    fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    temporary = Path(temporary)
+    try:
+        os.fchmod(fd, 0o600)
+        os.fchown(fd, owner_uid, owner_gid)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _model_auth_source(config):
+    reference = config.get("secret_ids", {}).get("model_auth")
+    version = str(config.get("secret_versions", {}).get("model_auth", ""))
+    prefix = "projects/" + str(config.get("project_id", "")) + "/secrets/"
+    if (not isinstance(reference, str) or not reference.startswith(prefix) or
+            not re.fullmatch(r"[1-9][0-9]*", version)):
+        raise ValueError("model auth must use a project-scoped secret and pinned numeric version")
+    return {"secret_id": reference, "secret_version": version}
+
+
+def _auth_file_metadata(path, worker_uid):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return "missing"
+    if stat.S_ISLNK(info.st_mode):
+        return "symlink"
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != worker_uid or
+            stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or
+            info.st_size > MAX_MODEL_AUTH_BYTES):
+        raise ValueError("existing model auth file has unsafe type, owner, permissions, or size")
+    return "regular"
+
+
+def ensure_model_auth(cloud, auth_path=MODEL_AUTH_PATH, marker_path=MODEL_AUTH_SOURCE,
+                      legacy_path=LEGACY_MODEL_AUTH_PATH, worker_uid=None, worker_gid=None,
+                      root_uid=None, root_gid=None, strict_paths=True):
+    """Seed durable worker auth once per pinned secret version, preserving refreshes."""
+    if cloud.config.get("role") != "worker":
+        raise ValueError("model auth may be installed only on a worker")
+    source = _model_auth_source(cloud.config)
+    account = pwd.getpwnam("factory-worker") if worker_uid is None or worker_gid is None else None
+    worker_uid = account.pw_uid if worker_uid is None else worker_uid
+    worker_gid = account.pw_gid if worker_gid is None else worker_gid
+    root_uid = os.geteuid() if root_uid is None else root_uid
+    root_gid = pwd.getpwuid(root_uid).pw_gid if root_gid is None else root_gid
+    auth_path, marker_path, legacy_path = Path(auth_path), Path(marker_path), Path(legacy_path)
+    _check_model_auth_paths(auth_path, marker_path, worker_uid, root_uid, strict_paths)
+    previous_source = _read_source_marker(marker_path, root_uid)
+    status = _auth_file_metadata(auth_path, worker_uid)
+
+    if status == "regular" and previous_source == source:
+        _validate_chatgpt_auth(_read_regular_file(auth_path, worker_uid, 0o600))
+        return "preserved"
+
+    if status == "symlink":
+        try:
+            target = os.readlink(auth_path)
+        except OSError:
+            raise ValueError("legacy model auth symlink cannot be inspected") from None
+        if target != str(legacy_path):
+            raise ValueError("model auth symlink target is not the known legacy path")
+        if previous_source == source or previous_source is None:
+            if strict_paths:
+                _assert_no_symlink_components(legacy_path.parent)
+            else:
+                _check_directory(legacy_path.parent, root_uid)
+            legacy_payload = _read_regular_file(legacy_path, worker_uid, 0o600)
+            _validate_chatgpt_auth(legacy_payload)
+            _atomic_private_write(auth_path, legacy_payload, worker_uid, worker_gid)
+            if previous_source is None:
+                marker = json.dumps(source, sort_keys=True).encode() + b"\n"
+                _atomic_private_write(marker_path, marker, root_uid, root_gid)
+            return "migrated"
+
+    # Missing auth or an intentional source-version change seeds from the configured
+    # Secret Manager version. Unknown existing files without a source marker are
+    # replaced from that pinned source; known same-version files are preserved above.
+    secret_payload = cloud.secret("model_auth")
+    _validate_chatgpt_auth(secret_payload)
+    _atomic_private_write(auth_path, secret_payload, worker_uid, worker_gid)
+    marker = json.dumps(source, sort_keys=True).encode() + b"\n"
+    _atomic_private_write(marker_path, marker, root_uid, root_gid)
+    return "seeded"
+
+
 def safe_unpack(payload, destination):
     destination = Path(destination)
     if destination.exists():
@@ -153,9 +349,19 @@ def pack(repository, output):
 
 def credential_values():
     values = []
-    path = Path("/run/factory/model-auth.json")
-    if path.exists():
-        data = json.loads(path.read_text())
+    for path in (MODEL_AUTH_PATH, LEGACY_MODEL_AUTH_PATH):
+        try:
+            info = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode):
+            # The old deployment linked the retained home into /run. Read the
+            # known target separately below, never follow the home symlink.
+            if path == MODEL_AUTH_PATH and os.readlink(path) == str(LEGACY_MODEL_AUTH_PATH):
+                continue
+            raise ValueError("model auth path must be a regular file for redaction")
+        payload = _read_regular_file(path, expected_mode=0o600)
+        data = _validate_chatgpt_auth(payload)
         def walk(value):
             if isinstance(value, dict):
                 for key, item in value.items():
@@ -265,6 +471,7 @@ def main():
     p = sub.add_parser("secret")
     p.add_argument("key")
     p.add_argument("destination")
+    sub.add_parser("model-auth")
     sub.add_parser("publish-hostkey")
     sub.add_parser("hostkeys")
     sub.add_parser("archive")
@@ -293,6 +500,9 @@ def main():
         with path.open("xb") as handle:
             os.chmod(path, 0o600)
             handle.write(cloud.secret(args.key))
+    elif args.command == "model-auth":
+        status = ensure_model_auth(cloud)
+        print(f"worker model auth ready ({status})")
     elif args.command == "publish-hostkey":
         cloud.put(cloud.config["release_bucket"], "host-keys/" + cloud.config["instance_name"] + ".pub",
                   Path("/etc/ssh/ssh_host_ed25519_key.pub").read_bytes())

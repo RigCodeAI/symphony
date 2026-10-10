@@ -3,6 +3,7 @@ from contextlib import closing
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sqlite3
 import tarfile
@@ -13,6 +14,11 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location("cloud_io", Path(__file__).resolve().parents[1] / "cloud_io.py")
 cloud_io = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cloud_io)
+
+sanitize_spec = importlib.util.spec_from_file_location(
+    "factory_sanitize", Path(__file__).resolve().parents[1] / "sanitize.py")
+sanitize = importlib.util.module_from_spec(sanitize_spec)
+sanitize_spec.loader.exec_module(sanitize)
 
 
 class FakeCloud:
@@ -155,6 +161,143 @@ class TransportTests(unittest.TestCase):
             with patch.object(cloud_io, "request") as request, self.assertRaises(ValueError):
                 cloud.secret("key")
             request.assert_not_called()
+
+
+def auth_bytes(access="access-token-value-123", refresh="refresh-token-value-123"):
+    return json.dumps({
+        "auth_mode": "chatgpt",
+        "tokens": {
+            "access_token": access,
+            "refresh_token": refresh,
+            "id_token": "eyJsynthetic.id.token-value",
+        },
+    }, sort_keys=True).encode()
+
+
+class ModelAuthTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.home = self.root / "homes" / "factory-worker"
+        self.codex = self.home / ".codex"
+        self.codex.mkdir(parents=True, mode=0o700)
+        self.auth = self.codex / "auth.json"
+        self.marker = self.root / "model-auth.source.json"
+        self.legacy = self.root / "legacy-model-auth.json"
+        self.worker_uid = os.getuid()
+        self.worker_gid = os.getgid()
+        self.root_uid = os.getuid()
+        self.config = {
+            "role": "worker",
+            "project_id": "pilot",
+            "secret_ids": {"model_auth": "projects/pilot/secrets/model-auth"},
+            "secret_versions": {"model_auth": "7"},
+        }
+
+    def ensure(self, cloud):
+        return cloud_io.ensure_model_auth(
+            cloud, self.auth, self.marker, self.legacy,
+            worker_uid=self.worker_uid, worker_gid=self.worker_gid,
+            root_uid=self.root_uid, root_gid=self.worker_gid, strict_paths=False)
+
+    def fake_cloud(self, secret):
+        return type("FakeAuthCloud", (), {"config": self.config, "secret": staticmethod(secret)})()
+
+    def test_same_pinned_source_preserves_rotated_refresh_token_without_fetch(self):
+        cloud = self.fake_cloud(lambda _key: auth_bytes())
+        self.assertEqual(self.ensure(cloud), "seeded")
+        rotated = auth_bytes("access-after-refresh-123", "rotated-refresh-token-123")
+        self.auth.write_bytes(rotated)
+        self.auth.chmod(0o600)
+
+        def unexpected_fetch(_key):
+            raise AssertionError("same pinned secret version must not be fetched again")
+
+        cloud.secret = unexpected_fetch
+        self.assertEqual(self.ensure(cloud), "preserved")
+        self.assertEqual(self.auth.read_bytes(), rotated)
+
+    def test_changed_pinned_version_reseeds_and_updates_root_only_marker(self):
+        self.ensure(self.fake_cloud(lambda _key: auth_bytes()))
+        self.auth.write_bytes(auth_bytes("refreshed-access-token-123", "refreshed-token-123"))
+        self.auth.chmod(0o600)
+        self.config["secret_versions"]["model_auth"] = "8"
+        replacement = auth_bytes("new-access-token-123", "new-refresh-token-123")
+        self.assertEqual(self.ensure(self.fake_cloud(lambda _key: replacement)), "seeded")
+        self.assertEqual(self.auth.read_bytes(), replacement)
+        marker = json.loads(self.marker.read_bytes())
+        self.assertEqual(marker["secret_version"], "8")
+        self.assertEqual(self.marker.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.marker.stat().st_uid, self.root_uid)
+        self.assertEqual(self.auth.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.auth.stat().st_uid, self.worker_uid)
+
+    def test_changed_pinned_secret_id_reseeds_even_when_version_is_unchanged(self):
+        self.ensure(self.fake_cloud(lambda _key: auth_bytes()))
+        self.auth.write_bytes(auth_bytes("rotated-access-token-123", "rotated-refresh-token-123"))
+        self.auth.chmod(0o600)
+        self.config["secret_ids"]["model_auth"] = "projects/pilot/secrets/model-auth-next"
+        replacement = auth_bytes("new-access-token-456", "new-refresh-token-456")
+        self.assertEqual(self.ensure(self.fake_cloud(lambda _key: replacement)), "seeded")
+        self.assertEqual(self.auth.read_bytes(), replacement)
+        marker = json.loads(self.marker.read_bytes())
+        self.assertEqual(marker["secret_id"], self.config["secret_ids"]["model_auth"])
+
+    def test_insecure_existing_permissions_fail_closed(self):
+        self.ensure(self.fake_cloud(lambda _key: auth_bytes()))
+        self.auth.chmod(0o644)
+        with self.assertRaisesRegex(ValueError, "unsafe type, owner, permissions"):
+            self.ensure(self.fake_cloud(lambda _key: self.fail("unsafe auth should not be read or replaced")))
+
+    def test_known_legacy_symlink_migrates_but_arbitrary_symlink_is_rejected(self):
+        payload = auth_bytes("legacy-access-token-123", "legacy-refresh-token-123")
+        self.legacy.write_bytes(payload)
+        self.legacy.chmod(0o600)
+        self.auth.symlink_to(self.legacy)
+        marker = json.dumps({
+            "secret_id": self.config["secret_ids"]["model_auth"],
+            "secret_version": "7",
+        }).encode()
+        cloud_io._atomic_private_write(self.marker, marker, self.root_uid, self.worker_gid)
+        self.assertEqual(self.ensure(self.fake_cloud(lambda _key: self.fail("unexpected fetch"))), "migrated")
+        self.assertFalse(self.auth.is_symlink())
+        self.assertEqual(self.auth.read_bytes(), payload)
+
+        other = self.root / "outside.json"
+        other.write_bytes(auth_bytes())
+        other.chmod(0o600)
+        self.auth.unlink()
+        self.auth.symlink_to(other)
+        with self.assertRaisesRegex(ValueError, "known legacy path"):
+            self.ensure(self.fake_cloud(lambda _key: auth_bytes()))
+        self.assertEqual(other.read_bytes(), auth_bytes())
+
+    def test_invalid_chatgpt_secret_is_rejected_without_writing_files(self):
+        with self.assertRaisesRegex(ValueError, "ChatGPT access and refresh"):
+            self.ensure(self.fake_cloud(lambda _key: b'{"auth_mode":"chatgpt","tokens":{}}'))
+        self.assertFalse(self.auth.exists())
+        self.assertFalse(self.marker.exists())
+
+    def test_cloud_and_worker_redactors_load_exact_values_from_retained_and_legacy_auth(self):
+        current = self.codex / "auth.json"
+        current.write_bytes(auth_bytes("retained-access-value-123", "retained-refresh-value-123"))
+        current.chmod(0o600)
+        self.legacy.write_bytes(auth_bytes("legacy-access-value-123", "legacy-refresh-value-123"))
+        self.legacy.chmod(0o600)
+        with patch.object(cloud_io, "MODEL_AUTH_PATH", current), \
+                patch.object(cloud_io, "LEGACY_MODEL_AUTH_PATH", self.legacy), \
+                patch.object(sanitize, "MODEL_AUTH_PATH", current), \
+                patch.object(sanitize, "LEGACY_MODEL_AUTH_PATH", self.legacy):
+            values = cloud_io.credential_values()
+            text = " ".join(values)
+            self.assertIn("retained-refresh-value-123", text)
+            self.assertIn("legacy-refresh-value-123", text)
+            sanitized = sanitize.scrub_text(
+                "retained-refresh-value-123 legacy-refresh-value-123", sanitize.known_model_auth_values())
+            self.assertNotIn("retained-refresh-value-123", sanitized)
+            self.assertNotIn("legacy-refresh-value-123", sanitized)
+            self.assertEqual(sanitized.count("[REDACTED]"), 2)
 
 
 if __name__ == "__main__":
