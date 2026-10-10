@@ -163,7 +163,7 @@ cd -- "$release_dir/elixir"
 
 runner_exit=127
 if timeout --signal=TERM --kill-after=10s 3600s \
-  factory_mix workstream.run "$definition" \
+  /bin/bash "$script_dir/mix.sh" workstream.run "$definition" \
     --inputs "$input_file" \
     --workspace "$workspace" \
     --workspace-root "$workspaces" \
