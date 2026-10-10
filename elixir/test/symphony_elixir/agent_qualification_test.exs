@@ -72,9 +72,7 @@ defmodule SymphonyElixir.AgentQualificationTest do
   test "unsupported access is rejected before a turn and its catalog is retained" do
     {workspace, root, command, trace, agent_path} = fixture(true)
     File.write!(command, File.read!(command) |> String.replace("[\"standard\",\"daybreakBlue\"]", "[\"standard\"]"))
-    assert {:ok, receipt} = AgentQualification.run(agent_path,
-      workspace: workspace, workspace_root: root, codex_command: command,
-      authentication_reference: "test-subscription")
+    assert {:ok, receipt} = AgentQualification.run(agent_path, workspace: workspace, workspace_root: root, codex_command: command, authentication_reference: "test-subscription")
     assert receipt.status == :blocked
     assert receipt.blocker == "access_program_not_advertised"
     assert receipt.observation.runtime.models != []
@@ -83,14 +81,12 @@ defmodule SymphonyElixir.AgentQualificationTest do
 
   test "reroutes and failed turns cannot pass qualification" do
     for notification <- [
-      ~s({"method":"model/rerouted","params":{"fromModel":"test-model","toModel":"other-model","reason":"test"}}),
-      ~s({"method":"turn/completed","params":{"turn":{"id":"test-turn","status":"failed","error":{"message":"secret-value"}}}})
-    ] do
+          ~s({"method":"model/rerouted","params":{"fromModel":"test-model","toModel":"other-model","reason":"test"}}),
+          ~s({"method":"turn/completed","params":{"turn":{"id":"test-turn","status":"failed","error":{"message":"secret-value"}}}})
+        ] do
       {workspace, root, command, _trace, agent_path} = fixture(false)
       File.write!(command, File.read!(command) |> String.replace("'" <> ~s({"method":"turn/completed","params":{"turn":{"id":"test-turn","status":"completed"}}}) <> "'", "'" <> notification <> "'"))
-      assert {:ok, receipt} = AgentQualification.run(agent_path,
-        workspace: workspace, workspace_root: root, codex_command: command,
-        authentication_reference: "test-subscription")
+      assert {:ok, receipt} = AgentQualification.run(agent_path, workspace: workspace, workspace_root: root, codex_command: command, authentication_reference: "test-subscription")
       assert receipt.status == :blocked
       refute Jason.encode!(receipt) =~ "secret-value"
     end
@@ -98,14 +94,40 @@ defmodule SymphonyElixir.AgentQualificationTest do
 
   test "qualification's absolute turn deadline survives ongoing notifications" do
     {workspace, root, command, _trace, agent_path} = fixture(false)
-    File.write!(command, File.read!(command) |> String.replace("printf '%s\\n' '{\"method\":\"item/completed\"", "for i in 1 2 3 4 5; do sleep 0.03; printf '%s\\n' '{\"method\":\"thread/status/changed\",\"params\":{}}'; done\n          printf '%s\\n' '{\"method\":\"item/completed\""))
+
+    File.write!(
+      command,
+      File.read!(command)
+      |> String.replace(
+        "printf '%s\\n' '{\"method\":\"item/completed\"",
+        "for i in 1 2 3 4 5; do sleep 0.03; printf '%s\\n' '{\"method\":\"thread/status/changed\",\"params\":{}}'; done\n          printf '%s\\n' '{\"method\":\"item/completed\""
+      )
+    )
+
     assert {:ok, agent, _} = Workstream.load_agent(agent_path)
     assert {:ok, session} = AppServer.start_session(workspace, Keyword.put(options(root, command, agent), :turn_timeout_ms, 50))
+
     try do
       assert {:error, :turn_timeout} = AppServer.run_turn(session, "test", issue(), absolute_turn_timeout: true)
     after
       AppServer.stop_session(session)
     end
+  end
+
+  test "named RPC deadlines survive ongoing notifications before initialize response" do
+    {workspace, root, command, _trace, agent_path} = fixture(false)
+
+    File.write!(
+      command,
+      File.read!(command)
+      |> String.replace(
+        "*) printf '%s\\n' '{\"id\":1,",
+        "*) for i in 1 2 3 4 5; do sleep 0.03; printf '%s\\n' '{\"method\":\"account/updated\",\"params\":{}}'; done; printf '%s\\n' '{\"id\":1,"
+      )
+    )
+
+    assert {:ok, agent, _} = Workstream.load_agent(agent_path)
+    assert {:error, :response_timeout} = AppServer.start_session(workspace, Keyword.put(options(root, command, agent), :read_timeout_ms, 50))
   end
 
   defp options(root, command, agent) do

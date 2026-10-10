@@ -282,10 +282,17 @@ defmodule SymphonyElixir.Codex.AppServer do
       end
     else
       {:error, {:agent_not_ready, reason, runtime}} ->
-        {:ok, %{runtime: runtime, configured: nil,
-          effective: %{model: nil, reasoning_effort: nil, cyber_access_program: nil},
-          turn: %{status: :blocked, reason: qualification_error(reason)}, observations: []}}
-      {:error, _} = error -> error
+        {:ok,
+         %{
+           runtime: runtime,
+           configured: nil,
+           effective: %{model: nil, reasoning_effort: nil, cyber_access_program: nil},
+           turn: %{status: :blocked, reason: qualification_error(reason)},
+           observations: []
+         }}
+
+      {:error, _} = error ->
+        error
     end
   end
 
@@ -392,9 +399,15 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
+  defp response_timeout(%{agent: nil, read_timeout_ms: timeout_ms}), do: timeout_ms
+
+  defp response_timeout(%{read_timeout_ms: timeout_ms}) do
+    {:deadline, System.monotonic_time(:millisecond) + (timeout_ms || Config.settings!().codex.read_timeout_ms)}
+  end
+
   defp request(port, id, method, params, settings) do
     send_message(port, %{"id" => id, "method" => method, "params" => params})
-    await_response(port, id, settings.read_timeout_ms)
+    await_response(port, id, response_timeout(settings))
   end
 
   @spec stop_session(session()) :: :ok
@@ -673,7 +686,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp do_start_session(port, workspace, session_policies, dynamic_tool_binding, settings) do
-    with {:ok, initialize_info} <- send_initialize(port, settings.read_timeout_ms),
+    with {:ok, initialize_info} <- send_initialize(port, response_timeout(settings)),
          {:ok, runtime} <- named_runtime(port, settings),
          {:ok, started} <- start_thread(port, workspace, session_policies, dynamic_tool_binding, settings) do
       runtime = if runtime, do: Map.put(runtime, :server, Map.take(initialize_info, ["userAgent", "platformOs", "platformFamily"])), else: nil
@@ -710,7 +723,7 @@ defmodule SymphonyElixir.Codex.AppServer do
       "params" => params
     })
 
-    case await_response(port, @thread_start_id, settings.read_timeout_ms) do
+    case await_response(port, @thread_start_id, response_timeout(settings)) do
       {:ok, response_payload} ->
         started_thread_response(response_payload, requested_model, settings.agent)
 
@@ -789,7 +802,7 @@ defmodule SymphonyElixir.Codex.AppServer do
       "params" => params
     })
 
-    case await_response(port, @turn_start_id, read_timeout_ms) do
+    case await_response(port, @turn_start_id, response_timeout(%{agent: agent, read_timeout_ms: read_timeout_ms})) do
       {:ok, %{"turn" => %{"id" => turn_id}}} -> {:ok, turn_id}
       other -> other
     end
@@ -816,30 +829,31 @@ defmodule SymphonyElixir.Codex.AppServer do
 
   defp receive_loop(port, on_message, timeout_ms, pending_line, tool_executor, auto_approve_requests) do
     remaining_ms = remaining_turn_timeout(timeout_ms)
+
     if remaining_ms == 0 do
       {:error, :turn_timeout}
     else
       receive do
-      {^port, {:data, {:eol, chunk}}} ->
-        complete_line = pending_line <> to_string(chunk)
-        handle_incoming(port, on_message, complete_line, timeout_ms, tool_executor, auto_approve_requests)
+        {^port, {:data, {:eol, chunk}}} ->
+          complete_line = pending_line <> to_string(chunk)
+          handle_incoming(port, on_message, complete_line, timeout_ms, tool_executor, auto_approve_requests)
 
-      {^port, {:data, {:noeol, chunk}}} ->
-        receive_loop(
-          port,
-          on_message,
-          timeout_ms,
-          pending_line <> to_string(chunk),
-          tool_executor,
-          auto_approve_requests
-        )
+        {^port, {:data, {:noeol, chunk}}} ->
+          receive_loop(
+            port,
+            on_message,
+            timeout_ms,
+            pending_line <> to_string(chunk),
+            tool_executor,
+            auto_approve_requests
+          )
 
-      {^port, {:exit_status, status}} ->
-        {:error, {:port_exit, status}}
-    after
-      remaining_ms ->
-        {:error, :turn_timeout}
-    end
+        {^port, {:exit_status, status}} ->
+          {:error, {:port_exit, status}}
+      after
+        remaining_ms ->
+          {:error, :turn_timeout}
+      end
     end
   end
 
@@ -1351,19 +1365,25 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp with_timeout_response(port, request_id, timeout_ms, pending_line) do
-    receive do
-      {^port, {:data, {:eol, chunk}}} ->
-        complete_line = pending_line <> to_string(chunk)
-        handle_response(port, request_id, complete_line, timeout_ms)
+    remaining_ms = remaining_turn_timeout(timeout_ms)
 
-      {^port, {:data, {:noeol, chunk}}} ->
-        with_timeout_response(port, request_id, timeout_ms, pending_line <> to_string(chunk))
+    if remaining_ms == 0 do
+      {:error, :response_timeout}
+    else
+      receive do
+        {^port, {:data, {:eol, chunk}}} ->
+          complete_line = pending_line <> to_string(chunk)
+          handle_response(port, request_id, complete_line, timeout_ms)
 
-      {^port, {:exit_status, status}} ->
-        {:error, {:port_exit, status}}
-    after
-      timeout_ms ->
-        {:error, :response_timeout}
+        {^port, {:data, {:noeol, chunk}}} ->
+          with_timeout_response(port, request_id, timeout_ms, pending_line <> to_string(chunk))
+
+        {^port, {:exit_status, status}} ->
+          {:error, {:port_exit, status}}
+      after
+        remaining_ms ->
+          {:error, :response_timeout}
+      end
     end
   end
 

@@ -88,6 +88,16 @@ defmodule SymphonyElixir.WorkstreamTest do
              sha256(File.read!(context.agent_path))
   end
 
+  test "explicit authentication cannot inherit silently or accept credential modes", context do
+    for authentication <- ["null", "{mode: api_key, reference: token}"] do
+      File.write!(context.agent_path, agent_yaml() <> "\nauthentication: #{authentication}\n")
+      assert {:error, {:unsupported_agent_authentication, _}} = Workstream.load_agent(context.agent_path)
+    end
+
+    File.write!(context.agent_path, agent_yaml() <> "\nauthentication: {mode: subscription, reference: valid-ref, secret: disallowed}\n")
+    assert {:error, _} = Workstream.load_agent(context.agent_path)
+  end
+
   test "requires all declared workstream inputs", context do
     assert {:error, {:missing_workstream_inputs, ["request"]}} =
              Workstream.load(context.workstream_path, %{})
