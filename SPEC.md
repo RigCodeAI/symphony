@@ -38,6 +38,13 @@ signed timestamp within 60 seconds. Delivery identity and normalized event conte
 persisted before HTTP acknowledgement; conflicting replay contents reject. Raw prompts and
 credentials are not persisted in receipt records.
 
+Delegation can use coordinator-only OAuth client credentials through `client_secret_env`
+instead of the compatible legacy `token_env`. Exactly one is configured. App tokens use
+fixed `read,write,app:assignable` scopes, are held in bounded memory per issue run and never
+persisted or passed to workers. Expiry or one HTTP 401 triggers renewal; a second 401,
+unavailable credentials or failed acquisition blocks the API operation. Restart reacquires
+tokens. Signing and client secrets remain distinct stripped coordinator environment names.
+
 The authoritative issue must have the configured DEV team, `DEV-` identifier, explicit Rig
 label, active DEV status and installed app delegate. Project membership and human assignment
 do not authorize dispatch. The current agent session must belong to the configured app and

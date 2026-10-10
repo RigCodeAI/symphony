@@ -5,8 +5,8 @@ defmodule SymphonyElixir.Linear.Delegation do
   alias SymphonyElixir.Tracker.Issue
   alias SymphonyElixir.{WorkerOperation, WorkstreamRunner}
 
-  @required ~w(organization_id team_id app_user_id oauth_client_id webhook_secret_env token_env store_path workspace_root workstream_path agent_id rig_label)
-  @optional ~w(workspaces codex_command reconcile_interval_ms worker_control)
+  @required ~w(organization_id team_id app_user_id oauth_client_id webhook_secret_env store_path workspace_root workstream_path agent_id rig_label)
+  @optional ~w(workspaces codex_command reconcile_interval_ms worker_control token_env client_secret_env)
 
   @spec validate(map()) :: {:ok, map()} | {:error, atom()}
   def validate(config) when is_map(config) do
@@ -113,7 +113,7 @@ defmodule SymphonyElixir.Linear.Delegation do
   defp inspect_session(%{kind: :issue_updated}, _config, _opts), do: :ok
 
   defp inspect_session(event, config, opts) do
-    fetch = Keyword.get(opts, :linear_session_fetcher, &fetch_session/2)
+    fetch = Keyword.get(opts, :linear_session_fetcher, fn id, config -> fetch_session(id, config, event.issue_id) end)
 
     case fetch.(event.session_id, config) do
       {:ok, %{"id" => id, "issueId" => issue_id, "appUser" => %{"id" => app}, "dismissedAt" => nil}}
@@ -125,16 +125,18 @@ defmodule SymphonyElixir.Linear.Delegation do
     end
   end
 
-  defp client_opts(config) do
-    [tracker_settings: %{endpoint: "https://api.linear.app/graphql", api_key: System.get_env(config["token_env"])}]
+  defp client_opts(config, run_id) do
+    if config["client_secret_env"],
+      do: SymphonyElixir.Linear.OAuth.client_opts(config, run_id),
+      else: [tracker_settings: %{endpoint: "https://api.linear.app/graphql", api_key: System.get_env(config["token_env"])}]
   end
 
-  defp fetch_issue(id, config), do: Client.fetch_delegated_issue(id, client_opts(config))
-  defp fetch_session(id, config), do: Client.fetch_agent_session(id, client_opts(config))
+  defp fetch_issue(id, config), do: Client.fetch_delegated_issue(id, client_opts(config, id))
+  defp fetch_session(id, config, run_id), do: Client.fetch_agent_session(id, client_opts(config, run_id))
 
   defp acknowledge_session(task, config) do
     body = "Received delegated Rig work. Run #{task.run_id || "pending"}; publication is disabled."
-    Client.acknowledge_agent_session(task.session_id, task.activity_id, body, client_opts(config))
+    Client.acknowledge_agent_session(task.session_id, task.activity_id, body, client_opts(config, task.issue_id))
   end
 
   defp qualified_agent(definition, agent) do
@@ -147,12 +149,13 @@ defmodule SymphonyElixir.Linear.Delegation do
 
   defp valid_fields?(config) do
     Enum.all?(@required, &(is_binary(config[&1]) and config[&1] != "")) and
-      Enum.all?(Map.keys(config), &(&1 in (@required ++ @optional)))
+      Enum.all?(Map.keys(config), &(&1 in (@required ++ @optional))) and
+      Enum.count(~w(token_env client_secret_env), &(is_binary(config[&1]) and config[&1] != "")) == 1
   end
 
   defp valid_paths?(config), do: Enum.all?(~w(store_path workspace_root workstream_path), &absolute?(config[&1]))
   defp absolute?(path), do: is_binary(path) and Path.type(path) == :absolute
-  defp valid_environment?(config), do: Enum.all?(~w(webhook_secret_env token_env), &environment_name?(config[&1]))
+  defp valid_environment?(config), do: Enum.all?([config["webhook_secret_env"], config["client_secret_env"] || config["token_env"]], &environment_name?/1)
   defp environment_name?(name), do: is_binary(name) and Regex.match?(~r/^[A-Z][A-Z0-9_]*$/, name)
   defp valid_workspaces?(workspaces), do: is_map(workspaces) and Enum.all?(workspaces, fn {id, path} -> is_binary(id) and absolute?(path) end)
 
@@ -168,7 +171,9 @@ defmodule SymphonyElixir.Linear.Delegation do
     # removed by its dynamic-tools-disabled launch are allowed.
     names = ~w(LINEAR_API_KEY LINEAR_API_TOKEN OAUTH_TOKEN)
 
-    if config["token_env"] in names and config["webhook_secret_env"] in names and config["token_env"] != config["webhook_secret_env"],
+    secret_env = config["client_secret_env"] || config["token_env"]
+
+    if secret_env in names and config["webhook_secret_env"] in names and secret_env != config["webhook_secret_env"],
       do: :ok,
       else: {:error, :credential_environment_isolation_unavailable}
   end

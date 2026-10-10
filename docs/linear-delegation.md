@@ -19,9 +19,9 @@ linear_delegation:
   organization_id: installed-organization-uuid
   team_id: dev-team-uuid
   app_user_id: installed-app-user-uuid
-  oauth_client_id: installed-oauth-client-uuid
+  oauth_client_id: installed-app-client-id
   webhook_secret_env: LINEAR_API_TOKEN
-  token_env: LINEAR_API_KEY
+  client_secret_env: LINEAR_API_KEY
   store_path: /srv/factory/state/linear.sqlite
   workspace_root: /srv/factory/workspaces
   workstream_path: /srv/factory/definitions/software-change.yaml
@@ -32,12 +32,57 @@ linear_delegation:
     pilot-issue-uuid: /srv/factory/workspaces/pilot-rig
 ```
 
-Keep the signing secret and app OAuth token in separate service environment variables.
-`LINEAR_API_TOKEN` above is the webhook signing secret; `LINEAR_API_KEY` is the app OAuth
-token despite the legacy variable name. Neither value belongs in YAML, logs or evidence.
+Keep the signing secret and OAuth client secret in separate coordinator environment variables.
+`LINEAR_API_TOKEN` above is the webhook signing secret; `LINEAR_API_KEY` is the OAuth client
+secret despite the legacy variable name. Neither value belongs in YAML, logs or evidence.
 For this increment, the two references must be distinct names in `LINEAR_API_KEY`,
 `LINEAR_API_TOKEN`, or `OAUTH_TOKEN`, which the current agent launch strips. Custom references
 block before dispatch until the runtime supports a pinned explicit strip list.
+
+`client_secret_env` enables server-to-server app authentication with fixed scopes
+`read,write,app:assignable`. The coordinator mints a token on the first API lookup for
+each delegated issue run and keeps it in memory only, scoped to that run. This increment
+allows one immutable run per issue. It renews before expiry or once after HTTP 401;
+a second 401 fails rather than looping. Network/token failures are redacted, with no
+automatic retry or redirect. Restart discards tokens and mints fresh ones as needed.
+The cache is bounded to 1,000 unexpired run entries; an exhausted cache blocks new
+authentication. Tokens and client credentials do not enter task records, evidence or
+worker environments. Existing `token_env` workflows remain compatible; configure exactly
+one of `token_env` and `client_secret_env`. Do not use copied access tokens as durable
+production credentials. See [Linear client-credentials authentication](https://linear.app/developers/oauth-2-0-authentication).
+
+The cache limit bounds process memory, not Linear's app-wide token quota. Tokens discarded
+by a crash/restart or a blocked candidate can remain active at Linear until their provider
+expiry (up to 30 days). Repeated restarts/runs can therefore exhaust the provider's
+1,000-active-token limit; acquisition then fails closed. This single-run pilot does not
+implement app-wide token lifecycle/revocation accounting. Before sustained operation or
+scaling, add that lifecycle and verify it against the installed app; do not infer quota
+recovery from local cache pruning or restart. Operator secret rotation invalidates existing
+client-credentials tokens and requires a new pinned secret version/release.
+
+## Linear app setup
+
+Create a private OAuth app named **Default Cloud Agent** and enable client-credentials
+tokens and webhooks. Use `read`, `write`, `app:assignable`; no `admin` scope is required.
+`app:mentionable` is optional. Limit app-user team access to DEV. Subscribe to Agent session
+events (`AgentSessionEvent`), Inbox Notifications (`AppUserNotification`) and Issue updates.
+Permission Change events are not consumed by this increment. Store separate
+`linear-client-secret` and `linear-webhook-signing` values privately in Secret Manager;
+share only the Client ID and secret references/versions with the deployment operator.
+
+Use the app token's `{ viewer { id } }` query to get its app-user ID. Copy the exact Client ID
+from app details and verify it against signed events' `oauthClientId`; do not assume that
+field is an OAuth object UUID. Rig organization is `9b259b98-cb6c-4256-88af-3a3f385c3fa7`,
+DEV team is `41e1aa00-b853-44a9-930d-79e424259565`. Confirm the `factory:rig` label and use
+one disposable DEV issue with its human assignee intact; select the app as delegate.
+
+The webhook must be HTTPS at `/hooks/linear` on the chosen hostname. No hostname is
+selected yet. The server-to-server grant does not use an interactive callback; this
+service implements no OAuth callback endpoint. Any registration-required redirect URI
+must be chosen separately, not inferred from the webhook listener. A workspace admin
+must complete app setup. See [Linear agent setup](https://linear.app/developers/agents),
+[app authentication](https://linear.app/developers/oauth-actor-authorization) and
+[interaction best practices](https://linear.app/developers/agent-best-practices).
 
 The configured paths must be absolute. The issue workspace must already exist as a dedicated
 Git clone beneath `workspace_root`. No clone is created implicitly. The definition must be
@@ -148,7 +193,7 @@ removing only that disposable output directory. It makes no Linear API call or a
 The idle pilot remains the default. The local Terraform interface adds finite
 `coordinator_workflow = "linear"`, `coordinator_secret_env` and opt-in
 `enable_linear_webhook`. These source changes have not been applied to GCP.
-Map exactly `LINEAR_API_KEY` to the app OAuth secret and `LINEAR_API_TOKEN` to the
+Map exactly `LINEAR_API_KEY` to the OAuth client secret and `LINEAR_API_TOKEN` to the
 separate signing secret using existing `optional_integration_secrets` keys and pinned
 numeric versions. Pilot mode accepts no credential mapping. No payload goes through Terraform.
 

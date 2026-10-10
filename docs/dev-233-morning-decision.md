@@ -62,11 +62,14 @@ not permission to install, grant access, expose ingress or claim host qualificat
 
 ## Decisions queued for morning
 
-1. **Existing idle worker:** authorize the reviewed root broker/account installation and
-   disposable qualification card, including PID 1 re-execution, on this existing worker.
-   Worker root maintenance access was not established by the read-only service-user SSH
-   route. Use the existing administrator's GCP maintenance route; no new SSH/IAM grant is
-   assumed. No new VM, project, region or key pair is needed by the source design.
+1. **Existing idle worker:** installation and testing of the process-control service are
+   now approved, including the documented disposable manager recovery card. Execution is
+   pending an established administrator maintenance route. The existing service-key route
+   reaches only `factory-worker`: `sudo -n true` requires a password; `adam_rig_ai` and
+   `root` SSH with that key fail `Permission denied (publickey)`. This does not rule out a
+   separate existing administrator route, which the coordinator is investigating. See the
+   [access check](evidence/dev-233/worker-maintenance-access.json). No worker data, auth,
+   key, metadata or IAM change was made; no installation/card ran. No new VM is proposed.
 2. **Hostname and eligibility:** choose a DNS hostname controlled by Rig and confirm
    DNS administration, the managed `rig.ai` domain and Google-managed IAP eligibility.
    Dashboard viewers are selected as `domain:rig.ai`; no individual viewer list is needed.
@@ -74,7 +77,8 @@ not permission to install, grant access, expose ingress or claim host qualificat
    The same host can receive `/hooks/linear` through the separate signed backend. Review
    the concrete Terraform plan before authorizing public ingress or credential IAM changes.
 3. **Assignable Linear app:** identify/install one app using app authentication and record
-   its app-user/OAuth-client UUIDs. Provision separate OAuth/signing values privately to
+   its app-user ID and exact OAuth Client ID. Enable client-credentials tokens with
+   `read,write,app:assignable`, and provision separate client/signing secrets privately to
    pinned Secret Manager versions; do not paste values into chat/YAML/evidence. Confirm or
    create the `factory:rig` label and choose one disposable DEV issue with its human owner
    intact. No app identity is inferred from project/team membership.
@@ -99,12 +103,12 @@ The private inputs keep the existing project/region/zone/key route and add:
 ```hcl
 coordinator_workflow = "linear"
 coordinator_secret_env = {
-  LINEAR_API_KEY   = "linear_oauth"
+  LINEAR_API_KEY   = "linear_client"
   LINEAR_API_TOKEN = "linear_signing"
 }
 optional_integration_secrets = {
-  linear_oauth   = { secret_id = "<chosen-oauth-container>", version = "<numeric-version>" }
-  linear_signing = { secret_id = "<chosen-signing-container>", version = "<numeric-version>" }
+  linear_client  = { secret_id = "linear-client-secret", version = "<numeric-version>" }
+  linear_signing = { secret_id = "linear-webhook-signing", version = "<numeric-version>" }
 }
 enable_https_iap = true
 enable_linear_webhook = true

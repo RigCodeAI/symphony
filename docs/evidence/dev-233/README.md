@@ -1,5 +1,43 @@
 # DEV-233 local checkpoint
 
+## Coordinator client credentials and worker maintenance check, 2026-10-10
+
+The coordinator supports Linear's server-to-server app grant with `client_secret_env`
+instead of the compatible `token_env`. The existing stripped `LINEAR_API_KEY` now holds
+the OAuth client secret; `LINEAR_API_TOKEN` remains the separate signing secret. Fixed
+scopes are `read,write,app:assignable`. Tokens stay in bounded coordinator memory per
+immutable issue run, renew on expiry or one HTTP 401, and are never written to durable
+task records or worker environments. Official HTTPS endpoints are fixed; redirects and
+automatic HTTP retries are disabled. Failure/status diagnostics redact credentials.
+See [exact app setup](../../linear-delegation.md#linear-app-setup).
+
+Focused verification in the pinned `dev233-check` runtime: **35 tests passed**
+([output](client-credentials-focused.log)), covering separate run tokens, fixed scopes,
+ordinary GraphQL integration, missing credentials, expiry, restart, bounded 401 renewal,
+redacted failures/status, delegation compatibility and agent credential exclusion.
+Command: `mix test test/symphony_elixir/linear_oauth_test.exs
+test/symphony_elixir/linear_delegation_test.exs test/symphony_elixir/linear_agent_client_test.exs
+test/symphony_elixir/app_server_options_test.exs`. Compile with warnings as errors,
+specs, escript build and changed-file formatting passed ([build](client-credentials-build.log)).
+A fresh controlled coordinator startup retained both listeners
+([output](client-credentials-service.log)); no real app token was minted. Broad tests
+were not repeated. Live Linear setup/HTTPS/acceptance remain pending.
+
+Targeted Luna/max review found no credential exposure or unbounded 401 loop, but identified
+the app-wide provider token lifetime limit: a lost memory cache does not revoke old tokens
+at Linear. The local cache cap is not a provider quota guarantee. This limitation is now
+explicit in the app setup guide; sustained/scaled operation needs token lifecycle accounting.
+Self-review checked exclusive authentication configuration, matching issue-run cache keys,
+fixed endpoints/scopes, redacted errors, restart and unchanged worker secret stripping.
+
+The user approved process-control installation/testing, but the established service-key
+route cannot perform root maintenance: `factory-worker`'s noninteractive sudo requires a
+password, and known administrator/root logins with that key are denied
+([receipt](worker-maintenance-access.json)). This tests that route only; another existing
+administrator route is being investigated. No worker staging, installation, privileged
+qualification, metadata/key/IAM change or dispatch ran during this check. Existing auth
+and worker data were untouched.
+
 ## Selected dashboard domain, 2026-10-10
 
 The user selected managed-domain dashboard access as `domain:rig.ai`. Source adds

@@ -57,6 +57,8 @@ SSH/systemd installation files and remains disabled until worker qualification p
 The local deployment wiring supports the existing systemd 252 worker, selected coordinator
 credentials and a separate signed webhook listener. See the [morning decision card](docs/dev-233-morning-decision.md)
 for live prerequisites; no worker installation or public ingress is claimed.
+Coordinator-only client credentials mint app tokens in memory per delegated run; see
+[Linear app setup](docs/linear-delegation.md#linear-app-setup) for scopes, events and secret references.
 
 Use live ticket dependencies to schedule work. The local files
 `docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,

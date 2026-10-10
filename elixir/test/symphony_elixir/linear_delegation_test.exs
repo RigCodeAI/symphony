@@ -733,6 +733,13 @@ defmodule SymphonyElixir.LinearDelegationTest do
     assert File.read!(Path.join(c.workspace, "registered-effect")) == "once"
   end
 
+  test "client credentials replace the legacy token reference exclusively", c do
+    config = c.config |> Map.delete("token_env") |> Map.put("client_secret_env", "LINEAR_API_KEY")
+    assert {:ok, _} = SymphonyElixir.Linear.Delegation.validate(config)
+    assert {:error, :invalid_linear_delegation_config} = SymphonyElixir.Linear.Delegation.validate(Map.put(config, "token_env", "OAUTH_TOKEN"))
+    assert {:error, :invalid_linear_delegation_config} = SymphonyElixir.Linear.Delegation.validate(Map.delete(config, "client_secret_env"))
+  end
+
   defp runtime(context, extra) do
     suffix = System.unique_integer([:positive])
     supervisor = Module.concat(__MODULE__, "Runtime#{suffix}")
