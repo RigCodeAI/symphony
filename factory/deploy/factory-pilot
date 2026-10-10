@@ -133,7 +133,7 @@ trap 'rm -rf -- "$staging"' EXIT
 
 remote_command="exec /opt/factory/releases/$revision/factory/deploy/worker-run.sh --revision $revision --run-id $run_id --case $case_name --expected-sha256 $release_sha --worker-name $worker_name --worker-ip $worker_ip --initiator-host $coordinator_host"
 remote_status=255
-if ssh -T -F "$ssh_config" \
+if ssh -n -T -F "$ssh_config" \
   -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
   "$worker_ip" "$remote_command" >"$staging/worker.stdout" 2>"$staging/worker.stderr"; then
   remote_status=0
@@ -142,7 +142,7 @@ else
 fi
 
 archive_status=1
-if ssh -T -F "$ssh_config" \
+if ssh -n -T -F "$ssh_config" \
   -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
   "$worker_ip" "tar --create --file=- --directory=/srv/factory/runs -- $run_id" \
   >"$staging/worker.tar" 2>"$staging/archive.stderr"; then
