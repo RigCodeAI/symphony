@@ -19,6 +19,10 @@ apt-get install -y -qq --no-install-recommends \
 for tool in iptables ip6tables; do
   "$tool" -N FACTORY_METADATA 2>/dev/null || true
   "$tool" -F FACTORY_METADATA
+  # Google also serves DNS on this address. The system resolver runs as a
+  # non-root user; blocking port 53 breaks package/tool downloads after reboot.
+  "$tool" -A FACTORY_METADATA -p udp --dport 53 -j RETURN
+  "$tool" -A FACTORY_METADATA -p tcp --dport 53 -j RETURN
   "$tool" -A FACTORY_METADATA -m owner --uid-owner 0 -j RETURN
   "$tool" -A FACTORY_METADATA -j REJECT
 done

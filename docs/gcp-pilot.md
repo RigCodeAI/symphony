@@ -28,15 +28,16 @@ bootstrap and compute-disabled pilot were applied; the staging drift plan is
 clean. The merged service compiled, its real Linux health endpoint responded,
 52 focused tests passed and the full suite passed 408 tests. The broad lint gate
 still reports existing style issues. See [the live staging receipt](dev-230-evidence.md).
-Compute remains off pending confirmation that the read-only Rig credential is
-loaded. The user waived the credit balance/expiry check; credits remain
+The read-only credential upload was confirmed and both private VMs are running.
+Bootstrap retry and runtime compilation are in progress; cloud readiness remains
+unverified. The user waived the credit balance/expiry check; credits remain
 unverified and do not block the approved pilot. No real cloud worker run, cloud restart/recreation check or final
 deployment completion is claimed.
 
 ## Proposed pilot and approved spending input
 
 Project: `factory-511117`, expected number `292978199748`. Region `us-central1`,
-zone `us-central1-a`; live quota is sufficient, VM availability is not yet tested. Start with one
+zone `us-central1-a`; live quota is sufficient and both private VM types were created. Start with one
 `e2-standard-2` coordinator and one `n2-standard-16` worker. Data disks are 100
 and 500 GiB; boot disks are 30 and 50 GiB. All disks use zonal `pd-balanced`.
 `worker_count` is configurable between zero and one; DEV-244 qualifies expansion.
