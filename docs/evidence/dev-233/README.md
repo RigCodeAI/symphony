@@ -212,3 +212,21 @@ passed; the host card failed before operation launch because its fixture mkdir
 inherited startup umask 077. No receipt or enabled broker resulted. The fixture
 now sets its required directory modes explicitly. This is a test fixture fix,
 not evidence of successful containment.
+
+### Installed wrapper alignment
+
+- `worker-transfer-check.log`: second maintenance stopped before unpack because
+  the staged archive was truncated after reset. Later staging validates the full
+  bytes and checksum, fsyncs the file and directory, and independently rereads
+  the remote checksum before reset. SSH exit 0 alone was insufficient.
+- `worker-installed-wrapper-first-card.log`: verified release `2b093e97`
+  installed, but the real wrapper exited before manager-reexec recovery. Source
+  diagnosis found the `--manifest` CLI mismatch and card roots incompatible with
+  the production wrapper. No receipt or broker activation resulted.
+- `worker-wrapper-focused.log`: 37 tests, 36 passed and the real systemd card
+  skipped locally. Covers the actual CLI parser, rejected command shapes and
+  rejection of a writable workspace parent. Live qualification is still pending.
+
+The fix uses a separate protected contained-workspace parent, preserving legacy
+worker-owned workspaces. The real card now launches the installed wrapper against
+its actual protected gates and contained-workspace parent.

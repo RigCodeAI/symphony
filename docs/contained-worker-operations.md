@@ -55,7 +55,8 @@ The [installer](../factory/deploy/install-worker-operations.sh) and
 [service template](../factory/deploy/factory-worker-operations.service) are explicit
 operator actions. Existing bootstrap/activation does not invoke them. Installation
 creates the control account, a root-owned forced-command key, private operation
-ledger, worker-readable held manifests, and broker configuration/service. It does
+ledger, worker-readable held manifests, a protected contained-workspace parent,
+and broker configuration/service. It does
 not start or enable the service and does not modify public ingress or cloud IAM.
 It rejects account groups or writable root code paths that broaden access.
 
@@ -67,6 +68,14 @@ worker-controlled caches as root. SSH still requires the existing authenticated
 host key and private-network access. Use `factory-control@<existing-worker-alias>` to reuse the existing strict host/key
 pin, or add a dedicated control alias with `User factory-control`. Keep the operator
 pilot route separate.
+
+The installer creates `/srv/factory/contained-workspaces` as root:factory-worker
+0750 and preserves the legacy `/srv/factory/workspaces` tree. Before configuring an
+issue workspace, an operator must provision its worker-owned leaf under this
+protected parent and its matching coordinator clone path. The worker can clone
+and edit inside the leaf, but cannot rename or replace sibling workspace names.
+The current pilot uses explicit, pre-provisioned issue workspace mappings; it
+does not automatically provision contained workspaces.
 
 The concrete access change is:
 

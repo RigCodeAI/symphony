@@ -8,7 +8,7 @@ import sys
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3 or sys.argv[1] != "--manifest":
         sys.stderr.write("factory operation held wrapper failed\n")
         return 1
     try:
@@ -23,7 +23,7 @@ def main() -> int:
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        return module.held_wrapper_main(sys.argv[1])
+        return module.held_wrapper_main(sys.argv[2])
     except (OSError, ImportError, ValueError):
         sys.stderr.write("factory operation held wrapper failed\n")
         return 1

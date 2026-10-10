@@ -77,6 +77,11 @@ a fixed held wrapper in a unique systemd unit. It accepts no client-selected uni
 or environment. Durable acknowledgement precedes release. Machine, boot, unit invocation and
 request digest fence every later action. There is one active or unknown operation per worker
 UID/host. This contains processes; it does not isolate historical tasks sharing that UID.
+Contained operation workspaces use a root-owned, worker-group parent with mode 0750,
+separate from the legacy worker-writable workspace tree. An operator provisions each
+worker-owned leaf and its matching coordinator path before adding the explicit issue
+workspace mapping. The worker cannot replace sibling workspace names. The root-owned
+launch gate remains separate; task code never selects unit properties or writable roots.
 Stop work runs in supervised jobs after the tombstone commits, keeping intake responsive.
 SSH completion alone cannot finish a stage or free capacity. A terminal exact invocation must
 have an empty cgroup, proved by readable recursive population zero or by systemd's release of

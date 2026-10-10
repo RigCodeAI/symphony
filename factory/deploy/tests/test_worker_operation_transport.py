@@ -8,6 +8,7 @@ from pathlib import Path
 import pwd
 import select
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -16,10 +17,11 @@ import time
 import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from factory.deploy import worker_operation_transport as transport
 from factory.deploy import worker_operation as engine
+from factory.deploy import worker_operation_exec as wrapper
 
 
 REVISION = "c" * 40
@@ -27,6 +29,27 @@ RELEASE_SHA256 = "d" * 64
 MACHINE_ID = "a" * 32
 BOOT_ID = "1" * 32
 INVOCATION_ID = "b" * 32
+
+
+class HeldWrapperCommandTest(unittest.TestCase):
+    def test_fixed_manifest_command_reaches_held_wrapper(self):
+        held = Mock(return_value=37)
+        module = SimpleNamespace(held_wrapper_main=held)
+        spec = SimpleNamespace(name="_factory_operation_transport", loader=SimpleNamespace(exec_module=lambda _module: None))
+        with patch.object(sys, "argv", ["wrapper", "--manifest", "/protected/manifest.json"]), \
+                patch.object(Path, "lstat", return_value=SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0)), \
+                patch.object(wrapper.importlib.util, "spec_from_file_location", return_value=spec), \
+                patch.object(wrapper.importlib.util, "module_from_spec", return_value=module), \
+                patch.dict(sys.modules):
+            self.assertEqual(wrapper.main(), 37)
+        held.assert_called_once_with("/protected/manifest.json")
+
+    def test_other_command_shapes_do_not_load_the_helper(self):
+        with patch.object(wrapper.importlib.util, "spec_from_file_location") as load:
+            for argv in (["wrapper", "/manifest"], ["wrapper", "--other", "/manifest"], ["wrapper", "--manifest"]):
+                with patch.object(sys, "argv", argv):
+                    self.assertEqual(wrapper.main(), 1)
+            load.assert_not_called()
 
 
 def identity(operation_id: str = "run-alpha/implement/1") -> dict[str, str]:
@@ -619,6 +642,28 @@ class WorkerOperationTransportTests(unittest.TestCase):
                 wait_timeout=0.2,
                 environ={"INVOCATION_ID": INVOCATION_ID},
                 exec_function=lambda *_args: self.fail("stale release must not execute"),
+            )
+            self.assertEqual(result, 1)
+
+    def test_held_wrapper_rejects_a_worker_writable_workspace_parent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            gates = base / "gates"
+            gates.mkdir(mode=0o755)
+            workspaces = base / "workspaces"
+            workspaces.mkdir(mode=0o750)
+            workspaces.chmod(0o750)
+            workspace = workspaces / "candidate"
+            workspace.mkdir()
+            home = base / "worker-home"
+            home.mkdir()
+            manifest = write_manifest(gates, workspace, home, [str(Path(sys.executable).resolve()), "-c", "print('unexpected')"])
+            workspaces.chmod(0o770)
+            result = transport.held_wrapper_main(
+                manifest, expected_owner_uid=os.getuid(),
+                expected_worker_gid=os.getgid(), operation_root=gates, workspace_root=workspaces,
+                worker_home=home, wait_timeout=0, environ={"INVOCATION_ID": INVOCATION_ID},
+                exec_function=lambda *_args: self.fail("writable workspace parent must not execute"),
             )
             self.assertEqual(result, 1)
 

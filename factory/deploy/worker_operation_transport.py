@@ -35,7 +35,7 @@ from typing import Any, BinaryIO
 CONTROL_SOCKET = Path("/run/factory-operations/control.sock")
 DAEMON_CONFIG = Path("/etc/factory/worker-operations.json")
 OPERATION_ROOT = Path("/var/lib/factory-operations/gates")
-WORKSPACE_ROOT = Path("/srv/factory/workspaces")
+WORKSPACE_ROOT = Path("/srv/factory/contained-workspaces")
 WORKER_HOME = Path("/srv/factory/homes/factory-worker")
 QUALIFICATION_FILE = Path("/etc/factory/worker-operations-qualified.json")
 

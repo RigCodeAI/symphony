@@ -12,6 +12,7 @@ root-private qualification receipt after every check and cleanup succeeds.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -125,6 +126,7 @@ def _installed_release(config: dict[str, object]) -> tuple[str, str, str, Path]:
         or config.get("worker_group") != "factory-worker"
         or config.get("control_user") != "factory-control"
         or config.get("worker_home") != "/srv/factory/homes/factory-worker"
+        or config.get("workspace_root") != "/srv/factory/contained-workspaces"
         or config.get("machine_id_path") != "/etc/machine-id"
         or config.get("boot_id_path") != "/proc/sys/kernel/random/boot_id"
         or config.get("cache_paths") != ["/srv/factory/tmp", f"/srv/factory/build/{revision}"]
@@ -217,17 +219,24 @@ class SystemdContainmentTest(unittest.TestCase):
         self.addCleanup(self._write_receipt_if_passed)
         self.addCleanup(self._remove_test_root)
 
-        self.workspaces = self.root / "workspaces"
-        self.workspaces.mkdir(mode=0o711)
-        self.workspaces.chmod(0o711)
-        self.workspace = self.workspaces / "candidate"
-        self.workspace.mkdir(mode=0o700)
+        # Exercise the installed wrapper's fixed roots, not a test-only wrapper.
+        self.workspaces = Path("/srv/factory/contained-workspaces")
+        workspace_root_info = self.workspaces.lstat()
+        self.assertTrue(stat.S_ISDIR(workspace_root_info.st_mode))
+        self.assertEqual(workspace_root_info.st_uid, 0)
+        self.assertEqual(workspace_root_info.st_gid, self.worker.pw_gid)
+        self.assertEqual(stat.S_IMODE(workspace_root_info.st_mode), 0o750)
+        self.workspace = Path(tempfile.mkdtemp(prefix="factory-systemd-test-", dir=self.workspaces))
+        self.workspace.chmod(0o700)
         os.chown(self.workspace, self.worker.pw_uid, self.worker.pw_gid)
         self.records = self.root / "records"
         self.records.mkdir(mode=0o700)
-        self.gates = self.root / "gates"
-        self.gates.mkdir(mode=0o755)
-        self.gates.chmod(0o755)
+        self.gates = Path("/var/lib/factory-operations/gates")
+        gate_info = self.gates.lstat()
+        self.assertTrue(stat.S_ISDIR(gate_info.st_mode))
+        self.assertEqual(gate_info.st_uid, 0)
+        self.assertEqual(stat.S_IMODE(gate_info.st_mode), 0o755)
+        self.test_operation_ids: list[str] = []
 
         # The engine only needs this path to exist and marks it inaccessible in
         # the unit. A private fixture socket prevents accidentally targeting
@@ -324,8 +333,21 @@ class SystemdContainmentTest(unittest.TestCase):
             except engine.OperationError:
                 pass
             time.sleep(0.05)
-        self.assertIsNotNone(recovered, "same systemd invocation did not recover")
-        self.assertEqual(recovered["status"], expected_status)
+        if recovered is None or recovered["status"] != expected_status:
+            diagnostics = subprocess.run(
+                ["/usr/bin/systemctl", "show", identity["unit"], "--no-pager",
+                 "--property=LoadState,InvocationID,ControlGroup,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,MainPID"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=5, check=False,
+            )
+            journal = subprocess.run(
+                ["/usr/bin/journalctl", "--no-pager", "--output=cat", "-u", identity["unit"], "-n", "20"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=5, check=False,
+            )
+            self.fail("same systemd invocation did not recover: " +
+                      diagnostics.stdout.decode("utf-8", errors="replace") + "\n" +
+                      journal.stdout.decode("utf-8", errors="replace"))
 
     def test_held_stop_natural_exit_and_durable_restart_proofs(self) -> None:
         effect = self.workspace / "processes.json"
@@ -341,6 +363,7 @@ time.sleep(60)
             "argv": ["/usr/bin/python3", "-u", "-c", program],
             "workspace": str(self.workspace),
         }
+        self.test_operation_ids.append(request["operation_id"])
         identity = self.controller.prepare(request)
         self.identities.append(identity)
         self.assertFalse(effect.exists(), "held launch must not execute before release")
@@ -407,6 +430,7 @@ time.sleep(60)
             ],
             "workspace": str(self.workspace),
         }
+        self.test_operation_ids.append(natural_request["operation_id"])
         natural_identity = self.controller.prepare(natural_request)
         self.identities.append(natural_identity)
         self.assertEqual(self.controller.release(natural_identity)["status"], "released")
@@ -441,6 +465,14 @@ time.sleep(60)
 
     def _remove_test_root(self) -> None:
         if hasattr(self, "root"):
+            if getattr(self, "test_operation_ids", []) and not getattr(self, "_units_cleaned", False):
+                raise AssertionError("cannot remove launch gates before test units are stopped")
+            for operation_id in getattr(self, "test_operation_ids", []):
+                gate = self.gates / hashlib.sha256(operation_id.encode("utf-8")).hexdigest()
+                if gate.exists():
+                    shutil.rmtree(gate)
+            if hasattr(self, "workspace"):
+                shutil.rmtree(self.workspace)
             shutil.rmtree(self.root)
             self._root_removed = True
 

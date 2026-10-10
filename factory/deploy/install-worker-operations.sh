@@ -58,6 +58,13 @@ for operation_dir in /var/lib/factory-control /var/lib/factory-control/.ssh /var
     [[ "$(stat -c %u -- "$operation_dir")" == 0 ]] && (( (8#$operation_mode & 0022) == 0 )) || exit 2
   fi
 done
+# Keep contained workspace names outside the legacy worker-writable parent.
+operation_workspaces=/srv/factory/contained-workspaces
+[[ ! -L "$operation_workspaces" && ( ! -e "$operation_workspaces" || -d "$operation_workspaces" ) ]] || exit 2
+if [[ -e "$operation_workspaces" ]]; then
+  [[ "$(stat -c %u -- "$operation_workspaces")" == 0 && "$(stat -c %g -- "$operation_workspaces")" == "$(id -g factory-worker)" && "$(stat -c %a -- "$operation_workspaces")" == 750 ]] || exit 2
+fi
+install -d -o root -g factory-worker -m 0750 "$operation_workspaces"
 install -d -o root -g root -m 0755 /var/lib/factory-control /var/lib/factory-control/.ssh /var/lib/factory-operations /var/lib/factory-operations/gates
 install -d -o root -g root -m 0700 /var/lib/factory-operations/records
 operation_keys=/var/lib/factory-control/.ssh/authorized_keys
@@ -81,7 +88,7 @@ config = {
     'version': 1, 'socket_path': '/run/factory-operations/control.sock',
     'records_dir': '/var/lib/factory-operations/records',
     'operation_dir': '/var/lib/factory-operations/gates',
-    'workspace_root': '/srv/factory/workspaces',
+    'workspace_root': '/srv/factory/contained-workspaces',
     'wrapper_path': release + '/factory/deploy/worker_operation_exec.py',
     'worker_home': '/srv/factory/homes/factory-worker',
     'cache_paths': ['/srv/factory/tmp', '/srv/factory/build/' + revision],
