@@ -13,62 +13,65 @@ Configuration and local checks alone do not establish a working deployment.
 
 ## Current verification
 
-On 2026-10-09, Terraform validation passed for both roots and the pilot module,
-formatting passed, and all three mock-provider plan tests passed. Eight focused
-Python transport/archive/backup tests passed. A disposable Linux container
-verified definition rejection, unhealthy-service rollback, effective-config
-promotion, canonical release lookup and worker activation with deterministic
-validator/service stand-ins. Python and shell syntax checks passed. The merged
-service compiled, its Linux health endpoint responded, 52 focused tests passed,
-and the full suite passed 408 tests. The broad lint gate still reports existing
-style issues.
+The live manual pilot passed on final source
+`445f25184a53f48300f5d585392a011b042a0aef`, release SHA-256
+`6054a90eedd33d931ef989c569e6bd91c722577d5379bdb87836f03e1f45603e`.
+The reviewed compute-only teardown removed exactly two VMs and four dependent
+access/alert resources; recreation added exactly those six resources. Four
+protected disks, state, archives and backups were retained. The recreated
+coordinator (`5979280685983365649`) and worker (`3666704121532283408`) reached
+`startup_ready` at 04:55:47 and 04:55:27 UTC, on private addresses `10.42.0.3`
+and `10.42.0.2`, with no external IPs. All four attached disks have
+`autoDelete=false`.
 
-On 2026-10-10, release `67d7fb17236491f08dc1259d602ad6d8f2271f55` with SHA-256
-`477fd6910fe3203007a1f346c886ec128268939e2481e7f37e52aa79cc5e783a` was
-activated on both VMs. Activation was recorded at 04:11:44 UTC; both active
-release paths and the coordinator's `active.json` identify this revision. The
-coordinator returned idle state JSON after a service restart. Worker
-stop/start returned with the same release active and ChatGPT authentication
-available. Coordinator and worker data-marker hashes and both earlier report
-hashes matched before and after; the worker auth file retained mode `0600`,
-owner UID 1000 and its modification time. See the
-[live staging receipt](dev-230-evidence.md) for exact hashes and retained-state
-receipts.
+Before fresh model runs, retained markers, earlier reports and worker auth
+metadata matched their receipts. The worker auth file remained regular mode
+`0600`, owned by UID 1000, with its prior modification time. ChatGPT login with
+Codex CLI `0.159.2`, Rust `1.91.1`, DNS, namespaces, denied worker metadata
+access, absent Git read token, disabled push URL and no worker `sudo` were
+verified. Strict private SSH passed with the retained key and unchanged GCS pin
+generation `1791607845060213`.
 
-The archive and backup systemd units were started manually and returned
-successfully. This verifies the unit invocations, not that their periodic timers
-fire on schedule. Previously archived b2d34 smoke objects remained
-checksum-verified; because no `67d7fb1`
-smoke had run yet, the archive unit did not verify a new run from this revision.
-The backup unit produced
-`gs://factory-511117-rig-factory-backups/backups/20261010T041259Z/`; the
-downloaded manifest and `public.json` matched their recorded SHA-256 digests.
-Its manifest has `databases: []` and states that no durable runtime SQLite
-database is deployed. This is a configuration snapshot, not durable task state
-or in-flight recovery. The user waived the credit balance/expiry check; credits
-remain unverified and do not block the approved pilot.
+Fresh pass and expected-failure runs both passed their pilot checks on the final
+source. The pass run completed with gate exit 0 and runner exit 0. The negative
+run had the expected gate exit 101 and blocked runner exit 1; its pilot wrapper
+correctly returned success. Each run's six permanent artifacts was downloaded
+and checked against its manifest. Monitoring returned CPU, memory and disk
+metrics for both new instances and no duplicate-error matches through 04:57:10.
+The final Terraform drift plan returned no changes (detailed exit code 0).
+See the [live acceptance receipt](dev-230-evidence.md) for run IDs, hashes and
+the exact verification record.
 
-The actual invalid candidate based on `67d7fb1` was rejected by both hosts for
-a missing agent definition. Their active links and all six public/active
-configuration hashes stayed unchanged; coordinator health remained available.
-Restoring the reviewed good desired release completed successfully.
+Final local checks also passed: Terraform format/validation for all three roots,
+three mock-provider plans, 19 Python tests, 12 shell syntax checks, and the Linux
+OpenSSH host-key/runtime fixture. The Linux Elixir build and 52 focused tests
+passed; full `mix test` passed 408 with zero failures, six skipped and ten
+excluded. `make all` still reports existing Credo style issues (46 refactoring,
+37 readability), recorded under the alpha exception.
 
-The real subscription pass/fail smoke used earlier revision
-`b2d34daf8e9f49e1fb53f5999f6c4e7278299b68` over private coordinator-to-worker
-SSH. It does not verify `67d7fb1`; run a new smoke on the current revision before
-treating that gate as passed. The deployed definition-rejection case,
-invalid-release rollback, compute recreation and final drift verification also
-remain open. The initial recreation attempt on `67d7fb1` created coordinator
-instance `3352180655674097698` and worker instance `3016822406542262307`, but
-GCE regenerated the worker's `/etc/ssh` host keys. Startup refused to overwrite
-the immutable public pin, and the coordinator's strict SSH host-key check
-rejected the new key. The observed handshake key was not treated as authenticated
-and strict checking was not bypassed, so this attempt is not accepted as a
-successful recreation. Recovery is in progress: retain worker host private keys
-in root-only storage, configure `sshd` to use them, authenticate any one-time
-public pin rotation through the GCP project serial console, then repeat
-recreation and verify worker SSH, retained data and a fresh smoke. No completed
-DEV-230 claim is made.
+The earlier subscription smoke used `b2d34daf8e9f49e1fb53f5999f6c4e7278299b68`;
+it is historical evidence for that release only. The missing-agent candidate
+was rejected on `67d7fb1`, with both active links and six configuration hashes
+unchanged, and the reviewed `67d7fb1` configuration was restored. No invalid
+candidate was tested on `445f251`.
+
+The first compute recreation failed when GCE regenerated worker host keys; a
+later recovery boot exposed missing `/run/sshd`. Final source `445f251` retains
+the root-only host key on the data disk, orders SSH after the mount, and
+validates/creates `/run/sshd` before restarting SSH. A one-time pin rotation was
+authenticated against GCP project and VM identity plus the VM serial-console
+public key; no live handshake or `ssh-keyscan` was trusted. Receipts are in the
+[host-key rotation archive](gs://factory-511117-rig-factory-archive/deployments/dev230/hostkey-rotation-20261010/).
+
+Coordinator restart and worker stop/start plus manual archive/backup service
+invocations passed on `67d7fb1`. The verified backup had `databases: []`; it is
+a configuration snapshot, not task-state or in-flight recovery. Periodic timer
+cadence and alert delivery were not measured. Credits remain unverified after
+the user's waiver of the balance/expiry check.
+
+Final redacted receipt destination:
+`gs://factory-511117-rig-factory-archive/deployments/dev230/final-20261010-445f251/`.
+Its `manifest.json` records artifact digests.
 
 ## Proposed pilot and approved spending input
 
@@ -236,9 +239,15 @@ file deliberately; do not invent an export or silently switch billing modes.
 Generate the SSH key before the first pilot plan if that plan requires its
 public half; keep the private half mode 0600 until secret-container staging is
 complete, then upload and remove it. Only the coordinator has access to its
-private key. Worker host keys are published through a scoped GCS identity and
-pinned in coordinator `known_hosts`; no public worker SSH or unauthenticated
-host-key discovery is enabled.
+private key. The worker's SSH host private key is retained root-only under
+`/srv/factory/ssh-host-keys`; `sshd` is configured to use that key. A systemd
+drop-in requires `/srv/factory` to be mounted and checks the mountpoint before
+`ssh.service` starts, so a new VM cannot silently fall back to GCE-generated
+host keys. Bootstrap creates and validates `/run/sshd` as root-owned mode `0755`
+on each boot before restarting SSH, because `/run` is temporary. The matching
+public key is published through the scoped GCS identity and pinned in coordinator
+`known_hosts`; no public worker SSH or unauthenticated host-key discovery is
+enabled.
 
 ## Apply and inspect the real service
 
@@ -307,8 +316,13 @@ clones have publishing disabled; neither Rig candidate is pushed. A worker lock
 rejects concurrent smoke submissions and unique run IDs reject accidental reuse.
 The verified 2026-10-10 runs (`dev230-pass-20261010a` and
 `dev230-fail-20261010a`) used revision `b2d34daf8e9f49e1fb53f5999f6c4e7278299b68`,
-before the `67d7fb1` rollout. Use new run IDs for a smoke on the current release;
-the earlier results do not pass that check.
+before the `67d7fb1` rollout. After compute recreation, the final source was
+smoked with `dev230-recreate-20261010a` and
+`dev230-recreate-fail-20261010a`; both expected outcomes passed. The fresh pass
+completed with gate and runner exit 0. The negative run's gate exited 101 and
+runner exited 1 as expected; the pilot wrapper returned success. All six
+permanent artifacts from both final runs matched their manifests. Exact report
+hashes and timing are in the [live acceptance receipt](dev-230-evidence.md).
 
 Before deleting a clone, confirm its archive manifest and each uploaded checksum.
 Evidence lives under `runs/<run-id>/` in the permanent private archive bucket.
@@ -331,6 +345,12 @@ Startup stages `/etc/factory/public.pending.json`; the existing public settings
 and retained `/srv/factory/active-public.json` stay effective until activation
 succeeds. A rejected candidate must preserve those settings as well as the link.
 
+This rehearsal passed on `67d7fb1` using fixture
+`050804ffeaac1fbbe219c9979fe029714d86b1ea`. Both hosts rejected the missing
+agent definition before promotion; both active links and six configuration
+hashes stayed unchanged, and restoring the good desired release succeeded. This
+rejection was not repeated on final source `445f251`.
+
 Stop/start the worker from the operator shell:
 
 ```bash
@@ -339,50 +359,78 @@ gcloud compute instances start rig-factory-worker-01 --project=factory-511117 --
 ```
 
 Stop only after the manual run finishes; stopping a live process is not durable
-stage recovery. To rehearse compute recreation, first archive every run, finish
-backups and confirm no smoke process remains. Plan with `compute_enabled=false`:
+stage recovery. Before compute recreation, archive every run, finish backups
+and confirm no smoke process remains. Plan with `compute_enabled=false`:
 only VM/optional ingress resources and their dependent access bindings may be
 removed. Protected boot/data disks, state, evidence, backups and releases must
 remain. Apply that reviewed plan, then plan/apply `compute_enabled=true` using
 the good release. Verify retained marker files, report checksums, health and a
-fresh private-worker smoke. This proves compute recreation, not in-flight
-lifecycle recovery; DEV-232/DEV-242 supply that later contract.
+fresh private-worker smoke. The 2026-10-10 second teardown and recreation passed:
+each reviewed plan changed exactly six resources (two VMs and four dependent
+access/alert resources), while the original four disks, state, archives and
+backups remained. Both recreated hosts retained their private IPs and attached
+disks with `autoDelete=false`; the strict SSH pin, data markers, prior reports,
+fresh pass/fail runs, monitoring query and final drift plan all passed. This
+proves compute recreation, not in-flight lifecycle recovery; DEV-232/DEV-242
+supply that later contract.
 
-The first `67d7fb1` recreation attempt failed before these checks: the newly
-created worker had different GCE-generated SSH host keys, its immutable public
-pin could not be overwritten, and the coordinator rejected the key. Do not
-disable strict checking or trust an unauthenticated SSH fingerprint. The planned
-recovery is to retain worker host private keys in root-only storage and point
-`sshd` at those files. For any necessary one-time pin rotation, compare the
-public key obtained through the authenticated GCP project serial console before
-replacing only the public pin object. Repeat the recreation and verify strict
-private SSH, retained data and a fresh smoke. This recovery and the compute
-recreation acceptance are still pending.
+The first `67d7fb1` recreation failed because GCE generated a different worker
+host key. A later recovery boot also found `/run/sshd` missing. Revision
+`445f25184a53f48300f5d585392a011b042a0aef` fixes the worker key to the root-only
+retained file `/srv/factory/ssh-host-keys/ssh_host_ed25519_key`. It requires and
+checks the `/srv/factory` mount before `ssh.service`; bootstrap validates and
+creates `/run/sshd` as root-owned mode `0755` before restarting SSH. Strict
+host-key checking remains enabled. The final recreation confirmed the same key
+and current pin generation after VM replacement.
+
+The one-time pin rotation was authenticated and verified. The project identity
+receipt binds `factory-511117` worker instance `3016822406542262307` to the
+public key printed on its GCP serial console at
+`2026-10-10T04:49:56.225676Z`. The recreated worker instance
+`3666704121532283408` emitted the same key on its serial console at
+`2026-10-10T04:55:24.204686Z`. Its fingerprint is
+`SHA256:hSgoI5fIyRHUwG2nfLltQ3GznYmYZrbknAlFgvARV1s`. The operator
+confirmed that exact key against the GCS pin, conditionally removed the expected
+old generation `1791603779515946`, then uploaded and downloaded the replacement.
+The verified new generation is `1791607845060213`. For future rotations, first
+authenticate the exact GCP project and VM identity, obtain the public key from
+the serial console, and compare it before conditionally replacing the current
+pin generation. Never use `ssh-keyscan` or a live SSH handshake as rotation
+authority. The identity, serial-key and before/after verification receipts are
+under `gs://factory-511117-rig-factory-archive/deployments/dev230/hostkey-rotation-20261010/`.
+That archive includes `hostkey-authenticated-identity.txt`,
+`hostkey-rotation-verified.txt`, `hostkey-before-rotation.json` and
+`hostkey-after-rotation.json`.
+
+After the second teardown, the reviewed configuration was reapplied. Retained
+markers, strict coordinator-to-worker SSH and service health were verified; the
+fresh pass/fail smoke and monitoring check then passed. Exact VM IDs, reports
+and verification hashes are in the [live acceptance receipt](dev-230-evidence.md).
 
 Finally run the normal plan with the same committed configuration and variables.
-It must exit with no unexplained changes. Remove temporary plan/artifact files
-only after retaining redacted receipts. Do not run `terraform destroy` as compute
-cleanup: destruction safeguards deliberately block deleting retained resources.
+The final plan passed with no changes and detailed exit code 0. Remove temporary
+plan/artifact files only after retaining redacted receipts. Do not run
+`terraform destroy` as compute cleanup: destruction safeguards deliberately
+block deleting retained resources.
 
 ## Backup, portability and limitations
 
-Coordinator maintenance timers archive every five minutes, check health each
-minute and back up hourly. SQLite backups use its online backup API and an
-integrity check. If no runtime SQLite database is deployed, the backup manifest
-explicitly says so; configuration backup is not task persistence. Daily data-disk
-snapshots retain 14 days; rotating backups retain 30 days. Permanent evidence has
-no age deletion rule. Health, failed backup/archive and low disk alerts go to the
-configured recipients.
+Coordinator maintenance is configured to archive every five minutes, check
+health each minute and back up hourly. Daily data-disk snapshots retain 14 days;
+rotating backups retain 30 days. Permanent evidence has no age deletion rule.
+These configured intervals and alert policies were not measured over time.
 
-On 2026-10-10, the archive and backup systemd service units were started after
-the `67d7fb1` rollout and returned successfully. The backup object and its
-manifest/configuration checksums were downloaded and verified; the manifest
-contained no SQLite databases. That run proves a configuration snapshot only.
-It does not preserve run state or in-flight work until the runtime database is
-implemented and included in a later verified backup. The archive unit invocation
-had no new `67d7fb1` run to archive; archive that revision's output after the
-pending fresh smoke. The exact backup object and checksums are in the
-[live staging receipt](dev-230-evidence.md).
+On 2026-10-10, archive and backup systemd services ran successfully on `67d7fb1`.
+The verified configuration backup is
+`gs://factory-511117-rig-factory-backups/backups/20261010T041259Z/`; manifest
+SHA-256 `83322b38f3d68ce0f4fe0dac21fa56d8e282d7cb9f549557fe51597fa2185213`,
+`public.json` SHA-256
+`dc4b76b77d8708bab63d193981e0882d9115be154e72aec4a362dd4947e48c73`. Its
+`databases: []` entry means this is a configuration snapshot. No runtime SQLite
+database is deployed, so this does not provide task-state or in-flight recovery.
+The two final `445f251` smoke runs were archived separately under their run IDs;
+all six artifacts per run matched their permanent manifests. See the
+[live acceptance receipt](dev-230-evidence.md) for verification details.
 
 To recreate in another GCP project, bootstrap a distinct state bucket; change
 project, bucket names, billing account, region/zone and resource prefix; reauthorize
