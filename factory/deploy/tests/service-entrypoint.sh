@@ -21,7 +21,7 @@ otp_version="$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_relea
 revision=dddddddddddddddddddddddddddddddddddddddd
 release="/srv/factory/releases/$revision"
 mkdir -p /opt/factory /srv/factory/releases "$release/factory/deploy" \
-  "$release/elixir/bin" /srv/factory/tmp /srv/factory/build \
+  "$release/elixir/bin" /srv/factory/tmp "/srv/factory/build/$revision/project/bin" \
   /srv/factory/homes/factory-coordinator /srv/factory/logs/coordinator
 if ! id factory-coordinator >/dev/null 2>&1; then
   useradd --home-dir /srv/factory/homes/factory-coordinator --shell /bin/bash factory-coordinator
@@ -34,8 +34,9 @@ chmod 0750 /srv/factory/tmp /srv/factory/logs/coordinator
 
 cp "$source_root/lib.sh" "$source_root/service.sh" "$source_root/PILOT-WORKFLOW.md" \
   "$release/factory/deploy/"
-cp /workspace/elixir/bin/symphony "$release/elixir/bin/symphony"
-chmod 0755 "$release/elixir/bin/symphony"
+cp /workspace/elixir/bin/symphony "/srv/factory/build/$revision/project/bin/symphony"
+chmod 0755 "/srv/factory/build/$revision/project/bin/symphony"
+chown -R factory-coordinator:factory-coordinator "/srv/factory/build/$revision"
 printf '{"service_revision":"%s"}\n' "$revision" >"$release/RELEASE.json"
 printf '%064d\n' 0 >"$release/.verified-sha256"
 chmod -R a+rX "$release"

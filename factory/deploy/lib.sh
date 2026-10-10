@@ -102,12 +102,15 @@ factory_load_runtime_env() {
   export FACTORY_ROOT="/opt/factory"
   export FACTORY_DATA_ROOT="/srv/factory"
   export MISE_DATA_DIR="$FACTORY_DATA_ROOT/mise"
-  export MIX_HOME="$FACTORY_DATA_ROOT/mix"
+  export MIX_HOME="$FACTORY_DATA_ROOT/homes/factory-$factory_local_role/.mix"
   export MISE_CACHE_DIR="$FACTORY_DATA_ROOT/homes/factory-$factory_local_role/.cache/mise"
   export MISE_TRUSTED_CONFIG_PATHS="$factory_local_release_dir/elixir"
-  export CARGO_HOME="$FACTORY_DATA_ROOT/tools/cargo"
-  export RUSTUP_HOME="$FACTORY_DATA_ROOT/tools/rustup"
-  export RIG_TOOLS_DIR="$FACTORY_DATA_ROOT/tools/rig-tools"
+  # Bootstrap never executes the legacy service-writable tools tree. Runtime
+  # binaries come from a new root-owned namespace; Cargo's writable cache is
+  # separate and is never used by a root process.
+  export CARGO_HOME="$FACTORY_DATA_ROOT/homes/factory-$factory_local_role/.cargo"
+  export RUSTUP_HOME="$FACTORY_DATA_ROOT/bootstrap-tools-v1/rustup"
+  export RIG_TOOLS_DIR="$FACTORY_DATA_ROOT/bootstrap-tools-v1/rig-tools"
   export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-3}"
   export TMPDIR="$FACTORY_DATA_ROOT/tmp"
   export MIX_BUILD_PATH="$FACTORY_DATA_ROOT/build/$factory_local_revision"
@@ -118,7 +121,7 @@ factory_load_runtime_env() {
     factory_local_node_bin="$RIG_TOOLS_DIR/node-v24.19.0-linux-arm64/bin"
   fi
   factory_local_codex_bin="$RIG_TOOLS_DIR/codex/bin"
-  export PATH="$CARGO_HOME/bin:$factory_local_node_bin:$factory_local_codex_bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
+  export PATH="$FACTORY_DATA_ROOT/bootstrap-tools-v1/cargo/bin:$factory_local_node_bin:$factory_local_codex_bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
 
   [[ -d "$FACTORY_DATA_ROOT/homes/factory-$factory_local_role" ]] || { factory_fail "service home is missing"; return 1; }
   [[ -d "$TMPDIR" ]] || { factory_fail "runtime temporary directory is missing"; return 1; }

@@ -7,15 +7,20 @@ two-stage runner to the worker over private SSH. Native Linear dispatch, durable
 stage recovery, conversation viewer and production candidate validation belong
 to later tickets.
 
-Deployment status and live acceptance evidence are tracked in
+Deployment status and pilot evidence are tracked in
 [DEV-230](https://linear.app/rigai/issue/DEV-230/provision-and-actually-deploy-the-gcp-pilot-with-terraform).
 Configuration and local checks alone do not establish a working deployment.
 
-## Current verification
+## Historical verification on source `445f251`
 
-The live manual pilot passed on final source
+The original live manual pilot checks passed on source
 `445f25184a53f48300f5d585392a011b042a0aef`, release SHA-256
 `6054a90eedd33d931ef989c569e6bd91c722577d5379bdb87836f03e1f45603e`.
+This source is now historical: a later review confirmed startup for both
+coordinator and worker ran Mix/build steps as root against each role's
+service-owned dependency/build tree, and root bootstrap could reuse legacy
+worker-owned tools. Replacement-source validation is pending; the
+historical smoke does not validate that repair.
 The reviewed compute-only teardown removed exactly two VMs and four dependent
 access/alert resources; recreation added exactly those six resources. Four
 protected disks, state, archives and backups were retained. The recreated
@@ -32,19 +37,19 @@ access, absent Git read token, disabled push URL and no worker `sudo` were
 verified. Strict private SSH passed with the retained key and unchanged GCS pin
 generation `1791607845060213`.
 
-Fresh pass and expected-failure runs both passed their pilot checks on the final
-source. The pass run completed with gate exit 0 and runner exit 0. The negative
-run had the expected gate exit 101 and blocked runner exit 1; its pilot wrapper
+Fresh pass and expected-failure runs both passed their pilot checks on source
+`445f251` at the time. The pass run completed with gate exit 0 and runner exit 0.
+The negative run had the expected gate exit 101 and blocked runner exit 1; its pilot wrapper
 correctly returned success. Each run's six permanent artifacts was downloaded
 and checked against its manifest. Monitoring returned CPU, memory and disk
 metrics for both new instances and no duplicate-error matches through 04:57:10.
 The final Terraform drift plan returned no changes (detailed exit code 0).
-See the [live acceptance receipt](dev-230-evidence.md) for run IDs, hashes and
+See the [pilot evidence receipt](dev-230-evidence.md) for run IDs, hashes and
 the exact verification record.
 
-Final local checks also passed: Terraform format/validation for all three roots,
-three mock-provider plans, 19 Python tests, 12 shell syntax checks, and the Linux
-OpenSSH host-key/runtime fixture. The Linux Elixir build and 52 focused tests
+Local checks recorded for source `445f251` passed: Terraform format/validation
+for all three roots, three mock-provider plans, 19 Python tests, 12 shell syntax
+checks, and the Linux OpenSSH host-key/runtime fixture. The Linux Elixir build and 52 focused tests
 passed; full `mix test` passed 408 with zero failures, six skipped and ten
 excluded. `make all` still reports existing Credo style issues (46 refactoring,
 37 readability), recorded under the alpha exception.
@@ -56,7 +61,7 @@ unchanged, and the reviewed `67d7fb1` configuration was restored. No invalid
 candidate was tested on `445f251`.
 
 The first compute recreation failed when GCE regenerated worker host keys; a
-later recovery boot exposed missing `/run/sshd`. Final source `445f251` retains
+later recovery boot exposed missing `/run/sshd`. Source `445f251` retains
 the root-only host key on the data disk, orders SSH after the mount, and
 validates/creates `/run/sshd` before restarting SSH. A one-time pin rotation was
 authenticated against GCP project and VM identity plus the VM serial-console
@@ -69,9 +74,19 @@ a configuration snapshot, not task-state or in-flight recovery. Periodic timer
 cadence and alert delivery were not measured. Credits remain unverified after
 the user's waiver of the balance/expiry check.
 
-Final redacted receipt destination:
+Historical `445f251` redacted receipt destination:
 `gs://factory-511117-rig-factory-archive/deployments/dev230/final-20261010-445f251/`.
 Its `manifest.json` records artifact digests.
+
+## Restart-privilege repair status
+
+The repair will run builds as the service user with a clean `env -i` environment,
+using a per-revision project copy under `build/<revision>/project` and role-specific
+Mix/Cargo caches. Root bootstrap will use the protected `bootstrap-tools-v1`
+namespace and validate it before reuse. Replacement source and release SHA,
+repeated startup proving UID 1000 for service-user builds, and a fresh real worker
+smoke are pending. This pilot does not claim production or arbitrary-code
+isolation.
 
 ## Proposed pilot and approved spending input
 
@@ -316,13 +331,13 @@ clones have publishing disabled; neither Rig candidate is pushed. A worker lock
 rejects concurrent smoke submissions and unique run IDs reject accidental reuse.
 The verified 2026-10-10 runs (`dev230-pass-20261010a` and
 `dev230-fail-20261010a`) used revision `b2d34daf8e9f49e1fb53f5999f6c4e7278299b68`,
-before the `67d7fb1` rollout. After compute recreation, the final source was
+before the `67d7fb1` rollout. After compute recreation, source `445f251` was
 smoked with `dev230-recreate-20261010a` and
 `dev230-recreate-fail-20261010a`; both expected outcomes passed. The fresh pass
 completed with gate and runner exit 0. The negative run's gate exited 101 and
 runner exited 1 as expected; the pilot wrapper returned success. All six
-permanent artifacts from both final runs matched their manifests. Exact report
-hashes and timing are in the [live acceptance receipt](dev-230-evidence.md).
+permanent artifacts from both `445f251` runs matched their manifests. Exact
+report hashes and timing are in the [pilot evidence receipt](dev-230-evidence.md).
 
 Before deleting a clone, confirm its archive manifest and each uploaded checksum.
 Evidence lives under `runs/<run-id>/` in the permanent private archive bucket.
@@ -349,7 +364,7 @@ This rehearsal passed on `67d7fb1` using fixture
 `050804ffeaac1fbbe219c9979fe029714d86b1ea`. Both hosts rejected the missing
 agent definition before promotion; both active links and six configuration
 hashes stayed unchanged, and restoring the good desired release succeeded. This
-rejection was not repeated on final source `445f251`.
+rejection was not repeated on source `445f251`.
 
 Stop/start the worker from the operator shell:
 
@@ -404,11 +419,11 @@ That archive includes `hostkey-authenticated-identity.txt`,
 
 After the second teardown, the reviewed configuration was reapplied. Retained
 markers, strict coordinator-to-worker SSH and service health were verified; the
-fresh pass/fail smoke and monitoring check then passed. Exact VM IDs, reports
-and verification hashes are in the [live acceptance receipt](dev-230-evidence.md).
+fresh pass/fail smoke and monitoring check then passed on source `445f251`.
+Exact VM IDs, reports and verification hashes are in the [pilot evidence receipt](dev-230-evidence.md).
 
 Finally run the normal plan with the same committed configuration and variables.
-The final plan passed with no changes and detailed exit code 0. Remove temporary
+The post-recreation `445f251` plan passed with no changes and detailed exit code 0. Remove temporary
 plan/artifact files only after retaining redacted receipts. Do not run
 `terraform destroy` as compute cleanup: destruction safeguards deliberately
 block deleting retained resources.
@@ -428,9 +443,9 @@ SHA-256 `83322b38f3d68ce0f4fe0dac21fa56d8e282d7cb9f549557fe51597fa2185213`,
 `dc4b76b77d8708bab63d193981e0882d9115be154e72aec4a362dd4947e48c73`. Its
 `databases: []` entry means this is a configuration snapshot. No runtime SQLite
 database is deployed, so this does not provide task-state or in-flight recovery.
-The two final `445f251` smoke runs were archived separately under their run IDs;
+The two `445f251` smoke runs were archived separately under their run IDs;
 all six artifacts per run matched their permanent manifests. See the
-[live acceptance receipt](dev-230-evidence.md) for verification details.
+[pilot evidence receipt](dev-230-evidence.md) for verification details.
 
 To recreate in another GCP project, bootstrap a distinct state bucket; change
 project, bucket names, billing account, region/zone and resource prefix; reauthorize

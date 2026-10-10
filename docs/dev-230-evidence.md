@@ -1,16 +1,19 @@
-# DEV-230 live acceptance receipt
+# DEV-230 live pilot evidence
 
-Date: 2026-10-10. All times are UTC. The live checks passed for the manual,
-single-worker pilot described here. This does not claim production isolation,
-durable in-flight recovery, native Linear dispatch or capacity beyond one worker.
+Date: 2026-10-10. All times are UTC. The original live checks passed for the
+manual, single-worker pilot described here, but a later restart-privilege review
+found a flaw in source `445f251`. That source and its results are historical;
+replacement-source startup and smoke verification are pending. This evidence
+does not claim production isolation, durable in-flight recovery, native Linear
+dispatch or capacity beyond one worker.
 
-## Final outcome
+## Historical `445f251` deployment and test results
 
-Final service source: `445f25184a53f48300f5d585392a011b042a0aef`.
+Tested service source: `445f25184a53f48300f5d585392a011b042a0aef`.
 Release SHA-256: `6054a90eedd33d931ef989c569e6bd91c722577d5379bdb87836f03e1f45603e`.
-The coordinator and worker activated this exact release after compute recreation.
-The coordinator returned healthy state JSON, and the final Terraform plan exited
-0 with `No changes. Your infrastructure matches the configuration.`
+The coordinator and worker activated this release after compute recreation. At
+that point the coordinator returned healthy state JSON and the Terraform plan
+reported no changes.
 
 The compute-only teardown and recreation passed. The reviewed `compute_enabled=false`
 plan removed exactly six resources: two VMs and four dependent access/alert
@@ -53,11 +56,14 @@ The initial recreation on `67d7fb1` failed on coordinator instance
 `3352180655674097698` and worker instance `3016822406542262307`: GCE generated
 a new `/etc/ssh` host key, the immutable public pin rejected overwrite, and
 strict coordinator SSH rejected the new key. A later `d6ee995` recovery boot
-also exposed missing `/run/sshd` after stopping SSH. Final source `445f251`
+also exposed missing `/run/sshd` after stopping SSH. Source `445f251`
 retains the root-only
 worker host key under `/srv/factory/ssh-host-keys`, orders SSH after the
 `/srv/factory` mount, and creates and validates `/run/sshd` as root:root mode
-`0755` before SSH restarts.
+`0755` before SSH restarts. A later review found that coordinator startup ran
+Mix/build work as root against the service-owned dependency/build trees, and root
+bootstrap could reuse legacy worker-owned tools. This is a confirmed restart
+privilege flaw; passing smoke and deployment checks do not clear it.
 
 The one-time public pin rotation was authenticated against GCP project
 `factory-511117`, worker instance `3016822406542262307`, and the public key
@@ -70,7 +76,7 @@ fingerprint matched the replacement object; the old generation
 rotation authority. Receipts are under
 `gs://factory-511117-rig-factory-archive/deployments/dev230/hostkey-rotation-20261010/`.
 
-## Fresh final-source runs
+## Fresh runs on historical source `445f251`
 
 The coordinator submitted both runs over private SSH using the existing local
 workstream runner. Each used service source `445f251...`, release SHA above, and
@@ -98,7 +104,7 @@ The previous real pass/fail pair (`dev230-pass-20261010a` and
 `dev230-fail-20261010a`) used earlier source `b2d34daf8e9f49e1fb53f5999f6c4e7278299b68`,
 release SHA `8cffe949945e5dfa03eec573df99a3d450181fcdb7771f15b4f619517efe7f5a`,
 and the same Rig commit. Those runs were checks of that older release, not
-evidence for the final `445f251` result.
+evidence for source `445f251`.
 
 ## Invalid release, monitoring and backup
 
@@ -135,7 +141,19 @@ The pilot was applied in project `factory-511117` (number `292978199748`),
 used for the invalid-definition rehearsal and configuration backup, not the
 final smoke.
 
-Local checks for the final source passed: Terraform format and validation in all
+## Restart-privilege repair status
+
+The repair is being implemented with builds run as the service user via `env -i`,
+in a per-revision project copy under `build/<revision>/project`. Mix and Cargo
+caches will be separated by role. Root bootstrap will use a protected
+`bootstrap-tools-v1` namespace and validate it before reuse. Replacement source
+and release SHA, repeated startup proving UID 1000 for the service-user build,
+and a fresh real worker smoke are pending. No production or arbitrary-code
+isolation claim is made.
+
+## Historical local checks and scope
+
+Local checks for source `445f251` passed: Terraform format and validation in all
 three roots, three mock-provider plans, 19 Python tests, 12 shell syntax checks,
 and the Linux OpenSSH runtime/host-key fixture. Elixir Linux build passed; 52
 focused tests passed. Full `mix test` passed 408 with zero failures, six skipped
@@ -154,6 +172,6 @@ waived verification of GCP credit balance/expiry. The estimated low-volume cost
 is about $750–850/month; retained disks cost about $68/month while compute is
 off. These are estimates, not measured bills.
 
-Final redacted receipt destination:
+Historical `445f251` redacted receipt destination:
 `gs://factory-511117-rig-factory-archive/deployments/dev230/final-20261010-445f251/`.
 The bundle's `manifest.json` records artifact digests.

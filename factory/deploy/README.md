@@ -14,6 +14,22 @@ home for the active service role. Startup enters the actual root account when
 Compute's startup unit omits its home environment. Unprivileged DNS remains
 available while metadata HTTP access is blocked.
 
+Startup runs Mix setup, archive installation and compilation as the service
+account with a cleared environment. Build dependencies and role-specific Mix
+and Cargo caches are writable only for that unprivileged work. Root never
+executes those caches or the legacy `/srv/factory/tools` tree. Rust, Node and
+Codex provisioning uses `/srv/factory/bootstrap-tools-v1`, a separate root-owned
+tree checked before reuse; root does not adopt worker-owned cached code by
+changing its owner. Runtime reads those protected binaries while Cargo writes
+its cache under the service account's retained home.
+The service account builds a project copy under
+`/srv/factory/build/<revision>/project`; the coordinator launches its matching
+`bin/symphony` there. The verified release source stays root-owned.
+The Linux `tests/build-user.sh` regression builds the actual project twice,
+forces a worker-controlled dependency to reload, and checks its recorded UID
+and cleared credential environment. Run it in the disposable `dev230-checked`
+image with `factory/` mounted read-only at `/factory-source`.
+
 The worker's regular mode-0600 `.codex/auth.json` stays on the retained disk so
 Codex can persist refreshed subscription tokens. `cloud_io.py model-auth` seeds
 it from the pinned Secret Manager version only when absent or when that explicit

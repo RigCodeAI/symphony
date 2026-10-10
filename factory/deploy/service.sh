@@ -11,13 +11,14 @@ readonly data_root="/srv/factory"
 release_dir="$(factory_active_release "$factory_root")" || exit 1
 factory_load_runtime_env "$release_dir" coordinator || exit 1
 
-[[ -x "$release_dir/elixir/bin/symphony" ]] || factory_fail "coordinator executable is missing" || exit 1
+runner_path="$MIX_BUILD_PATH/project/bin/symphony"
+[[ -x "$runner_path" ]] || factory_fail "coordinator executable is missing" || exit 1
 [[ -f "$release_dir/factory/deploy/PILOT-WORKFLOW.md" ]] || factory_fail "pilot workflow is missing" || exit 1
 [[ -x /usr/local/bin/mise ]] || factory_fail "pinned mise runtime manager is missing" || exit 1
 
 mkdir -p -- "$data_root/logs/coordinator"
 cd -- "$release_dir/elixir"
-exec /usr/local/bin/mise exec -- "$release_dir/elixir/bin/symphony" \
+exec /usr/local/bin/mise exec -- "$runner_path" \
   --i-understand-that-this-will-be-running-without-the-usual-guardrails \
   --logs-root "$data_root/logs/coordinator" \
   --port 8080 \
