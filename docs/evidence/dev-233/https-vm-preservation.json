@@ -1,0 +1,17 @@
+{
+  "coordinator": {
+    "instance_id_preserved": true,
+    "metadata_preserved": true,
+    "no_external_ip": true,
+    "retained_disks": true,
+    "status": "RUNNING"
+  },
+  "worker": {
+    "instance_id_preserved": true,
+    "metadata_preserved": true,
+    "no_external_ip": true,
+    "retained_disks": true,
+    "status": "RUNNING"
+  },
+  "observed_at": "2026-10-10T13:15:06.286612+00:00"
+}

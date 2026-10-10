@@ -52,11 +52,15 @@ The first increments are:
 Native Linear webhook intake and durable routing are available for controlled local tests.
 See [Linear delegation](docs/linear-delegation.md) for configuration and the remaining live
 app, endpoint and worker requirements. No live delegation acceptance is claimed.
-The [contained worker control path](docs/contained-worker-operations.md) includes reviewable
-SSH/systemd installation files and remains disabled until worker qualification passes.
-The local deployment wiring supports the existing systemd 252 worker, selected coordinator
-credentials and a separate signed webhook listener. See the [morning decision card](docs/dev-233-morning-decision.md)
-for live prerequisites; no worker installation or public ingress is claimed.
+The [contained worker control path](docs/contained-worker-operations.md) is installed on the
+existing systemd 252 worker. Its root containment card and the coordinator's forced-SSH
+operation checks passed. The live Elixir qualification call and native Linear acceptance
+remain pending. Deployment wiring supports the selected coordinator credentials and a
+separate signed webhook listener. Dashboard HTTPS ingress is installed with IAP for
+`domain:rig.ai`; certificate issuance and signed-in checks are recorded in the
+[ingress evidence](docs/evidence/dev-233/https-ingress.md). The public webhook route
+remains disabled. See the [morning decision card](docs/dev-233-morning-decision.md)
+for the current boundary.
 Coordinator-only client credentials mint app tokens in memory per delegated run; see
 [Linear app setup](docs/linear-delegation.md#linear-app-setup) for scopes, events and secret references.
 

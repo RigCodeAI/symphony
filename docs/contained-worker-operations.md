@@ -1,10 +1,11 @@
 # Contained worker operations (DEV-233)
 
-This is the chosen SSH/systemd control path for native delegation. The code and
-installation files are under development locally. They have not been deployed or
-qualified on the intended worker. Native delegation remains blocked until the
-worker supplies a current containment qualification receipt. Public Linear setup
-and the real delegate/replay/stop pilot remain pending.
+This is the chosen SSH/systemd control path for native delegation. It is installed and
+active on the existing systemd 252 worker. The root containment card passed and produced
+a current root-owned qualification receipt. The actual coordinator forced-SSH RPC and
+stream checks also passed. The live Elixir `WorkerOperation.qualify/1` call, public HTTPS
+delivery and the real Linear delegate/replay/restart/stop pilot remain pending; native
+dispatch acceptance is not claimed. See the [retained worker evidence](evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
 The existing `factory-worker` identity keeps its qualified subscription auth.
 A separate `factory-control` account receives a forced SSH command through the
@@ -62,14 +63,16 @@ and broker configuration/service. It does
 not start or enable the service and does not modify public ingress or cloud IAM.
 It rejects account groups or writable root code paths that broaden access.
 
-The new root broker and control-account grant need review before installation.
-After approval, run the installer on a verified release as root, using only the
-coordinator's bare public key, then review the emitted configuration before
-explicit service activation. Do not run it from this source checkout or execute
-worker-controlled caches as root. SSH still requires the existing authenticated
-host key and private-network access. Use `factory-control@<existing-worker-alias>` to reuse the existing strict host/key
-pin, or add a dedicated control alias with `User factory-control`. Keep the operator
-pilot route separate.
+Review the root broker and control-account grant as an explicit operator action.
+That review, installation and service activation are complete on the existing worker;
+its receipt and forced-SSH results are linked above. For another worker, run the
+installer on a verified release as root, using only the coordinator's bare public key,
+then review the emitted configuration before explicit service activation. Do not run
+it from this source checkout or execute worker-controlled caches as root. SSH still
+requires the existing authenticated host key and private-network access. Use
+`factory-control@<existing-worker-alias>` to reuse the existing strict host/key pin,
+or add a dedicated control alias with `User factory-control`. Keep the operator pilot
+route separate.
 
 The installer creates `/srv/factory/contained-workspaces` as root:factory-worker
 0750 and preserves the legacy `/srv/factory/workspaces` tree. Before configuring an
@@ -98,9 +101,10 @@ The concrete access change is:
   operation creates one uniquely hashed transient service as `factory-worker`.
   No cloud IAM, public ingress, dashboard access or publisher grant changes.
 
-After review, these are the actual root host commands; substitute the verified
-release and the coordinator's **public** key file. Use an idle disposable worker
-with the existing runtime and worker account, never an active factory worker:
+The following commands are the retained qualification procedure. They were run on the
+existing idle worker and produced the passing evidence linked above. Substitute the
+verified release and coordinator's **public** key file only when qualifying another
+idle disposable worker; never use an active factory worker:
 
 ```bash
 /opt/factory/releases/<revision>/factory/deploy/install-worker-operations.sh \
@@ -112,13 +116,12 @@ FACTORY_SYSTEMD_TEST_DISPOSABLE=1 \
   /opt/factory/releases/<revision>/factory/deploy/tests/test_worker_operation_systemd.py
 ```
 
-Inspect the passing receipt and test output before enabling dispatch. After its
-review, install it as root 0600 at `/etc/factory/worker-operations-qualified.json`,
-then run `systemctl daemon-reload` and
-`systemctl enable --now factory-worker-operations.service`. Check
-`systemctl is-active factory-worker-operations.service`, then run the coordinator's
-`WorkerOperation.qualify/1` using the pinned control configuration. A successful
-host card alone does not prove the forced SSH route or native Linear acceptance.
+Inspect the receipt and test output before enabling dispatch. The current passing
+receipt is installed as root mode 0600 at
+`/etc/factory/worker-operations-qualified.json`, and the service is active. The
+coordinator's live Elixir `WorkerOperation.qualify/1` call using the pinned control
+configuration remains pending. A successful host card alone does not prove native
+Linear acceptance.
 
 Rollback first disables native dispatch and removes the qualification receipt.
 Keep the broker available until exact stop/reconciliation proves every existing
@@ -176,9 +179,27 @@ opt-in, it re-executes PID 1 while held and while a child is live, then verifies
 invocation/cgroup before stopping the whole tree. This is a host-wide manager operation;
 run it only on the idle disposable qualification worker. That check is required in the receipt.
 It uses a private test socket and only test-created units.
-It skips without that host; a skip is unverified acceptance. No suitable host has
-been qualified. The existing pilot passed read-only preflight; installation and this privileged
-card remain pending. Do not run this card on an active factory worker.
+It skips without that host; a skip is unverified acceptance. The card has now passed on the
+existing worker, including manager re-execution, held launch, duplicate prepare, stale
+identity rejection, `setsid` child termination, natural exit and restart recovery. The
+coordinator's actual forced-SSH path separately passed RPC, stream, stop proof/replay and
+natural-exit proof/replay; an arbitrary command was rejected. See the retained
+[root-card](evidence/dev-233/worker-live-card.json),
+[forced-SSH report](evidence/dev-233/worker-ssh-qualification.json) and
+[test output](evidence/dev-233/worker-live-report.log).
+
+The worker control source is `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`, archived as
+`59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01`. The recorded systemd
+version is 252. The active application release remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. The maintenance preserved the same VM instance,
+restored metadata exactly, and preserved disks and network configuration. The coordinator
+has not run Elixir's live qualification call, and this result does not establish native
+Linear/Codex dispatch. The card log also contains Python `ResourceWarning`s for helper
+`Popen` handles. A later read-only check found both warned helper PIDs absent, while the
+operation cgroup and both task processes were independently observed empty/dead after stop.
+This does not establish that Python closed every helper handle; the warnings remain in the
+retained log. See [the process check](evidence/dev-233/worker-helper-process-check.json).
+Do not run this card on an active factory worker.
 
 A root-owned mode-0600 qualification receipt at
 `/etc/factory/worker-operations-qualified.json` must match the tested machine, OS
@@ -206,8 +227,8 @@ This compatibility decision follows the [v252.39 CLI and argv construction](http
 [ControlGroup reporting](https://github.com/systemd/systemd-stable/blob/v252.39/src/core/dbus-unit.c)
 and [cgroup serialization/restoration during manager re-execution](https://github.com/systemd/systemd-stable/blob/v252.39/src/core/unit-serialize.c).
 Terminal state, matching invocation/principal/request, and zero MainPID remain mandatory
-for released-cgroup proof. These source checks and local tests permit qualification on
-the existing host; they do not qualify it.
+for released-cgroup proof. The live receipt now qualifies this adapter on the recorded
+machine, boot and release; it does not qualify a different boot or source revision.
 
 The containment design follows systemd's
 [whole-cgroup kill behavior](https://github.com/systemd/systemd/blob/main/man/systemd.kill.xml)

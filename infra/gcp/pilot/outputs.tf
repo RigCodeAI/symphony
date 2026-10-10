@@ -42,3 +42,8 @@ output "coordinator_https_url" {
   description = "HTTPS URL when optional IAP ingress is enabled; null while disabled."
   value       = module.pilot.coordinator_https_url
 }
+
+output "viewer_ipv4" {
+  description = "Reserved global HTTPS IPv4 for the DNS-only viewer A record; null while ingress is disabled."
+  value       = module.pilot.viewer_ipv4
+}

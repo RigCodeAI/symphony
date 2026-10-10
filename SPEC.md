@@ -87,9 +87,12 @@ launch gate remains separate; task code never selects unit properties or writabl
 Stop work runs in supervised jobs after the tombstone commits, keeping intake responsive.
 SSH completion alone cannot finish a stage or free capacity. A terminal exact invocation must
 have an empty cgroup, proved by readable recursive population zero or by systemd's release of
-that cgroup on a qualified systemd version. Missing evidence remains unknown. Installation is
-an explicit reviewed operator action; no deployed qualification is claimed. See
-[contained worker operations](docs/contained-worker-operations.md).
+that cgroup on a qualified systemd version. Missing evidence remains unknown. The existing
+systemd 252 worker now has a passing root containment receipt, and the actual coordinator
+forced-SSH RPC/stream path passed its live checks. The Elixir `WorkerOperation.qualify/1`
+call has not been run live, and native Linear dispatch remains unaccepted. See
+[contained worker operations](docs/contained-worker-operations.md) and its
+[retained live evidence](docs/evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
 Status: Draft v1 (language-agnostic)
 

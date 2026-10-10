@@ -1,0 +1,67 @@
+{
+  "observed_at": "2026-10-10T13:16:35.416732+00:00",
+  "certificate": {
+    "name": "rig-factory-viewer",
+    "type": "MANAGED",
+    "managed": {
+      "domainStatus": {
+        "factory.rig.ai": "PROVISIONING"
+      },
+      "domains": [
+        "factory.rig.ai"
+      ],
+      "status": "PROVISIONING"
+    }
+  },
+  "forwarding_rule": {
+    "name": "rig-factory-viewer-https",
+    "IPAddress": "8.232.241.86",
+    "portRange": "443-443",
+    "loadBalancingScheme": "EXTERNAL_MANAGED",
+    "target": "https://www.googleapis.com/compute/v1/projects/factory-511117/global/targetHttpsProxies/rig-factory-viewer"
+  },
+  "backend": {
+    "name": "rig-factory-coordinator-https",
+    "protocol": "HTTP",
+    "portName": "http",
+    "loadBalancingScheme": "EXTERNAL_MANAGED",
+    "iap_enabled": true
+  },
+  "backend_health": [
+    {
+      "backend": "https://www.googleapis.com/compute/v1/projects/factory-511117/zones/us-central1-a/instanceGroups/rig-factory-coordinator-backend",
+      "status": {
+        "healthStatus": [
+          {
+            "healthState": "HEALTHY",
+            "instance": "https://www.googleapis.com/compute/v1/projects/factory-511117/zones/us-central1-a/instances/rig-factory-coordinator",
+            "ipAddress": "10.42.0.3",
+            "port": 8080
+          }
+        ],
+        "kind": "compute#backendServiceGroupHealth"
+      }
+    }
+  ],
+  "iap_policy": {
+    "bindings": [
+      {
+        "members": [
+          "domain:rig.ai"
+        ],
+        "role": "roles/iap.httpsResourceAccessor"
+      }
+    ],
+    "etag": "BwZdfDu-czM=",
+    "version": 1
+  },
+  "dns_A": [
+    "8.232.241.86"
+  ],
+  "dns_AAAA": [],
+  "https": {
+    "http_status": "000",
+    "curl_exit": 35,
+    "verified_tls": false
+  }
+}

@@ -83,11 +83,16 @@ field is an OAuth object UUID. Rig organization is `9b259b98-cb6c-4256-88af-3a3f
 DEV team is `41e1aa00-b853-44a9-930d-79e424259565`. Confirm the `factory:rig` label and use
 one disposable DEV issue with its human assignee intact; select the app as delegate.
 
-The webhook must be HTTPS at `/hooks/linear` on the chosen hostname. No hostname is
-selected yet. The server-to-server grant does not use an interactive callback; this
-service implements no OAuth callback endpoint. Any registration-required redirect URI
-must be chosen separately, not inferred from the webhook listener. A workspace admin
-must complete app setup. See [Linear agent setup](https://linear.app/developers/agents),
+The selected registration values are redirect URL `https://factory.rig.ai/` and webhook
+URL `https://factory.rig.ai/hooks/linear`. The redirect is an unused dashboard landing
+URL for the client-credentials grant; this service implements no interactive OAuth
+callback or authorization-code exchange. Do not start an interactive authorization flow
+with it. The dashboard HTTPS load balancer is installed with IAP for `domain:rig.ai`;
+certificate issuance and signed-in access are verified separately in the
+[ingress evidence](evidence/dev-233/https-ingress.md). The public webhook route is still
+disabled until the app identity, distinct pinned secrets and protected Linear workflow
+are deployed. A saved app URL alone does not establish webhook delivery. A workspace
+admin must complete app setup. See [Linear agent setup](https://linear.app/developers/agents),
 [app authentication](https://linear.app/developers/oauth-actor-authorization) and
 [interaction best practices](https://linear.app/developers/agent-best-practices).
 

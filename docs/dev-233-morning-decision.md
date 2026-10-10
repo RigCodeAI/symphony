@@ -1,8 +1,10 @@
 # DEV-233 morning decision card
 
-Prepared from read-only checks on 2026-10-10, 07:37–07:48 UTC. No question was sent
-overnight. No broker/account installation, privileged systemd card, public ingress,
-IAM grant, app creation, secret payload access, release activation, push or PR was performed.
+The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC. It preceded
+worker maintenance and the DNS change recorded below. The live worker control path is now
+installed and qualified. Dashboard HTTPS ingress has been applied with IAP for `domain:rig.ai`;
+certificate issuance and signed-in access are tracked separately. The public webhook
+route, native Linear acceptance, push and PR remain pending.
 
 ## Confirmed facts
 
@@ -18,11 +20,11 @@ IAM grant, app creation, secret payload access, release activation, push or PR w
 | Runtime | Root-owned executable Node `v24.19.0`, Codex `0.159.2`, Rust binary present; this does not requalify model/authentication |
 | Subscription auth | File metadata only: worker-owned mode 0600; contents were not read |
 | Workload | No visible Codex/Node/Cargo/Rust or operation units; about 61 GiB memory available and 461 GiB data disk free |
-| Control installation | No `factory-control` account, broker service/socket/config or containment receipt |
+| Control installation | Installed and active; root containment receipt passed on systemd 252. The actual coordinator forced-SSH path also passed. See the current outcome below. |
 | Existing SSH route | Local pinned OS Login/IAP key → coordinator → existing private worker key/host pin; no key was added |
-| Coordinator integrations | Legacy idle pilot; only `worker_ssh` secret ref, no integration environment names, ingress off |
-| HTTPS inventory | No forwarding rules or SSL certificates returned in this project |
-| DNS | Cloud DNS API disabled; this does not establish absence of externally hosted DNS |
+| Coordinator integrations | Legacy idle pilot; only `worker_ssh` secret ref, no integration environment names. The current HTTPS plan has no Linear webhook route. |
+| HTTPS inventory | Initial inventory had no forwarding rules or SSL certificates. A dashboard-only plan has since been reviewed; apply is pending separately. |
+| DNS | `factory.rig.ai` resolves to A `8.232.241.86` with DNS-only proxying; no AAAA record. Cloud DNS API is disabled, so DNS is externally managed. |
 | Linear workspace | Rig, organization `9b259b98-cb6c-4256-88af-3a3f385c3fa7`; DEV team `41e1aa00-b853-44a9-930d-79e424259565` |
 | Linear setup still unknown | Connector search found no `Default Cloud` user or `factory:rig` label; app admin settings/installation were not available through that search |
 | Secret containers | Name-only search for `linear` returned no containers; no values or versions were accessed |
@@ -30,13 +32,36 @@ IAM grant, app creation, secret payload access, release activation, push or PR w
 See [worker preflight](evidence/dev-233/worker-preflight.json),
 [coordinator preflight](evidence/dev-233/coordinator-preflight.json) and
 [name-only secret inventory](evidence/dev-233/linear-secret-inventory.json).
-These are point-in-time observations, not a containment or live-delegation receipt.
+The original preflight files remain point-in-time observations; current containment
+evidence is recorded separately below.
+
+## Current outcome after worker qualification
+
+The root card passed on control source `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`,
+archive SHA-256 `59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01`,
+systemd 252, machine `fe9b1ece921d40aeac95b10940000311` and boot
+`4418dae454694f88ab9bbc4280b94547`. The broker service is active. The card passed held
+launch, duplicate prepare, stale identity rejection, `setsid` child termination, natural
+exit, restart recovery and manager re-execution. The coordinator's real forced-SSH checks
+also passed RPC/stream, stop proof and replay, natural-exit proof and replay; arbitrary
+commands were rejected.
+
+The maintenance retained the same VM instance, restored metadata exactly, and preserved
+disks and network configuration. The active application release remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. The coordinator has not run the Elixir
+`WorkerOperation.qualify/1` call. HTTPS ingress, the installed Linear app and the native
+delegate/replay/restart/stop pilot remain unverified. The card log records Python
+`ResourceWarning`s for helper `Popen` handles; both task processes and the operation cgroup
+were independently observed dead/empty after stop. A later read-only process check found
+both warned helper PIDs absent; it does not establish that Python closed every helper handle.
+See the [evidence index](evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
 Dashboard viewer selection is resolved: the user chose everyone in the managed
 `rig.ai` domain, represented by the IAP principal `domain:rig.ai`. This means Google
-Workspace/Cloud Identity domain members, rather than an email-suffix check. Domain
-ownership, membership and eligibility with this project's Google-managed IAP OAuth
-remain unverified and must be confirmed before deployment. Google documents
+Workspace/Cloud Identity domain members, rather than an email-suffix check. Live project ownership and organization name were verified: organization
+`655940658710`, display name `rig.ai`, active. This supports the selected
+Google-managed IAP configuration; actual signed-in domain-member access remains
+unverified until its separate browser check. Google documents
 [domain principal identifiers](https://docs.cloud.google.com/iam/docs/principal-identifiers)
 and [IAP domain access](https://docs.cloud.google.com/iap/docs/authenticate-users-google-accounts).
 This selection does not grant worker maintenance or SSH access.
@@ -60,22 +85,20 @@ The root review assumptions changed for the v252 CLI/proof floor, credential boo
 the separate public listener. Targeted review checked those changes; it is source review,
 not permission to install, grant access, expose ingress or claim host qualification.
 
-## Decisions queued for morning
+## Decisions and remaining deployment work
 
-1. **Existing idle worker:** installation and testing of the process-control service are
-   now approved, including the documented disposable manager recovery card. Execution is
-   pending an established administrator maintenance route. The existing service-key route
-   reaches only `factory-worker`: `sudo -n true` requires a password; `adam_rig_ai` and
-   `root` SSH with that key fail `Permission denied (publickey)`. This does not rule out a
-   separate existing administrator route, which the coordinator is investigating. See the
-   [access check](evidence/dev-233/worker-maintenance-access.json). No worker data, auth,
-   key, metadata or IAM change was made; no installation/card ran. No new VM is proposed.
-2. **Hostname and eligibility:** choose a DNS hostname controlled by Rig and confirm
-   DNS administration, the managed `rig.ai` domain and Google-managed IAP eligibility.
-   Dashboard viewers are selected as `domain:rig.ai`; no individual viewer list is needed.
-   `factory.rig.ai` is only an example, not a selected or verified hostname.
-   The same host can receive `/hooks/linear` through the separate signed backend. Review
-   the concrete Terraform plan before authorizing public ingress or credential IAM changes.
+1. **Existing idle worker:** completed. The control service and root qualification receipt
+   are installed, and the live forced-SSH operation path passed. The existing app release
+   remains unchanged. The Elixir `WorkerOperation.qualify/1` call is still required before
+   native dispatch; see the [access check](evidence/dev-233/worker-maintenance-access.json)
+   for the earlier route investigation. No new VM is proposed.
+2. **Hostname and eligibility:** selected `factory.rig.ai` and managed-domain access for
+   `domain:rig.ai`. DNS resolves to `8.232.241.86` and has no AAAA record. The live GCP
+   organization is `655940658710` with `rig.ai` active; the project belongs to that
+   organization. Signed-in viewer access remains a separate check. Dashboard viewers need no individual email list. The applied
+   dashboard HTTPS configuration has no `/hooks/linear` route. See
+   [the ingress receipt](evidence/dev-233/https-ingress.md) before adding public webhook
+   ingress or credential IAM changes.
 3. **Assignable Linear app:** identify/install one app using app authentication and record
    its app-user ID and exact OAuth Client ID. Enable client-credentials tokens with
    `read,write,app:assignable`, and provision separate client/signing secrets privately to
@@ -83,11 +106,11 @@ not permission to install, grant access, expose ingress or claim host qualificat
    create the `factory:rig` label and choose one disposable DEV issue with its human owner
    intact. No app identity is inferred from project/team membership.
 
-## Exact staged commands after those decisions
+## Remaining deployment steps
 
-These commands are preparation instructions, not evidence that they ran. Replace the
-candidate revision with the committed, tested source head and the release checksum from
-`cloud_io.py pack`. Read the [release deployment walkthrough](gcp-pilot.md) before any plan.
+These are preparation instructions, not evidence that ingress or the Linear app is live.
+Use the committed, tested source head and release checksum from `cloud_io.py pack`. Read
+the [release deployment walkthrough](gcp-pilot.md) before any plan.
 
 ```bash
 python3 factory/deploy/cloud_io.py pack "$PWD" /private/tmp/dev233-release
@@ -112,15 +135,17 @@ optional_integration_secrets = {
 }
 enable_https_iap = true
 enable_linear_webhook = true
-viewer_hostname = "<chosen-hostname>"
+viewer_hostname = "factory.rig.ai"
 iap_viewer_domains = ["rig.ai"] # Emits domain:rig.ai on the dashboard backend only.
 iap_viewer_emails = [] # Existing email inputs remain supported when needed.
 iap_google_managed_oauth_confirmed = true # Only after confirming organization/domain eligibility.
 ```
 
-Keep existing optional refs rather than replacing unrelated entries. Check the plan for
-VM replacement, disk/data loss, unrelated IAM changes, retained prior credential access,
-and the exact IAP/default and webhook routes. Apply remains pending authorization.
+Keep existing optional refs rather than replacing unrelated entries. The dashboard HTTPS
+plan was reviewed at 10 creates, 0 updates and 0 deletes with an explicit temporary
+metadata-ignore overlay. It is dashboard-only; it has no Linear webhook route. Confirm the
+VM, disk, IAM and routing details against the retained plan before applying. HTTPS was not
+yet live when this card was updated.
 Protect the source/workspace boundary: never launch a factory agent in this checkout.
 
 On the coordinator, install a fully filled dedicated workflow as root without clobbering:
@@ -138,8 +163,9 @@ Use the [complete workflow configuration](linear-delegation.md#configuration), w
 definition path and disposable dedicated Rig workspace on both hosts. Requalify Default
 Cloud on this revision; the file/binary preflight is not model or subscription proof.
 
-Once the verified release and the existing coordinator's **public** key are staged on
-the idle worker, the reviewed root installation/card is:
+The following root installation/card commands were run on the idle worker and produced the
+passing receipts linked above. They are retained for audit; do not repeat the manager
+re-execution card unless deliberately requalifying the idle worker:
 
 ```bash
 /opt/factory/releases/<candidate-revision>/factory/deploy/install-worker-operations.sh \
@@ -156,7 +182,10 @@ systemctl enable --now factory-worker-operations.service
 systemctl is-active factory-worker-operations.service
 ```
 
-Then qualify the forced-command SSH path from the coordinator and run the
-[live delegate/replay/restart/stop card](linear-delegation.md#live-acceptance-checklist-pending).
-Keep publisher/merge credentials outside these environments. No acceptance PR or DEV-233
-completion claim until the real app, HTTPS delivery, one-run recovery and whole-tree stop pass.
+The forced-command SSH path has since passed from the coordinator. Still run the live Elixir
+`WorkerOperation.qualify/1` call against the exact configured release, requalify Default
+Cloud on that revision, then run the
+[live delegate/replay/restart/stop card](linear-delegation.md#live-acceptance-checklist-pending)
+after HTTPS and app setup. Keep publisher/merge credentials outside these environments. No
+acceptance PR or DEV-233 completion claim until the real app, HTTPS delivery, one-run recovery
+and whole-tree stop pass.

@@ -1,5 +1,50 @@
 # DEV-233 local checkpoint
 
+## Dashboard HTTPS ingress, 2026-10-10
+
+The user-selected `factory.rig.ai` dashboard ingress applied ten resources, with no
+VM metadata update or deletion. The reserved address was imported, backend health is
+HEALTHY, and the only dashboard IAP viewer grant is `domain:rig.ai`. A scoped plan
+using an explicit VM-metadata preservation overlay reports no drift after apply.
+Certificate/TLS and signed-in access status are recorded in the
+[ingress evidence](https-ingress.md). The Linear webhook route and native dispatch
+remain disabled.
+
+## Live contained worker qualification, 2026-10-10
+
+Sections below with earlier pending statuses record their own checkpoint dates; this live
+qualification section supersedes those statuses for the worker control installation and
+host/SSH qualification only.
+
+The existing worker control service was installed and is active. Its root card passed on
+control source `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`, archive SHA-256
+`59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01`, systemd 252,
+machine `fe9b1ece921d40aeac95b10940000311` and boot
+`4418dae454694f88ab9bbc4280b94547`. The seven checks covered held launch, duplicate
+prepare, stale identity rejection, `setsid` child termination, natural exit, coordinator
+restart recovery and manager re-execution. The [root-card receipt](worker-live-card.json)
+and [card output](worker-live-report.log) preserve the result.
+
+The actual coordinator forced-SSH path passed eight checks: qualification, arbitrary-command
+rejection, held/duplicate prepare, stale identity rejection, `setsid` child termination,
+stop proof/replay, stream and natural-exit proof/replay. The [forced-SSH report](worker-ssh-qualification.json)
+records the checks and safe operation identities. The [archive stat](worker-release-archive-stat.json)
+records its size, digest and mode.
+
+The maintenance retained the same VM instance, restored metadata exactly, and preserved
+disks and network configuration. The active application release remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. Both task processes and the operation cgroup
+were observed dead/empty after stop. The output contains Python `ResourceWarning`s for
+helper `Popen` handles and pipes. A later read-only check found both warned helper PIDs
+1388 and 1487 absent ([process check](worker-helper-process-check.json)); this does not
+prove every Python handle was closed. No private before/after maintenance snapshots or
+authentication hashes are retained here.
+
+This evidence qualifies the root systemd card and coordinator SSH transport only. The live
+Elixir `WorkerOperation.qualify/1` call, public HTTPS delivery, Linear app installation and
+native delegate/replay/restart/stop acceptance remain pending. The current dashboard HTTPS
+plan contains no Linear webhook route.
+
 ## Coordinator client credentials and worker maintenance check, 2026-10-10
 
 The coordinator supports Linear's server-to-server app grant with `client_secret_env`
