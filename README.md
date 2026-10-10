@@ -57,8 +57,8 @@ existing systemd 252 worker. Its root containment card and the coordinator's for
 operation checks passed. The live Elixir qualification call and native Linear acceptance
 remain pending. Deployment wiring supports the selected coordinator credentials and a
 separate signed webhook listener. Dashboard HTTPS ingress is installed with IAP for
-`domain:rig.ai`; certificate issuance and signed-in checks are recorded in the
-[ingress evidence](docs/evidence/dev-233/https-ingress.md). The public webhook route
+`domain:rig.ai`; the certificate is active and verified HTTPS redirects to Google
+sign-in. Actual signed-in access remains untested. See the [ingress evidence](docs/evidence/dev-233/https-ingress.md). The public webhook route
 remains disabled. See the [morning decision card](docs/dev-233-morning-decision.md)
 for the current boundary.
 Coordinator-only client credentials mint app tokens in memory per delegated run; see

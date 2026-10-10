@@ -3,7 +3,8 @@
 The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC. It preceded
 worker maintenance and the DNS change recorded below. The live worker control path is now
 installed and qualified. Dashboard HTTPS ingress has been applied with IAP for `domain:rig.ai`;
-certificate issuance and signed-in access are tracked separately. The public webhook
+certificate and domain status are ACTIVE, and verified HTTPS redirects to Google
+sign-in. An actual signed-in viewer session remains untested. The public webhook
 route, native Linear acceptance, push and PR remain pending.
 
 ## Confirmed facts
@@ -48,9 +49,11 @@ commands were rejected.
 
 The maintenance retained the same VM instance, restored metadata exactly, and preserved
 disks and network configuration. The active application release remains
-`541279aeb6a5366571e1ee8935e134c728d91c63`. The coordinator has not run the Elixir
-`WorkerOperation.qualify/1` call. HTTPS ingress, the installed Linear app and the native
-delegate/replay/restart/stop pilot remain unverified. The card log records Python
+`541279aeb6a5366571e1ee8935e134c728d91c63`. The active coordinator lacks the Elixir
+`WorkerOperation` source/compiled client; a newer coordinator release is required
+before `WorkerOperation.qualify/1` can run. The installed Linear app and native
+delegate/replay/restart/stop pilot remain unverified. HTTPS now redirects to Google
+sign-in with verified TLS; actual signed-in access remains untested. The card log records Python
 `ResourceWarning`s for helper `Popen` handles; both task processes and the operation cgroup
 were independently observed dead/empty after stop. A later read-only process check found
 both warned helper PIDs absent; it does not establish that Python closed every helper handle.

@@ -3,8 +3,9 @@
 This is the chosen SSH/systemd control path for native delegation. It is installed and
 active on the existing systemd 252 worker. The root containment card passed and produced
 a current root-owned qualification receipt. The actual coordinator forced-SSH RPC and
-stream checks also passed. The live Elixir `WorkerOperation.qualify/1` call, public HTTPS
-delivery and the real Linear delegate/replay/restart/stop pilot remain pending; native
+stream checks also passed. The installed coordinator lacks the Elixir worker client,
+so its live `WorkerOperation.qualify/1` call requires a newer coordinator release.
+Public Linear webhook delivery and the real delegate/replay/restart/stop pilot remain pending; native
 dispatch acceptance is not claimed. See the [retained worker evidence](evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
 The existing `factory-worker` identity keeps its qualified subscription auth.

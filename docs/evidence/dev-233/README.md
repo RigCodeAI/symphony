@@ -6,8 +6,10 @@ The user-selected `factory.rig.ai` dashboard ingress applied ten resources, with
 VM metadata update or deletion. The reserved address was imported, backend health is
 HEALTHY, and the only dashboard IAP viewer grant is `domain:rig.ai`. A scoped plan
 using an explicit VM-metadata preservation overlay reports no drift after apply.
-Certificate/TLS and signed-in access status are recorded in the
-[ingress evidence](https-ingress.md). The Linear webhook route and native dispatch
+Certificate and domain status are ACTIVE; verified HTTPS returns 302 to Google
+sign-in. An actual signed-in viewer session remains untested. See the
+[ingress evidence](https-ingress.md). The installed coordinator lacks the Elixir
+`WorkerOperation` client, so its qualification needs a newer coordinator release. The Linear webhook route and native dispatch
 remain disabled.
 
 ## Live contained worker qualification, 2026-10-10

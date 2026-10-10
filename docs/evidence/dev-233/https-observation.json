@@ -1,16 +1,16 @@
 {
-  "observed_at": "2026-10-10T13:20:15.079159+00:00",
+  "observed_at": "2026-10-10T13:37:55.621721+00:00",
   "certificate": {
     "name": "rig-factory-viewer",
     "type": "MANAGED",
     "managed": {
       "domainStatus": {
-        "factory.rig.ai": "PROVISIONING"
+        "factory.rig.ai": "ACTIVE"
       },
       "domains": [
         "factory.rig.ai"
       ],
-      "status": "PROVISIONING"
+      "status": "ACTIVE"
     }
   },
   "forwarding_rule": {
@@ -60,8 +60,8 @@
   ],
   "dns_AAAA": [],
   "https": {
-    "http_status": "000",
-    "curl_exit": 35,
-    "verified_tls": false
+    "http_status": "302",
+    "curl_exit": 0,
+    "verified_tls": true
   }
 }

@@ -38,11 +38,14 @@ The active application remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
 ## Checks and remaining work
 
 The post-apply scoped Terraform drift check returned exit 0, no changes.
-The final check at 13:20 UTC found backend health HEALTHY, only the expected
-IAP domain grant, DNS A `8.232.241.86`, no AAAA, and no CAA restriction. Google
-certificate status remained PROVISIONING and TLS was not yet usable. This observation
-is superseded only by a later explicit receipt; certificate creation alone is
-not HTTPS success.
+The 13:37 UTC check supersedes the earlier provisioning result: certificate and
+domain status are ACTIVE, and verified HTTPS returns HTTP 302 to
+`https://accounts.google.com/o/oauth2/v2/auth`. OAuth query values and cookies
+were omitted from [redirect evidence](https-iap-redirect.json). Backend health
+remains HEALTHY, with only the expected IAP domain grant, DNS A `8.232.241.86`
+and no AAAA. No CAA restriction was observed earlier. See the
+[current observation](https-observation.json). An actual signed-in `rig.ai`
+viewer session has not been tested.
 
 Registration values: redirect `https://factory.rig.ai/`, webhook
 `https://factory.rig.ai/hooks/linear`. The client-credentials grant does not use
@@ -51,6 +54,15 @@ callback/code exchange. The webhook currently follows the IAP default route.
 It must be activated on the separate signed listener after the app identity,
 client/signing secret versions and protected workflow are ready. Native dispatch
 remains off. No live signed webhook or Linear acceptance is claimed.
+
+A read-only [coordinator client inspection](coordinator-client-preflight.json)
+confirmed that active release `541279aeb6a5366571e1ee8935e134c728d91c63` has no
+`WorkerOperation` source or compiled client. Its service remains active. The
+Elixir qualification cannot run within this installed release; a separately
+reviewed coordinator deployment containing the client is required. No code was
+sideloaded and no application, workflow, credential or metadata pin was changed
+during this inspection. Root `mise which elixir` failed in the inspection
+environment; this does not imply that the running coordinator lacks its runtime.
 
 Commands used (private inputs and operator tokens are not retained here):
 
