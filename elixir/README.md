@@ -457,5 +457,12 @@ intake and rejects every dashboard/API path. The GCP configuration uses `0.0.0.0
 this listener and keeps the dashboard on port 8080 behind IAP. Both listeners require restart
 after configuration changes. See [coordinator deployment](../docs/linear-delegation.md#gcp-coordinator-deployment).
 
+The scoped DEV-233 native acceptance passed with DEV-248: the same live worker survived a
+coordinator restart, native undelegation stopped it, and the durable audit reconciled all four
+retained runs. See the [restart repair acceptance record](../docs/evidence/dev-233/restart-repair-acceptance.md).
+This qualifies the tested subscription-worker path; automatic conversation resume, worker broker
+restart, signed-in dashboard access, provider token lifecycle, Daybreak, scaled capacity and the
+wider Factory Setup flow remain unqualified.
+
 Trusted candidate validation is available locally through the pinned-policy runner and
 inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

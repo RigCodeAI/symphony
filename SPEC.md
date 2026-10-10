@@ -105,9 +105,11 @@ have an empty cgroup, proved by readable recursive population zero or by systemd
 that cgroup on a qualified systemd version. Missing evidence remains unknown. The existing
 systemd 252 worker now has a passing root containment receipt, and the actual coordinator
 forced-SSH RPC/stream path passed its live checks. The Elixir `WorkerOperation.qualify/1`
-call and native active cancellation passed on the previous release; active work did not
-survive its coordinator restart. The stream and bookkeeping repairs require a fresh live
-acceptance run before native delegation is accepted. See
+call and a fresh native run passed on the repaired release: the same foreground worker
+survived coordinator restart, then native undelegation terminated its exact operation.
+Confirmed stopped attempts and reconciliation metadata now match the retained termination
+proofs. Conversation resume and worker broker restart remain unqualified. See the
+[restart repair acceptance](docs/evidence/dev-233/restart-repair-acceptance.md),
 [contained worker operations](docs/contained-worker-operations.md) and its
 [retained live evidence](docs/evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 

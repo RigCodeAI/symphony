@@ -1,0 +1,17 @@
+{
+  "checks_before_failure": [
+    "forced_ssh_qualification",
+    "forced_ssh_arbitrary_command_rejected",
+    "held_and_duplicate_prepare",
+    "stale_identity_rejected",
+    "setsid_child_observed_and_terminated",
+    "stop_proof_and_replay"
+  ],
+  "failure_type": "AssertionError",
+  "natural_output_received": false,
+  "note": "First harness raced stream readiness; corrected harness also lost stdout after input half-close. Fixed in 064f892.",
+  "source_revision": "9c026077f101fd1199fdde0b1dc49aef30b0639a",
+  "status": "failed",
+  "stream_exit_code": null,
+  "stream_ready_received": false
+}

@@ -1,0 +1,20 @@
+{
+  "age_ms": -1764,
+  "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+  "native_delivery_id": "b3c619b3-454d-4ede-b667-e4750025fe34",
+  "original_body_sha256": "b49ddf334e40540414f73eeb6f66a6d0512c5a8758d59d95f3786823bcd5466b",
+  "results": [
+    {
+      "http_status": 200,
+      "kind": "exact_replay",
+      "response": "{\"status\":\"duplicate\"}"
+    },
+    {
+      "http_status": 401,
+      "kind": "invalid_signature",
+      "response": "{\"error\":{\"code\":\"unauthorized\",\"message\":\"Webhook authentication failed\"}}"
+    }
+  ],
+  "session_id": null,
+  "status": "replayed"
+}

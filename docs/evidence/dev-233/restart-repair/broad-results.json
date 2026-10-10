@@ -1,0 +1,49 @@
+{
+  "alpha_ci_nonblocking": true,
+  "checks": [
+    {
+      "check": "setup",
+      "elapsed_seconds": 1.3,
+      "exit_code": 0
+    },
+    {
+      "check": "build",
+      "elapsed_seconds": 1.5,
+      "exit_code": 0
+    },
+    {
+      "check": "format",
+      "elapsed_seconds": 0.3,
+      "exit_code": 0
+    },
+    {
+      "check": "lint",
+      "elapsed_seconds": 2.0,
+      "exit_code": 14
+    },
+    {
+      "check": "coverage",
+      "elapsed_seconds": 29.3,
+      "exit_code": 3
+    },
+    {
+      "check": "dialyzer",
+      "elapsed_seconds": 2.7,
+      "exit_code": 2
+    }
+  ],
+  "coverage_percent": 76.06,
+  "coverage_required_percent": 100,
+  "github_protection_bypassed": false,
+  "nonpassing_checks": [
+    "Credo baseline findings (new nesting finding fixed after this run)",
+    "coverage below 100 percent",
+    "two existing Dialyzer warnings in workstream_store.ex:879 and :938"
+  ],
+  "tests": {
+    "excluded": 10,
+    "failures": 0,
+    "skipped": 6,
+    "total": 500
+  }
+}

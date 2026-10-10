@@ -1,19 +1,12 @@
-# DEV-233 morning decision card
+# DEV-233 current decision and live status
 
-The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC. Current worker
-control remains deployed at `a4c95481b898d05817d24cbcf76635d9c4b739c5`; the active coordinator
-is now immutable release `3e81a8a418f585928bc9f4462f5187584a3bad38`, archive SHA-256
-`fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. Its workstream and agent
-bytes match a4; its protected configuration adds the DEV-247 fixture. Worker app revision
-`541279aeb6a5366571e1ee8935e134c728d91c63` is unchanged.
+The scoped native delegation, restart-survival, active-stop and durable-metadata acceptance
+passed on 2026-10-10 with DEV-248. This does not qualify the full Factory Setup flow or establish
+publication and merge behavior. See the [restart repair acceptance record](evidence/dev-233/restart-repair-acceptance.md).
 
-The App Server startup and subscription readiness check passed with GPT-6 Luna, medium effort,
-and Daybreak disabled; this agent consumed no reset. DEV-246 active work did not survive
-coordinator restart: the run/session/acknowledgement remained durable and no replacement started,
-but the worker processes were gone after the SSH stream closed. The stream closure appears to
-have ended the operation. DEV-247 native undelegation stopped a live foreground operation
-with exact empty-cgroup proof. DEV-233 remains unaccepted because active work did not survive
-restart. See the [native live acceptance evidence](evidence/dev-233/native-live-acceptance.md).
+The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC. Its observations and
+the earlier DEV-245/246/247 runs below remain historical evidence; the current deployment and
+acceptance results are recorded separately.
 
 ## Confirmed facts
 
@@ -22,24 +15,24 @@ restart. See the [native live acceptance evidence](evidence/dev-233/native-live-
 | Existing project/region/zone | `factory-511117`, `us-central1`, `us-central1-a` |
 | Worker | `rig-factory-worker-01`, running, private IP `10.42.0.2` |
 | Coordinator | `rig-factory-coordinator`, running, private IP `10.42.0.3`, service active |
-| Active coordinator release | `3e81a8a418f585928bc9f4462f5187584a3bad38`; archive SHA-256 `fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d` |
+| Coordinator and root worker control | Source commit `064f892f95847ea2eed0eb684da36c6e1bb5fce6`; archive SHA-256 `67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89` |
 | Worker app release | `541279aeb6a5366571e1ee8935e134c728d91c63`, unchanged |
 | Worker platform | Debian systemd `252.39-1~deb12u2`, PID 1 systemd, cgroup v2 |
 | Worker identity | `factory-worker`, UID 1000, only `factory-worker` group |
 | Worker machine pin | `fe9b1ece921d40aeac95b10940000311` |
-| Worker boot | `5734c5bd0a864f4fae49e6a088bbf2e4` |
-| Runtime | Root-owned executable Node `v24.19.0`, Codex `0.159.2`, Rust binary present; this does not requalify model/authentication |
+| Worker boot | `f76f87db6972439ca13738e1d54594fa` |
+| Runtime | Root-owned executable Node `v24.19.0`, Codex `0.159.2`, Rust binary present; separate App Server startup/readiness passed with GPT-6 Luna, medium effort and no model turn |
 | Subscription auth | File metadata only: worker-owned mode 0600; contents were not read |
-| Workload | No worker processes remain; all three root operation proofs report terminated. DEV-246/247 stage-attempt rows still say `executing` inside stopped runs. |
-| Worker control | `a4c95481b898d05817d24cbcf76635d9c4b739c5`, deployed; archive SHA-256 `e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c` |
-| Coordinator configuration | Active immutable release adds the DEV-247 fixture; workstream/agent source bytes match the earlier a4 release |
+| Workload | Four stopped runs with trusted termination proofs; no executing attempts, no operation awaiting reconciliation, and no worker processes after final idle restart |
+| Worker control | Included in the current source commit above; actual SSH and root containment acceptance passed |
+| Coordinator configuration | Current deployed source passed four candidate routes, default callback and invalid-reference checks |
 | Existing SSH route | Local pinned OS Login/IAP key → coordinator → existing private worker key/host pin; no key was added |
 | Coordinator integrations | Linear workflow active with coordinator-only client/signing secrets; no secret values are recorded here |
 | HTTPS ingress | `https://factory.rig.ai/hooks/linear` is healthy on its separate backend; dashboard and every other path retain IAP |
 | DNS | `factory.rig.ai` resolves to A `8.232.241.86` with DNS-only proxying; no AAAA record. Cloud DNS API is disabled, so DNS is externally managed. |
 | Linear workspace | Rig, organization `9b259b98-cb6c-4256-88af-3a3f385c3fa7`; DEV team `41e1aa00-b853-44a9-930d-79e424259565` |
 | Linear app | Client ID `571c3dc755d9e63cfe74748787f6a533`; app-user ID `ce9f2ad8-ef28-4253-bdc8-ae208f63a425`; scopes `read,write,app:assignable`; access limited to Rig/DEV |
-| Pilot issues | DEV-245 is the original failed/stopped run; DEV-246 restart test and DEV-247 cancellation test are both stopped. Adam remains the human assignee. |
+| Pilot issues | DEV-245 failed before a thread or turn; DEV-246's first restart failed; DEV-247's live stop passed. DEV-248 is the accepted restart run; Adam remains its human assignee. |
 | Secret containers | `linear-client-secret` and `linear-webhook-signing` are provisioned for the coordinator; values are not included |
 
 See [worker preflight](evidence/dev-233/worker-preflight.json),
@@ -50,71 +43,67 @@ evidence is recorded separately below.
 
 ## Current live outcome
 
-Worker-control revision `a4c95481b898d05817d24cbcf76635d9c4b739c5`, archive SHA-256
-`e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c`, is deployed on machine
-`fe9b1ece921d40aeac95b10940000311`, boot `5734c5bd0a864f4fae49e6a088bbf2e4`, under systemd
-252. The worker transport suite passed 11/11 tests, the seven-check root card passed including
-manager re-execution, and forced-SSH plus actual Elixir worker qualification passed. Maintenance
-preserved the VM, metadata after restoration, disks, network, app config and auth/data baseline.
-The worker app remains `541279aeb6a5366571e1ee8935e134c728d91c63`; no worker privilege, key,
-OS Login or worker IAM grant was added. See [transport qualification](evidence/dev-233/transport-deployment.md)
-and [worker preservation](evidence/dev-233/transport-worker-preservation.json).
+Coordinator and root worker control use source commit
+`064f892f95847ea2eed0eb684da36c6e1bb5fce6`, archive SHA-256
+`67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89`. The worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`; worker machine
+`fe9b1ece921d40aeac95b10940000311` is on boot
+`f76f87db6972439ca13738e1d54594fa`, under systemd 252.39. Maintenance preserved the VM,
+disks, network and worker app/auth baseline; no worker key or IAM grant was added. The root
+card passed all seven checks including manager re-execution, the worker transport suite passed
+16 tests, the actual SSH qualification passed eight checks, and the Elixir preflight passed all
+four candidate routes plus default callback and invalid-reference checks. See the [restart
+repair acceptance record](evidence/dev-233/restart-repair-acceptance.md) for receipts.
 
-The active coordinator is `3e81a8a418f585928bc9f4462f5187584a3bad38`, archive SHA-256
-`fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. It has the same
-workstream and agent source bytes as a4 and adds the separately approved DEV-247 fixture in
-protected configuration. Coordinator metadata and the exact archive-read permission changed;
-worker resources and credentials did not. See the [coordinator plan review](evidence/dev-233/coordinator-cancellation-plan-reviewed.json)
-and [activation](evidence/dev-233/coordinator-cancellation-activation.json).
+App Server startup and subscription readiness passed with GPT-6 Luna, medium effort and Daybreak
+disabled. It started without a model turn and then stopped with exact termination proof. No
+reset was consumed and no API-billing fallback was used. Earlier `usage_paused` and startup-timeout
+observations preceded successful reauthentication and remain historical.
 
-The resumed App Server startup and subscription readiness check passed with GPT-6 Luna, medium
-effort and Daybreak disabled. It created a session but no model turn, then stopped its exact
-contained operation. No reset was consumed and no API-billing fallback was used. Earlier
-`usage_paused` and startup-timeout observations are historical; they preceded successful
-reauthentication. See the [readiness result](evidence/dev-233/app-resume-readiness.json) and
-[termination proof](evidence/dev-233/app-resume-stop-proof.json).
+Earlier run results remain distinct: DEV-245 failed before a thread or turn; DEV-246's first
+restart attempt retained run/session/acknowledgement records but lost its worker after SSH
+stream closure; DEV-247's native undelegation stopped its live foreground operation with exact
+empty-cgroup proof. The old audit also found stale stopped-attempt metadata, which startup has
+since repaired without repeating cancellation.
 
-DEV-246 produced an acknowledged live run. A foreground `sleep 180` was observed inside its
-exact operation cgroup. Coordinator restart preserved the run/session/acknowledgement and did
-not launch a replacement, but SSH EOF ended the worker processes and the run entered
-reconciliation. This does not pass active-work survival across restart. Later native
-undelegation stopped that run. DEV-247 then produced another acknowledged run; native
-undelegation while its foreground sleep was live stopped the same run. Root proof recorded
-MainPID 0 and a released empty cgroup. Both created-event replays returned 200 duplicate and
-401 for the zero-signature control; the unrelated description-event replay returned 422
-unsupported-event and 401 for its negative control.
+DEV-248 retained Adam as assignee and created one acknowledged native run. Its foreground
+`sleep 240` and all seven worker process identities survived the coordinator service restart
+unchanged in before/after observations 62.88 seconds apart; the same task, session,
+acknowledgement and attempt remained, and
+no replacement launched. Recovery stayed in reconciliation with capacity reserved; the
+conversation did not automatically resume. Native undelegation then stopped that same live
+operation before natural completion. The created/stop duplicate replays returned 200, invalid
+signatures returned 401, and the description-only event returned 422 `unsupported_event`.
 
-The final audit found all three runs stopped and all three exact worker termination proofs
-recorded, with no worker processes remaining after an idle coordinator restart. DEV-246
-reconciliation remains `:unknown`, and the DEV-246 and DEV-247 stage-attempt rows still say
-`executing` inside stopped runs; the root receipts resolve worker termination but do not clear
-that durable metadata. Dashboard viewer access, token lifecycle accounting, Daybreak and scale remain
-unqualified. See the [native live acceptance record](evidence/dev-233/native-live-acceptance.md)
-for run identities and receipts.
+The final audit found four stopped runs, four trusted termination proofs, no executing attempts
+and no operation awaiting reconciliation. A stopped run may retain its pointer to a
+canceled current attempt for audit. The following idle restart retained all four task identities
+and launched no worker. Signed-in dashboard access, provider token lifecycle, Daybreak, scale,
+automatic conversation resume and worker broker restart remain unqualified. See the [restart
+repair acceptance record](evidence/dev-233/restart-repair-acceptance.md) and the
+[earlier native checkpoint](evidence/dev-233/native-live-acceptance.md).
 
 ## Deployed coordinator and worker
 
-Worker-control repair and qualification are complete for the pinned worker under systemd 252;
-the exact transport and preservation records are in the [evidence index](evidence/dev-233/README.md).
-The maintenance steps and intermediate failures are recorded in [maintenance
-attempts](evidence/dev-233/transport-maintenance-attempts.json); worker privilege and access
-changes, plus the coordinator-only archive-read permission, are scoped above.
+Worker-control repair and qualification are complete for the pinned worker under systemd
+252.39. The exact transport and preservation records are in the [evidence index](evidence/dev-233/README.md).
+The earlier maintenance steps and failures remain in [maintenance attempts](evidence/dev-233/transport-maintenance-attempts.json).
 
 Coordinator wiring selects `pilot|linear`, loads only two pinned coordinator credentials,
 checks reference/version/release consistency, and preserves active pins for restart/rollback.
-The active immutable coordinator is `3e81a8a418f585928bc9f4462f5187584a3bad38`, with the
-DEV-247 route in protected configuration. It retains the a4 workstream/agent bytes. The exact
-HTTPS webhook route remains separate from the IAP dashboard and other paths. See the [ingress
-receipt](evidence/dev-233/https-ingress.md), [current activation](evidence/dev-233/coordinator-cancellation-activation.json)
-and [live acceptance record](evidence/dev-233/native-live-acceptance.md).
+The current coordinator and root worker control run source commit
+`064f892f95847ea2eed0eb684da36c6e1bb5fce6`. The exact HTTPS webhook route remains separate
+from the IAP dashboard and other paths. See the [ingress receipt](evidence/dev-233/https-ingress.md)
+and [restart repair acceptance](evidence/dev-233/restart-repair-acceptance.md).
 
 ## Decisions and current status
 
-1. **Worker control:** deployed and qualified on the pinned machine/boot under systemd 252.
-   The 11 transport tests, seven-check root card, forced-SSH operations and actual Elixir
-   qualification passed. The worker app remains on release
-   `541279aeb6a5366571e1ee8935e134c728d91c63`. The active coordinator is immutable release
-   `3e81a8a418f585928bc9f4462f5187584a3bad38`; the worker app and worker control were unchanged.
+1. **Worker control and native restart:** deployed and qualified on the pinned machine and boot
+   under systemd 252.39. The 16 transport tests, seven-check root card, eight actual SSH checks,
+   and Elixir candidate checks passed. DEV-248's same live operation survived coordinator
+   restart and was later stopped by native undelegation; the final audit confirmed repaired stopped-run
+   metadata. The worker app remains on release
+   `541279aeb6a5366571e1ee8935e134c728d91c63`.
 2. **Hostname and ingress:** `factory.rig.ai` and managed-domain dashboard access
    `domain:rig.ai` are selected. The HTTPS `/hooks/linear` backend is active and healthy;
    dashboard and all other paths retain IAP. Actual signed-in dashboard access is still
@@ -123,18 +112,19 @@ and [live acceptance record](evidence/dev-233/native-live-acceptance.md).
    client ID `571c3dc755d9e63cfe74748787f6a533`, app-user ID
    `ce9f2ad8-ef28-4253-bdc8-ae208f63a425`, and `read,write,app:assignable` scopes. Its token
    sees the Rig organization and DEV team. DEV-245 retains Adam as assignee, has
-   `factory:rig`; that historical run failed before a thread or turn. DEV-246 tested restart
-   during active work; DEV-247 tested active undelegation with exact root termination proof.
+   `factory:rig`; that historical run failed before a thread or turn. DEV-246's earlier restart
+   attempt failed when its SSH stream ended the worker. DEV-247's active undelegation stopped its
+   worker with exact root proof. DEV-248 passed the restart and active-stop checks; Adam remains
+   its human assignee.
 
-## Remaining acceptance work
+## Remaining qualification
 
-DEV-247 active-work undelegation passed with a contained sleep and exact root proof. DEV-246
-restart preserved the run/session/acknowledgement and did not launch a replacement, but the
-worker processes were gone after the SSH stream closed; the stream closure appears to have
-ended the operation. Restart survival therefore failed. The final audit also found DEV-246
-reconciliation `:unknown` and DEV-246/247 stage-attempt rows still `executing` inside stopped
-runs, despite retained root termination proofs. Do not mark DEV-233 complete or open an
-acceptance PR until restart survival and durable metadata reconciliation are resolved. The
-bounded bootstrap-token observation does not establish a long-term token lifecycle; dashboard
-viewer access, Daybreak and scaled capacity remain unqualified. See the
-[native live acceptance record](evidence/dev-233/native-live-acceptance.md).
+The scoped DEV-233 native delegation, restart-survival, active-stop and durable-metadata boundary
+passed. The final audit contains four stopped runs and exact termination proofs, with no
+executing attempts or operation awaiting reconciliation. A canceled current attempt may remain
+the run's audit pointer. Automatic conversation resume, worker broker restart, signed-in
+dashboard access, provider token lifecycle, Daybreak and scaled capacity remain unqualified.
+DEV-234 still owns human replies; ordinary prompt events do not supply reply inputs. No Rig candidate
+publication or merge was attempted, and these results do not establish the full Factory Setup
+flow. See the [restart repair acceptance record](evidence/dev-233/restart-repair-acceptance.md)
+and [earlier native checkpoint](evidence/dev-233/native-live-acceptance.md).

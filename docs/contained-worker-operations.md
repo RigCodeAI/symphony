@@ -2,10 +2,11 @@
 
 This is the SSH/systemd control path for native delegation. Root containment, forced-SSH
 RPC/stream checks, the live Elixir client, subscription readiness and native active
-cancellation passed on the previous releases. Active work did not survive coordinator
-restart, and stopped attempts retained stale executing metadata. The repairs described
-below still need a fresh live acceptance run. DEV-233 remains unaccepted. See the
-[native acceptance checkpoint](evidence/dev-233/native-live-acceptance.md).
+cancellation passed. The fresh DEV-248 run survived coordinator restart with the same
+foreground worker, then native undelegation stopped its exact operation. Confirmed stopped
+attempts and reconciliation metadata now match the trusted termination proofs. See the
+[restart repair acceptance](evidence/dev-233/restart-repair-acceptance.md) and the
+[historical native checkpoint](evidence/dev-233/native-live-acceptance.md).
 
 The existing `factory-worker` identity keeps its qualified subscription auth.
 A separate `factory-control` account receives a forced SSH command through the
@@ -228,8 +229,9 @@ cleanup succeeds. Review that output before installing it at the fixed receipt
 path. Run the card from the configured immutable release with
 `FACTORY_SYSTEMD_TEST_DISPOSABLE=1` and `FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1`;
 its default skip cannot generate a receipt.
-The fresh restart-survival and stopped-state pilot must still pass
-[the live acceptance checklist](linear-delegation.md) before an acceptance PR.
+The fresh restart-survival and stopped-state pilot passed on source `064f892` and the
+current worker boot. See the [live acceptance record](evidence/dev-233/restart-repair-acceptance.md)
+for current pins and remaining limits; historical host cards qualify only their recorded releases.
 
 ### Existing systemd 252 worker
 

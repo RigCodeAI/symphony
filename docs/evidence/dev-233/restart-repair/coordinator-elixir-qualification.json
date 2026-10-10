@@ -1,0 +1,43 @@
+{
+  "exit_code": 0,
+  "private_log": "/srv/factory/dev233-rollbacks/064f892f95847ea2eed0eb684da36c6e1bb5fce6/elixir-qualification-private.log",
+  "qualification": {
+    "agent_inference_started": false,
+    "candidate": "064f892f95847ea2eed0eb684da36c6e1bb5fce6",
+    "routes": [
+      {
+        "definition_sha256": "df7a1df77056ab6acc6d2012b5f9b31bf1cff46b648a90fca0b71f31fc61119f",
+        "identifier": "DEV-245",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev245"
+      },
+      {
+        "definition_sha256": "8fd9c6c70095a46e741144e5780341e7a03081c87438f0c6db7b829aefd5456e",
+        "identifier": "DEV-246",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev246"
+      },
+      {
+        "definition_sha256": "94678b6877ff3ef556cb4fadbf064993c14ae849b7526c35a0fba735f0d3f50f",
+        "identifier": "DEV-247",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev247"
+      },
+      {
+        "definition_sha256": "87e16f29798af70856f5f18f6e5d086a6ec7ab8c23f1d2bc8b1294020e59778c",
+        "identifier": "DEV-248",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev248"
+      }
+    ],
+    "symphony_application_started": false,
+    "unknown_agent": "rejected",
+    "unknown_workspace": "rejected",
+    "unknown_workstream": "rejected",
+    "worker_control_revision": "064f892f95847ea2eed0eb684da36c6e1bb5fce6",
+    "worker_control_sha256": "67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89",
+    "worker_qualification": "ok",
+    "workstream_path": "/srv/factory/releases/064f892f95847ea2eed0eb684da36c6e1bb5fce6/factory/workstreams/software-change.yaml"
+  },
+  "raw_process_output_printed": false
+}

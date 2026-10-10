@@ -1,5 +1,9 @@
 # DEV-233 native live acceptance, 2026-10-10
 
+This is the historical checkpoint before the stream and stopped-state repairs.
+The later [restart repair acceptance](restart-repair-acceptance.md) records the fresh
+passing DEV-248 run and current deployment pins. Results below describe the earlier releases.
+
 Native delegation, duplicate rejection and active-work undelegation passed on a real
 subscription worker. Active work did not survive a coordinator restart. DEV-233 remains
 unaccepted at that boundary; no publication or merge was attempted.

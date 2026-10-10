@@ -1,0 +1,17 @@
+{
+  "api_billing_fallback": false,
+  "authentication": "chatgpt_subscription",
+  "bundled_bubblewrap_notice": true,
+  "candidate": "064f892f95847ea2eed0eb684da36c6e1bb5fce6",
+  "exit_code": 0,
+  "model_turn_started": false,
+  "raw_process_output_retained": false,
+  "readiness": {
+    "daybreak": false,
+    "model": "gpt-6-luna",
+    "reasoning_effort": "medium",
+    "status": "started",
+    "termination": ":ok"
+  },
+  "reset_consumed": false
+}
