@@ -178,7 +178,12 @@ if [[ "$role" = worker ]]; then
     { echo 'Seed differs from the qualified Rig pin; operator migration required' >&2; exit 1; }
   printf '%s\n' "$seed_pin" >/srv/factory/seed.REVISION
   chmod 0644 /srv/factory/seed.REVISION
-  git config --system --add safe.directory /srv/factory/seed
+  # This file contains the public, exact-path seed exception. Git ignores an
+  # unreadable system config, so do not leave it private under bootstrap umask.
+  git config --system --replace-all safe.directory /srv/factory/seed
+  # upload-pack opens the metadata directory during a --no-local clone.
+  git config --system --add safe.directory /srv/factory/seed/.git
+  chmod 0644 /etc/gitconfig
   rm -f /run/factory/git-read
   public_key="$(jq -er '.worker_ssh_public_key | select(startswith("ssh-ed25519 "))' /etc/factory/config.json)"
   printf 'restrict %s\n' "$public_key" >"/srv/factory/homes/$service_user/.ssh/authorized_keys"
