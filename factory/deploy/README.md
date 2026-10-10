@@ -22,6 +22,8 @@ Codex provisioning uses `/srv/factory/bootstrap-tools-v1`, a separate root-owned
 tree checked before reuse; root does not adopt worker-owned cached code by
 changing its owner. Runtime reads those protected binaries while Cargo writes
 its cache under the service account's retained home.
+Mix cache variables are set after mise selects its runtime, so mise's backend
+defaults cannot redirect archive writes into the protected runtime tree.
 The service account builds a project copy under
 `/srv/factory/build/<revision>/project`; the coordinator launches its matching
 `bin/symphony` there. The verified release source stays root-owned.

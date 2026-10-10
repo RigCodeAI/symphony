@@ -129,6 +129,16 @@ factory_load_runtime_env() {
   return 0
 }
 
+factory_mix() {
+  [[ "$EUID" -ne 0 ]] || { factory_fail "Mix requires the service identity"; return 1; }
+  # mise's Elixir backend supplies its own MIX_HOME and MIX_ARCHIVES. Apply
+  # role caches after runtime selection so those writes stay unprivileged.
+  /usr/local/bin/mise exec -- /usr/bin/env \
+    MIX_HOME="${MIX_HOME:?runtime environment is required}" \
+    MIX_ARCHIVES="$MIX_HOME/archives" MIX_ESCRIPTS="$MIX_HOME/escripts" \
+    mix "$@"
+}
+
 factory_atomic_json() {
   local factory_local_target="$1" factory_local_content="$2" factory_local_temp
   factory_local_temp="${factory_local_target}.tmp.$$"

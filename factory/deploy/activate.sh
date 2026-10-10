@@ -104,7 +104,7 @@ validate_with_mise() {
     bash -Eeuo pipefail -c '
       source "$FACTORY_RELEASE_DIR/factory/deploy/env.sh"
       cd -- "$FACTORY_RELEASE_DIR/elixir"
-      mise exec -- mix workstream.run \
+      factory_mix workstream.run \
         ../factory/workstreams/local-rig.yaml \
         --inputs "../factory/examples/$1.json" \
         --validate-only

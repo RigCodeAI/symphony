@@ -34,6 +34,7 @@ cat >/tmp/controls/sleep <<'EOF'
 exit 0
 EOF
 chmod 0755 /tmp/controls/*
+install -m 0755 /tmp/controls/mise /usr/local/bin/mise
 export PATH="/tmp/controls:$PATH"
 
 candidate() {

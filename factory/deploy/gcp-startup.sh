@@ -481,7 +481,7 @@ if [[ "$role" = worker ]]; then
   git config --system --add safe.directory /srv/factory/seed/.git
   chmod 0644 /etc/gitconfig
   rm -f /run/factory/git-read
-  public_key="$(jq -er '.worker_ssh_public_key | select(startswith("ssh-ed25519 "))' /etc/factory/config.json)"
+  public_key="$(jq -er '.worker_ssh_public_key | select(startswith("ssh-ed25519 "))' /etc/factory/config.json | awk 'NR == 1 {print $1 " " $2}')"
   factory_write_worker_authorized_keys "$service_user" \
     "/srv/factory/homes/$service_user" "$public_key"
   # The durable HostKey is now active. This public line is an authenticated

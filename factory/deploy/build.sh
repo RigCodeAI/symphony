@@ -32,6 +32,14 @@ factory_build_mode_is_private() {
   (( (8#$factory_build_mode & 0022) == 0 ))
 }
 
+factory_build_mix() {
+  /usr/local/bin/mise exec -- /usr/bin/env \
+    MIX_HOME="$factory_build_home/.mix" \
+    MIX_ARCHIVES="$factory_build_home/.mix/archives" \
+    MIX_ESCRIPTS="$factory_build_home/.mix/escripts" \
+    mix "$@"
+}
+
 if [[ "${1:-}" == --as-service ]]; then
   [[ "$#" -eq 6 ]] || factory_build_fail "invalid service invocation"
   factory_build_release="$2"
@@ -73,14 +81,16 @@ if [[ "${1:-}" == --as-service ]]; then
   cp -R -- "$factory_build_release/elixir/." "$factory_build_project/"
   install -d -m 0700 \
     "$factory_build_home/.mix" \
+    "$factory_build_home/.mix/archives" \
+    "$factory_build_home/.mix/escripts" \
     "$factory_build_home/.cache/mise" \
     "$factory_build_home/.config/mise"
   cd -- "$factory_build_project"
 
-  /usr/local/bin/mise exec -- mix local.hex --force
-  /usr/local/bin/mise exec -- mix local.rebar --force
-  /usr/local/bin/mise exec -- mix setup
-  /usr/local/bin/mise exec -- mix build
+  factory_build_mix local.hex --force
+  factory_build_mix local.rebar --force
+  factory_build_mix setup
+  factory_build_mix build
   [[ -x "$factory_build_project/bin/symphony" ]] || \
     factory_build_fail "Mix build did not produce the release executable"
   exit 0

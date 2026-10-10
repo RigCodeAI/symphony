@@ -32,6 +32,8 @@ set -Eeuo pipefail
 [[ "$EUID" = "$(id -u factory-worker)" && "$EUID" != 0 ]]
 [[ -z "${OPENAI_API_KEY:-}${GIT_CONFIG_VALUE_0:-}${NODE_OPTIONS:-}" ]]
 shift 2
+# Match the actual mise Elixir backend's injected root runtime cache paths.
+export MIX_HOME=/srv/factory/mise/runtime-mix MIX_ARCHIVES=/srv/factory/mise/runtime-mix/archives
 exec "$@"
 MISE
 chmod 0755 /usr/local/bin/mise
