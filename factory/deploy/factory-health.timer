@@ -1,0 +1,10 @@
+[Unit]
+Description=Check coordinator health
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=factory-maintenance@health.service
+
+[Install]
+WantedBy=timers.target

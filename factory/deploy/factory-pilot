@@ -1,0 +1,386 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  factory-pilot submit <worker-name> <unique-run-id> <pass|fail>
+
+Run pass and fail separately with different run IDs to collect the two-stage
+DEV-230 worker smoke evidence. The worker allows only one active pilot at a time.
+EOF
+}
+
+fail() {
+  printf 'factory-pilot: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ "$#" -eq 4 && "$1" == submit ]] || { usage; exit 2; }
+worker_name="$2"
+run_id="$3"
+case_name="$4"
+[[ "$worker_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$ ]] || fail "worker name is invalid"
+[[ "$run_id" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || fail "run id is invalid"
+[[ "$case_name" == pass || "$case_name" == fail ]] || fail "case must be pass or fail"
+
+# Resolve a symlinked operator command before loading helpers beside it. This
+# supports both an explicit release path and an optional /usr/local/bin link.
+script_source="${BASH_SOURCE[0]}"
+while [[ -L "$script_source" ]]; do
+  source_parent="$(cd -P -- "$(dirname -- "$script_source")" >/dev/null 2>&1 && pwd)"
+  source_target="$(readlink -- "$script_source")"
+  if [[ "$source_target" == /* ]]; then
+    script_source="$source_target"
+  else
+    script_source="$source_parent/$source_target"
+  fi
+done
+script_path="$(realpath -e -- "$script_source")" || fail "operator command path is unavailable"
+script_dir="$(cd -P -- "$(dirname -- "$script_path")" >/dev/null 2>&1 && pwd)"
+# shellcheck source=factory/deploy/lib.sh
+source "$script_dir/lib.sh"
+
+readonly factory_root="/opt/factory"
+readonly data_root="/srv/factory"
+readonly public_config="/etc/factory/public.json"
+readonly ssh_config="/run/factory/ssh_config"
+current_release="$(factory_active_release "$factory_root")" || fail "coordinator has no active release"
+script_release="$(cd -P -- "$script_dir/../.." >/dev/null 2>&1 && pwd)"
+[[ "$current_release" == "$script_release" ]] || fail "operator command is not from the active release"
+factory_load_runtime_env "$current_release" coordinator || fail "coordinator runtime environment is unavailable"
+
+revision="$(factory_release_revision "$current_release")" || fail "active release manifest is invalid"
+release_sha="$(factory_release_sha256 "$current_release")" || fail "active release SHA is invalid"
+[[ -f "$public_config" && ! -L "$public_config" ]] || fail "public coordinator config is missing"
+[[ -f "$ssh_config" && ! -L "$ssh_config" && -r "$ssh_config" ]] || fail "private worker SSH config is unavailable"
+
+worker_ip="$(python3 - "$public_config" "$worker_name" "$release_sha" "$revision" <<'PY'
+import ipaddress
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as source:
+        config = json.load(source)
+except (OSError, ValueError):
+    raise SystemExit("invalid public config")
+if config.get("role") != "coordinator":
+    raise SystemExit("this host is not the coordinator")
+if config.get("release_sha256") != sys.argv[3]:
+    raise SystemExit("public config and active release SHA differ")
+if config.get("service_revision") != sys.argv[4]:
+    raise SystemExit("public config and active release revision differ")
+matches = [host for host in config.get("worker_hosts", []) if host.get("name") == sys.argv[2]]
+if len(matches) != 1:
+    raise SystemExit("worker name is missing or ambiguous")
+try:
+    address = ipaddress.ip_address(matches[0].get("ip", ""))
+except ValueError:
+    raise SystemExit("worker address is invalid")
+if not isinstance(address, ipaddress.IPv4Address) or not address.is_private:
+    raise SystemExit("worker address must be a private IPv4 address")
+print(str(address))
+PY
+)" || fail "worker or release is not present in public config"
+
+# The coordinator lock gives local callers a prompt response; the worker's
+# independent flock remains authoritative across all request sources.
+lock_dir="$data_root/workspaces"
+[[ -d "$lock_dir" && -d "$data_root/runs" ]] || fail "coordinator data directories are missing"
+exec 8>"$lock_dir/.factory-pilot-${worker_name}.lock"
+if ! flock -n 8; then
+  fail "worker $worker_name already has an active coordinator submission"
+fi
+
+run_dir="$data_root/runs/$run_id"
+[[ ! -e "$run_dir" && ! -L "$run_dir" ]] || fail "run id has already been used on this coordinator"
+mkdir -m 0700 -- "$run_dir"
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+coordinator_host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf coordinator)"
+[[ "$coordinator_host" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$ ]] || coordinator_host=coordinator
+
+python3 - "$run_dir/submission.json" "$revision" "$release_sha" "$run_id" \
+  "$case_name" "$worker_name" "$worker_ip" "$coordinator_host" "$started_at" <<'PY'
+import json
+import sys
+
+payload = {
+    "version": 1,
+    "run_id": sys.argv[4],
+    "case": sys.argv[5],
+    "service_revision": sys.argv[2],
+    "release_sha256": sys.argv[3],
+    "worker_name": sys.argv[6],
+    "worker_ip": sys.argv[7],
+    "initiated_by": "factory-pilot",
+    "initiator_role": "coordinator",
+    "initiator_host": sys.argv[8],
+    "transport": "openssh-private-config",
+    "started_at": sys.argv[9],
+    "status": "submitting",
+}
+with open(sys.argv[1], "x", encoding="utf-8") as target:
+    json.dump(payload, target, sort_keys=True, indent=2)
+    target.write("\n")
+PY
+
+staging="$(mktemp -d "$TMPDIR/factory-pilot-submit-${run_id}.XXXXXX")" || fail "private transfer staging directory could not be created"
+chmod 0700 "$staging"
+trap 'rm -rf -- "$staging"' EXIT
+
+remote_command="exec /opt/factory/releases/$revision/factory/deploy/worker-run.sh --revision $revision --run-id $run_id --case $case_name --expected-sha256 $release_sha --worker-name $worker_name --worker-ip $worker_ip --initiator-host $coordinator_host"
+remote_status=255
+if ssh -n -T -F "$ssh_config" \
+  -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
+  "$worker_ip" "$remote_command" >"$staging/worker.stdout" 2>"$staging/worker.stderr"; then
+  remote_status=0
+else
+  remote_status=$?
+fi
+
+archive_status=1
+if ssh -n -T -F "$ssh_config" \
+  -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
+  "$worker_ip" "tar --create --file=- --directory=/srv/factory/runs -- $run_id" \
+  >"$staging/worker.tar" 2>"$staging/archive.stderr"; then
+  archive_status=0
+fi
+
+extract_status=1
+outcome_status=1
+if [[ "$archive_status" -eq 0 ]]; then
+  if python3 - "$staging/worker.tar" "$staging/evidence" "$run_id" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import sys
+import tarfile
+
+archive_path, destination, run_id = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+expected = {"report.json", "mix.log", "candidate.diff", "revision.json", "finished.json"}
+limits = {"report.json": 2 * 1024 * 1024, "mix.log": 10 * 1024 * 1024,
+          "candidate.diff": 10 * 1024 * 1024, "revision.json": 256 * 1024,
+          "finished.json": 256 * 1024}
+if archive_path.stat().st_size > 24 * 1024 * 1024:
+    raise SystemExit("worker evidence archive is too large")
+destination.mkdir(mode=0o700)
+found = {}
+with tarfile.open(archive_path, mode="r:") as source:
+    members = source.getmembers()
+    for member in members:
+        path = PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts:
+            raise SystemExit("worker evidence archive has unsafe paths")
+        if path.parts == (run_id,) and member.isdir():
+            continue
+        if len(path.parts) != 2 or path.parts[0] != run_id or path.parts[1] not in expected:
+            raise SystemExit("worker evidence archive contains an unexpected entry")
+        name = path.parts[1]
+        if name in found or not member.isfile() or member.size > limits[name]:
+            raise SystemExit("worker evidence archive contains an unsafe or oversized file")
+        stream = source.extractfile(member)
+        if stream is None:
+            raise SystemExit("worker evidence archive is incomplete")
+        data = stream.read(limits[name] + 1)
+        if len(data) != member.size or len(data) > limits[name]:
+            raise SystemExit("worker evidence file size does not match its archive header")
+        found[name] = data
+    if set(found) != expected:
+        raise SystemExit("worker evidence archive is missing required files")
+
+finished = json.loads(found["finished.json"])
+if finished.get("status") != "finished" or finished.get("run_id") != run_id:
+    raise SystemExit("worker evidence is not marked finished")
+artifacts = finished.get("artifacts")
+if not isinstance(artifacts, dict) or set(artifacts) != expected - {"finished.json"}:
+    raise SystemExit("worker evidence manifest is invalid")
+for name, data in found.items():
+    if name == "finished.json":
+        continue
+    entry = artifacts[name]
+    if entry.get("bytes") != len(data) or entry.get("sha256") != hashlib.sha256(data).hexdigest():
+        raise SystemExit("worker evidence checksum does not match")
+
+for name, data in found.items():
+    target = destination / name
+    with target.open("xb") as output:
+        os.chmod(target, 0o600)
+        output.write(data)
+PY
+  then
+    extract_status=0
+  fi
+fi
+
+if [[ "$extract_status" -eq 0 ]]; then
+  if python3 - "$staging/evidence/revision.json" "$staging/evidence/report.json" \
+    "$revision" "$release_sha" "$run_id" "$case_name" "$worker_name" \
+    "$worker_ip" "$coordinator_host" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    evidence = json.load(source)
+with open(sys.argv[2], encoding="utf-8") as source:
+    report = json.load(source)
+runner_exit = evidence.get("runner_exit_status") if isinstance(evidence, dict) else None
+if (not isinstance(evidence, dict) or not isinstance(report, dict) or
+    evidence.get("run_id") != sys.argv[5] or
+    evidence.get("case") != sys.argv[6] or
+    evidence.get("service_revision") != sys.argv[3] or
+    evidence.get("release_sha256") != sys.argv[4] or
+    evidence.get("worker_name") != sys.argv[7] or
+    evidence.get("worker_ip") != sys.argv[8] or
+    evidence.get("initiator_role") != "coordinator" or
+    evidence.get("initiated_by") != "factory-pilot" or
+    evidence.get("initiator_host") != sys.argv[9] or
+    evidence.get("transport") != "openssh-private-config" or
+    evidence.get("pilot_result") not in {"passed", "failed"} or
+    evidence.get("workstream_status") != report.get("status") or
+    report.get("status") not in {"complete", "blocked", "runner-error"} or
+    report.get("runner_exit_status") != runner_exit or
+    (report.get("report_parse_error") is not True and not isinstance(report.get("definitions"), dict)) or
+    not isinstance(runner_exit, int) or isinstance(runner_exit, bool) or
+    not isinstance(evidence.get("workspace_commit"), str) or
+    not re.fullmatch(r"[0-9a-f]{40}", evidence["workspace_commit"])):
+    raise SystemExit("worker evidence identity or structure does not match this submission")
+PY
+  then
+    :
+  else
+    extract_status=1
+  fi
+fi
+
+if [[ "$extract_status" -eq 0 ]]; then
+  if python3 - "$staging/evidence/revision.json" "$staging/evidence/report.json" \
+    "$case_name" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    evidence = json.load(source)
+with open(sys.argv[2], encoding="utf-8") as source:
+    report = json.load(source)
+case_name = sys.argv[3]
+expected_status = "complete" if case_name == "pass" else "blocked"
+runner_exit = evidence.get("runner_exit_status")
+attempts = report.get("attempts", [])
+gate_exit = None
+gate_ok = False
+if isinstance(attempts, list) and len(attempts) == 2:
+    agent, gate = attempts
+    agent_result = agent.get("result", {}) if isinstance(agent, dict) else {}
+    gate_result = gate.get("result", {}) if isinstance(gate, dict) else {}
+    gate_evidence = gate_result.get("evidence", {}) if isinstance(gate_result, dict) else {}
+    gate_exit = gate_evidence.get("exit_status")
+    gate_timed_out = gate_evidence.get("timed_out")
+    expected_gate_exit = isinstance(gate_exit, int) and not isinstance(gate_exit, bool) and (
+        gate_exit == 0 if case_name == "pass" else gate_exit != 0
+    )
+    gate_ok = isinstance(agent, dict) and isinstance(gate, dict) and \
+        isinstance(agent_result, dict) and isinstance(gate_result, dict) and (
+        agent.get("type") == "agent" and agent.get("stage") == "implement" and
+        agent_result.get("status") == "ok" and gate.get("type") == "check" and
+        gate.get("stage") == "validate" and gate_result.get("status") == "ok" and
+        expected_gate_exit and gate_timed_out is False
+    )
+outcome_ok = (
+    evidence.get("pilot_result") == "passed" and
+    evidence.get("active_release_changed") is False and
+    evidence.get("workstream_status") == expected_status and
+    evidence.get("agent_stage_status") == "ok" and
+    evidence.get("gate_exit_status") == gate_exit and
+    evidence.get("gate_timed_out") is False and
+    evidence.get("gate_stage_result") == "passed" and
+    evidence.get("diff_exit_status") == 0 and
+    report.get("status") == expected_status and
+    report.get("report_parse_error") is not True and
+    isinstance(report.get("definitions"), dict) and
+    gate_ok and
+    ((case_name == "pass" and runner_exit == 0) or
+     (case_name == "fail" and isinstance(runner_exit, int) and not isinstance(runner_exit, bool) and runner_exit != 0))
+)
+if not outcome_ok:
+    raise SystemExit("worker run did not meet the expected smoke outcome")
+PY
+  then
+    outcome_status=0
+  fi
+fi
+
+coordinator_changed=false
+active_after=""
+active_after_sha=""
+if active_after="$(factory_active_release "$factory_root" 2>/dev/null)"; then
+  active_after_sha="$(factory_release_sha256 "$active_after" 2>/dev/null || true)"
+  if [[ "$active_after" != "$current_release" || "$active_after_sha" != "$release_sha" ]]; then
+    coordinator_changed=true
+  fi
+else
+  coordinator_changed=true
+fi
+
+if [[ "$extract_status" -eq 0 ]]; then
+  for name in report.json mix.log candidate.diff revision.json; do
+    mv -- "$staging/evidence/$name" "$run_dir/$name"
+  done
+fi
+
+python3 - "$run_dir/submission.json" "$remote_status" "$archive_status" \
+  "$extract_status" "$outcome_status" "$coordinator_changed" "$active_after" "$active_after_sha" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload.update({
+    "remote_exit_status": int(sys.argv[2]),
+    "archive_fetch_exit_status": int(sys.argv[3]),
+    "evidence_validation_exit_status": int(sys.argv[4]),
+    "pilot_outcome_validation_exit_status": int(sys.argv[5]),
+    "coordinator_release_changed": sys.argv[6] == "true",
+    "coordinator_active_release_after": sys.argv[7],
+    "coordinator_active_sha256_after": sys.argv[8],
+    "finished_at": datetime.now(timezone.utc).isoformat(),
+})
+if int(sys.argv[4]) == 0 and int(sys.argv[5]) == 0 and int(sys.argv[2]) == 0 and sys.argv[6] == "false":
+    payload["status"] = "complete"
+else:
+    payload["status"] = "failed"
+path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+PY
+
+if [[ "$extract_status" -ne 0 ]]; then
+  fail "worker submission or evidence collection failed; local metadata is at $run_dir/submission.json"
+fi
+# The coordinator archive helper treats finished.json as its commit marker.
+# Publish it only after the final local submission receipt has been written.
+mv -- "$staging/evidence/finished.json" "$run_dir/finished.json"
+if [[ "$outcome_status" -ne 0 ]]; then
+  fail "worker completed with an unexpected smoke outcome; sanitized evidence is at $run_dir"
+fi
+if [[ "$remote_status" -ne 0 ]]; then
+  fail "worker reported a failed pilot; sanitized evidence is at $run_dir"
+fi
+if [[ "$coordinator_changed" == true ]]; then
+  fail "coordinator active release changed during submission; evidence is at $run_dir"
+fi
+
+pilot_result="$(python3 - "$run_dir/revision.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(json.load(source).get("pilot_result", "failed"))
+PY
+)"
+[[ "$pilot_result" == passed ]] || fail "worker evidence reports a failed pilot; evidence is at $run_dir"
+printf 'Pilot %s (%s) passed on %s at revision %s. Evidence: %s\n' \
+  "$run_id" "$case_name" "$worker_name" "$revision" "$run_dir"

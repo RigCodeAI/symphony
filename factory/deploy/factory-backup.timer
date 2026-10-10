@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly application-consistent pilot backups
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Unit=factory-maintenance@backup.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

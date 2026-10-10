@@ -1,0 +1,2 @@
+bucket = "factory-511117-symphony-tfstate"
+prefix = "dev-230/pilot"
