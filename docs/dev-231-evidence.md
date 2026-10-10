@@ -59,7 +59,7 @@ entry points.
 
 ## Retained evidence
 
-The six [redacted receipts](../factory/evidence/dev-231/) and
+Both rounds of [redacted receipts](../factory/evidence/dev-231/) and
 [SHA-256 manifest](../factory/evidence/dev-231/artifacts.sha256.json) are committed.
 Each original receipt was created exclusively with mode 0600; blocked attempts exited 1
 and ordinary successes exited 0. Receipt hashes and every source/resource digest were
@@ -159,10 +159,31 @@ passed. Strict Credo stopped the pipeline (47 readability issues, 51 refactoring
 including qualification readability/complexity findings). Coverage and Dialyzer were not
 reached by `make all`; this result is not a clean CI claim. No lint rules were disabled.
 
-A separate full test run finished: **424 tests, 2 failures, 6 skipped, 10 excluded**.
+A separate full test run finished: **425 tests, 2 failures, 6 skipped, 10 excluded**.
 The two failures are `ExtensionsTest` dashboard cases at lines 483 and 568, raising
 `Enumerable not implemented for LazyHTML` in Phoenix LiveView's client proxy. This change
 has no dashboard, dependency or lockfile edits. All 96 focused changed-behavior tests,
 including the corrected CLI gate fixture, passed with compilation warnings treated as
 errors. The actual-worker dispatch guard returned the expected error. Alpha handoff
 retains these broad failures explicitly; it does not treat broad CI as green.
+
+
+## Final committed-source verification
+
+After deadline and authentication hardening, the exact source
+`ebe5b5115e05c09d27ec150444778fa3ce948dd8` was archived to the isolated worker copy.
+The six definitions were rerun once, writing exclusive `*-2.json` receipt paths from
+06:46:44 to 06:47:04 UTC on 2026-10-10. All results match the first matrix: three
+ordinary successes, two completed Blue turns blocked on effective-program observability,
+and optional Review rejected before inference. No request settings, agent revisions or
+shared-resource hashes changed. These final-source receipts are the current qualification
+reference; the first round is retained as history. Both rounds have verified artifact hashes.
+
+Second-round weekly usage snapshots reported 73% used with the same window/reset,
+ordinary usage allowed and spend control false. This is shared account state, not a
+measured cost of the probes. The final PR changes after this source pin only retain these
+receipts and describe their results. No release activation, secret update or API fallback
+was performed.
+
+PR body validation passed against the exact tracked template. Source/receipt links and
+all twelve receipt artifact hashes passed the final audit.
