@@ -80,6 +80,34 @@ elicitation stating that execution capacity was released.
 
 ![Native reply, failure and stop](native-reply-stop.png)
 
+## Read-only Git diagnosis and follow-up
+
+This is an existing worker policy limitation, with no observed continuation
+policy regression. The policy construction in `WorkstreamRunner.run_ready_agent/5`
+(`elixir/lib/symphony_elixir/workstream_runner.ex`, runtime settings) is unchanged
+from base `7e6e55fa36ac0dea445e2357b1d47179e599da14`: `workspaceWrite`, only the
+workspace as a writable root, network off, and the agent's `never` approval policy.
+`factory/agents/default-cloud.yaml` still selects `workspace-write` / `never`.
+The continuation changes prompt context and tools, not these sandbox parameters.
+
+[Saved worker policies](worker-policy.json) show identical effective policy,
+workspace, model and effort for the original and reconstructed threads. Outside
+Codex, the same worker UID owns `.git` (mode `0755`) and `os.access(..., W_OK)` is
+true. The recorded agent report identifies the sandbox's read-only index lock.
+The [official protected-path rule](https://learn.chatgpt.com/docs/agent-approvals-security#protected-paths-in-writable-roots)
+explains that workspace-write protects `.git` recursively and that disabling
+approval prompts does not remove the sandbox boundary. No native permission
+request was converted into a clarification or approved here.
+
+The smallest proposed follow-up belongs to the existing worker/candidate Git
+owner (`WorkstreamRunner` / `CandidateGit`), not the Linear reply coordinator:
+define a trusted local candidate-commit step after confirmed agent termination.
+It should verify the dedicated clone and expected base, collect permitted changes,
+record an exact candidate SHA, and leave publication credentials and `.git` writes
+outside agent commands. Its checks must cover the initial turn and reconstructed
+turn with the same policy. This is a proposed contract, not implemented behavior;
+no new route or sandbox permission was added by this diagnosis.
+
 ## Acceptance boundaries
 
 | Behavior | Evidence |
