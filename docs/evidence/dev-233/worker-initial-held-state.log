@@ -1,0 +1,32 @@
+{
+  "error_type": "RuntimeError",
+  "release_sha256": "60bb26c3af1ccb5e8262d22d253bc34a01214780c0b18e829ff1bdc2eeb34fbb",
+  "service_revision": "bc6b42033d4512145e1fb0e0595cfec76b0f9a96",
+  "stage": "systemd_qualification",
+  "status": "failed"
+}
+
+TEST_LOG_START
+Configuration installed. Service has not been enabled or started.
+Review root broker and control-account access before explicit activation.
+.F
+======================================================================
+FAIL: test_held_stop_natural_exit_and_durable_restart_proofs (__main__.SystemdContainmentTest.test_held_stop_natural_exit_and_durable_restart_proofs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/srv/factory/releases/bc6b42033d4512145e1fb0e0595cfec76b0f9a96/factory/deploy/tests/test_worker_operation_systemd.py", line 370, in test_held_stop_natural_exit_and_durable_restart_proofs
+    self.assertEqual(self.controller.status(identity)["status"], "held")
+AssertionError: 'unknown' != 'held'
+- unknown
++ held
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.120s
+
+FAILED (failures=1)
+Traceback (most recent call last):
+  File "<stdin>", line 68, in <module>
+  File "<stdin>", line 11, in run
+RuntimeError: command failed: /usr/bin/python3 exit=1
+

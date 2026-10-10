@@ -564,7 +564,9 @@ class OperationController:
                 try:
                     snapshot = self.manager.inspect(unit)
                     identity = self._identity_from_snapshot(record, snapshot)
-                    if identity is not None:
+                    if identity is not None and self._is_live(
+                        snapshot, self.manager.cgroup_populated(identity["control_group"])
+                    ):
                         record["identity"] = identity
                         record["state"] = "prepared"
                         self._write_record(record_path, record)
@@ -1061,8 +1063,9 @@ class OperationController:
                 argv.append(value)
 
         workspace_value = request["workspace"]
-        if not isinstance(workspace_value, str) or not os.path.isabs(workspace_value) or "\0" in workspace_value:
-            raise OperationValidationError("workspace must be an absolute path")
+        if (not isinstance(workspace_value, str) or not os.path.isabs(workspace_value)
+                or any(char in workspace_value for char in ("\0", "\n", "\r", "$", "%"))):
+            raise OperationValidationError("workspace must be an absolute path without systemd substitutions")
         try:
             requested_workspace = Path(workspace_value)
             workspace = requested_workspace.resolve(strict=True)
@@ -1148,6 +1151,7 @@ class OperationController:
             "Slice": "system.slice",
             "User": self.worker_user,
             "Group": self.worker_group,
+            "WorkingDirectory": workspace,
             "SupplementaryGroups": "",
             "NoNewPrivileges": "yes",
             "CapabilityBoundingSet": "",

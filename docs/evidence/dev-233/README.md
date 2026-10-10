@@ -230,3 +230,13 @@ not evidence of successful containment.
 The fix uses a separate protected contained-workspace parent, preserving legacy
 worker-owned workspaces. The real card now launches the installed wrapper against
 its actual protected gates and contained-workspace parent.
+
+### Initial held-state check
+
+`worker-initial-held-state.log` records the verified installed production path at
+`bc6b4203`: its first status was unknown. Source inspection found preparation could return
+during systemd activation; that race is consistent with this result. The
+controlled unit was subsequently killed by card cleanup (observed exit signal 9),
+not the previous wrapper CLI failure. No receipt or service activation resulted.
+Preparation now waits for a live exact unit and populated cgroup. The fixed unit
+also starts in the canonical workspace, which the real card explicitly checks.

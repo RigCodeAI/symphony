@@ -23,14 +23,21 @@ linear_delegation:
   webhook_secret_env: LINEAR_API_TOKEN
   client_secret_env: LINEAR_API_KEY
   store_path: /srv/factory/state/linear.sqlite
-  workspace_root: /srv/factory/workspaces
+  workspace_root: /srv/factory/contained-workspaces
   workstream_path: /srv/factory/definitions/software-change.yaml
   agent_id: default-cloud
   rig_label: factory:rig
   reconcile_interval_ms: 5000
   workspaces:
-    pilot-issue-uuid: /srv/factory/workspaces/pilot-rig
+    pilot-issue-uuid: /srv/factory/contained-workspaces/pilot-rig
 ```
+
+The contained-workspace parent on the worker is root:factory-worker 0750. An
+operator must provision the worker-owned issue leaf and matching coordinator
+clone before adding the issue mapping. The worker can edit inside the leaf but
+cannot create or replace sibling names. The legacy `/srv/factory/workspaces`
+parent remains unchanged and is not accepted by the contained broker. See the
+[contained operation setup](contained-worker-operations.md).
 
 Keep the signing secret and OAuth client secret in separate coordinator environment variables.
 `LINEAR_API_TOKEN` above is the webhook signing secret; `LINEAR_API_KEY` is the OAuth client

@@ -74,7 +74,9 @@ termination proof; it never restarts the stopped task.
 For a configured remote worker, a separate forced-command control account reaches a root
 broker over a peer-UID-checked Unix socket. The broker reserves each operation before launching
 a fixed held wrapper in a unique systemd unit. It accepts no client-selected unit properties
-or environment. Durable acknowledgement precedes release. Machine, boot, unit invocation and
+or environment. Preparation waits for a live process in the exact contained unit, with its working
+directory set to the canonical workspace. Workspace paths cannot contain systemd
+substitution characters. Durable acknowledgement precedes release. Machine, boot, unit invocation and
 request digest fence every later action. There is one active or unknown operation per worker
 UID/host. This contains processes; it does not isolate historical tasks sharing that UID.
 Contained operation workspaces use a root-owned, worker-group parent with mode 0750,

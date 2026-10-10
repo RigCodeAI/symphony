@@ -27,7 +27,9 @@ A repeated ID cannot create another unit; changed arguments reject. A lost launc
 response reserves capacity. Unit names are hashes of operation IDs, not paths or
 client-selected systemd properties.
 
-The prepared unit waits. Its operation ID, OS boot, machine, unit invocation,
+Preparation waits for a live process in the exact contained unit. The unit
+starts in its canonical workspace; workspace paths reject systemd substitution
+characters. The prepared unit waits. Its operation ID, OS boot, machine, unit invocation,
 cgroup and request digest are returned and committed by the current coordinator
 worker before release. Only a matching root-written release marker allows the
 wrapper to exec. Stream loss, coordinator restart or a stale identity cannot

@@ -181,11 +181,13 @@ class OperationControllerTests(unittest.TestCase):
 
         self.manager.on_start = check_reservation
         identity = self.controller.prepare(self.request())
+        self.assertEqual(self.manager.start_calls[0][3]["WorkingDirectory"], str(self.workspace))
 
         self.assertEqual(set(identity), {
             "kind", "operation_id", "machine_id", "boot_id", "unit",
             "invocation_id", "control_group", "request_sha256",
         })
+
         self.assertEqual(identity["kind"], "systemd-unit")
         self.assertEqual(identity["operation_id"], "run/stage/attempt-1")
         self.assertEqual(identity["control_group"], f"/system.slice/{identity['unit']}")
@@ -228,6 +230,31 @@ class OperationControllerTests(unittest.TestCase):
         self.assertIn(str(self.home), properties["ReadWritePaths"])
         self.assertNotIn("OPENAI_API_KEY", " ".join(properties["Environment"]))
         self.assertFalse(self.controller.capabilities()["contained"])
+
+    def test_prepare_waits_for_live_unit_after_activation_starts(self):
+        original_inspect = self.manager.inspect
+        observations = []
+
+        def inspect(unit):
+            snapshot = original_inspect(unit)
+            observations.append(snapshot)
+            if len(observations) <= 2:
+                return UnitSnapshot(**{**snapshot.__dict__, "active_state": "activating", "sub_state": "start", "main_pid": 0})
+            return snapshot
+
+        with patch.object(self.manager, "inspect", side_effect=inspect):
+            identity = self.controller.prepare(self.request())
+        self.assertGreaterEqual(len(observations), 3)
+        self.assertEqual(self.controller.status(identity)["status"], "held")
+        self.assertEqual(len(self.manager.start_calls), 1)
+
+    def test_workspace_cannot_select_systemd_substitutions(self):
+        for name in ("%n", "$HOME"):
+            path = self.workspaces / name
+            path.mkdir()
+            with self.assertRaises(OperationValidationError):
+                self.controller.prepare({**self.request(), "workspace": str(path)})
+        self.assertEqual(self.manager.start_calls, [])
 
     def test_release_is_exactly_bound_and_status_reconciles_the_marker(self):
         identity = self.controller.prepare(self.request())

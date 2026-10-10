@@ -260,9 +260,18 @@ class SystemdContainmentTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         cleanup_errors: list[str] = []
-        for identity in getattr(self, "identities", []):
-            unit = identity["unit"]
+        units = {identity["unit"] for identity in getattr(self, "identities", [])}
+        units.update("factory-operation-" + hashlib.sha256(value.encode("utf-8")).hexdigest() + ".service"
+                     for value in getattr(self, "test_operation_ids", []))
+        for unit in sorted(units):
             try:
+                if not getattr(self._outcome, "success", True):
+                    diagnostics = subprocess.run(
+                        ["/usr/bin/systemctl", "show", unit, "--no-pager",
+                         "--property=LoadState,InvocationID,ControlGroup,ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,MainPID"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=5, check=False,
+                    )
+                    sys.stderr.write(diagnostics.stdout.decode("utf-8", errors="replace"))
                 shown = subprocess.run(
                     ["/usr/bin/systemctl", "show", "--no-pager", "--property=LoadState", unit],
                     stdin=subprocess.DEVNULL,
@@ -291,6 +300,18 @@ class SystemdContainmentTest(unittest.TestCase):
                 )
                 if stopped.returncode != 0:
                     cleanup_errors.append(f"could not stop test-created unit {unit}")
+                terminal = subprocess.run(
+                    ["/usr/bin/systemctl", "show", unit, "--property=MainPID,ControlGroup"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=False,
+                )
+                values = dict(line.split("=", 1) for line in terminal.stdout.decode("ascii").splitlines() if "=" in line)
+                group = values.get("ControlGroup")
+                if terminal.returncode != 0 or values.get("MainPID") != "0" or group is None:
+                    cleanup_errors.append(f"no terminal cleanup evidence for {unit}")
+                elif group:
+                    events = Path("/sys/fs/cgroup") / group.lstrip("/") / "cgroup.events"
+                    if "populated 0" not in events.read_text(encoding="ascii").splitlines():
+                        cleanup_errors.append(f"test-created cgroup still populated for {unit}")
             except (OSError, subprocess.TimeoutExpired):
                 cleanup_errors.append(f"could not inspect or stop test-created unit {unit}")
         if cleanup_errors:
@@ -353,6 +374,7 @@ class SystemdContainmentTest(unittest.TestCase):
         effect = self.workspace / "processes.json"
         child_code = "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)"
         program = f"""import json,os,subprocess,sys,time
+assert os.getcwd() == {str(self.workspace)!r}
 child = subprocess.Popen([sys.executable, '-c', {child_code!r}], start_new_session=True)
 with open({str(effect)!r}, 'w', encoding='utf-8') as output:
     json.dump([os.getpid(), child.pid], output)
