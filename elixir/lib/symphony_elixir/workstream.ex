@@ -16,7 +16,9 @@ defmodule SymphonyElixir.Workstream do
           name: String.t(),
           model: String.t(),
           reasoning_effort: String.t(),
-          daybreak: false,
+          daybreak: boolean(),
+          authentication: map(),
+          revision: String.t(),
           approval_policy: String.t(),
           sandbox: String.t(),
           instructions: [file_reference()],
@@ -329,14 +331,20 @@ defmodule SymphonyElixir.Workstream do
     end)
   end
 
+  @doc "Loads one named agent and pins its shared resources without executing it."
+  @spec load_agent(Path.t()) :: {:ok, loaded_agent(), map()} | {:error, term()}
+  def load_agent(path) when is_binary(path), do: load_agent(Path.basename(path), path)
+  def load_agent(_path), do: {:error, :invalid_agent_path}
+
   defp load_agent(id, path) do
     with {:ok, canonical_path, source, document} <- read_yaml(path, {:agent, id}),
-         :ok <- exact_fields(document, ~w(version name model reasoning_effort daybreak approval_policy sandbox instructions skills), {:agent, id}),
+         :ok <- agent_fields(document, id),
          :ok <- validate_version(Map.get(document, "version"), {:agent, id}),
          {:ok, name} <- required_name(Map.get(document, "name"), {:agent_name, id}),
          {:ok, model} <- required_name(Map.get(document, "model"), {:agent_model, id}),
          {:ok, reasoning_effort} <- reasoning_effort(Map.get(document, "reasoning_effort"), id),
-         :ok <- fixed_setting(Map.get(document, "daybreak"), false, :daybreak, id),
+         {:ok, daybreak} <- daybreak_setting(Map.get(document, "daybreak"), id),
+         {:ok, authentication} <- authentication(Map.get(document, "authentication"), id),
          :ok <- fixed_setting(Map.get(document, "approval_policy"), "never", :approval_policy, id),
          :ok <- fixed_setting(Map.get(document, "sandbox"), "workspace-write", :sandbox, id),
          {:ok, instruction_refs, instruction_definitions} <- load_file_references(Map.get(document, "instructions"), canonical_path, :instructions, id),
@@ -348,7 +356,9 @@ defmodule SymphonyElixir.Workstream do
         name: name,
         model: model,
         reasoning_effort: reasoning_effort,
-        daybreak: false,
+        daybreak: daybreak,
+        authentication: authentication,
+        revision: agent_definition.sha256,
         approval_policy: "never",
         sandbox: "workspace-write",
         instructions: instruction_refs,
@@ -363,6 +373,29 @@ defmodule SymphonyElixir.Workstream do
       {:ok, agent, definitions}
     end
   end
+
+  defp agent_fields(document, id) do
+    fields = ~w(version name model reasoning_effort daybreak approval_policy sandbox instructions skills)
+    fields = if Map.has_key?(document, "authentication"), do: fields ++ ["authentication"], else: fields
+    exact_fields(document, fields, {:agent, id})
+  end
+
+  defp daybreak_setting(value, _id) when is_boolean(value), do: {:ok, value}
+  defp daybreak_setting(value, id), do: {:error, {:invalid_agent_daybreak, id, value}}
+
+  defp authentication(nil, _id), do: {:ok, %{mode: :subscription, reference: "inherited"}}
+
+  defp authentication(%{"mode" => "subscription", "reference" => ref} = value, id) do
+    with :ok <- exact_fields(value, ~w(mode reference), {:agent_authentication, id}),
+         true <- is_binary(ref) and String.match?(ref, ~r/\A[A-Za-z0-9][A-Za-z0-9_:.\/\-]{0,255}\z/) do
+      {:ok, %{mode: :subscription, reference: ref}}
+    else
+      false -> {:error, {:invalid_authentication_reference, id}}
+      error -> error
+    end
+  end
+
+  defp authentication(_value, id), do: {:error, {:unsupported_agent_authentication, id}}
 
   defp reasoning_effort(value, _id) when value in @reasoning_efforts, do: {:ok, value}
   defp reasoning_effort(value, id), do: {:error, {:unsupported_reasoning_effort, id, value}}

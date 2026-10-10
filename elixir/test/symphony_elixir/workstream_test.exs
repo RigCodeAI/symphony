@@ -427,7 +427,9 @@ defmodule SymphonyElixir.WorkstreamTest do
 
     File.write!(context.agent_path, agent_yaml())
     replace_in_file!(context.agent_path, "daybreak: false", "daybreak: true")
-    assert {:error, {:unsupported_agent_setting, "worker", :daybreak, true, false}} = load(context)
+    assert {:ok, definition} = load(context)
+    assert definition.agents["worker"].daybreak == true
+    assert {:error, :daybreak_execution_unverified} = SymphonyElixir.AgentReadiness.dispatch(definition.agents["worker"])
 
     File.write!(context.agent_path, agent_yaml())
     replace_in_file!(context.agent_path, "approval_policy: never", "approval_policy: on-request")

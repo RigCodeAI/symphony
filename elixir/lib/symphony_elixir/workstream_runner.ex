@@ -9,7 +9,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
   """
 
   alias SymphonyElixir.Codex.AppServer
-  alias SymphonyElixir.{CandidateGit, PathSafety, Validation, ValidationPolicy, Workstream, WorkstreamCommand}
+  alias SymphonyElixir.{AgentReadiness, CandidateGit, PathSafety, Validation, ValidationPolicy, Workstream, WorkstreamCommand}
 
   @source_root Path.expand("../../..", __DIR__)
 
@@ -25,7 +25,15 @@ defmodule SymphonyElixir.WorkstreamRunner do
       workspace_root: Keyword.fetch!(opts, :workspace_root),
       codex_command: Keyword.get_lazy(opts, :codex_command, &default_codex_command/0)
     }
+    |> maybe_pin_authentication_reference(opts[:authentication_reference])
+    |> maybe_pin_secret_environment_names(opts[:secret_environment_names])
   end
+
+  defp maybe_pin_authentication_reference(context, nil), do: context
+  defp maybe_pin_authentication_reference(context, reference), do: Map.put(context, :authentication_reference, reference)
+
+  defp maybe_pin_secret_environment_names(context, nil), do: context
+  defp maybe_pin_secret_environment_names(context, names), do: Map.put(context, :secret_environment_names, names)
 
   @doc "Pins validation policy and storage roots for a prepared run."
   @spec pin_execution_context(keyword(), Path.t(), Workstream.loaded_workstream()) ::
@@ -565,6 +573,13 @@ defmodule SymphonyElixir.WorkstreamRunner do
 
   defp run_agent(stage, definition, state, opts) do
     agent = Map.fetch!(definition.agents, stage.agent)
+
+    with :ok <- AgentReadiness.dispatch(agent) do
+      run_ready_agent(stage, definition, state, opts, agent)
+    end
+  end
+
+  defp run_ready_agent(stage, definition, state, opts, agent) do
     issue = %{id: "local-#{definition.name}", identifier: definition.name, title: stage.id}
     inputs = Map.take(state.outputs, stage.inputs)
     resources = agent.instructions ++ agent.skills
@@ -578,6 +593,9 @@ defmodule SymphonyElixir.WorkstreamRunner do
     app_opts = [
       workspace_root: Keyword.fetch!(opts, :workspace_root),
       command: Keyword.get_lazy(opts, :codex_command, &default_codex_command/0),
+      agent: agent,
+      authentication_reference: opts[:authentication_reference],
+      secret_environment_names: Keyword.get(opts, :secret_environment_names, []),
       model: agent.model,
       reasoning_effort: agent.reasoning_effort,
       dynamic_tools: false,

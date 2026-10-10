@@ -4,7 +4,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   """
 
   require Logger
-  alias SymphonyElixir.{Codex.DynamicTool, Config, PathSafety, SSH}
+  alias SymphonyElixir.{AgentReadiness, Codex.DynamicTool, Config, PathSafety, SSH}
 
   @initialize_id 1
   @thread_start_id 2
@@ -44,7 +44,11 @@ defmodule SymphonyElixir.Codex.AppServer do
           effective_model: String.t() | nil,
           reasoning_effort: String.t() | nil,
           read_timeout_ms: pos_integer() | nil,
-          turn_timeout_ms: pos_integer() | nil
+          turn_timeout_ms: pos_integer() | nil,
+          agent: map() | nil,
+          runtime: map() | nil,
+          configured_effort: String.t() | nil,
+          saved_daybreak: boolean() | nil
         }
   @type invocation_settings :: %{
           model: String.t() | nil,
@@ -66,20 +70,32 @@ defmodule SymphonyElixir.Codex.AppServer do
 
   @spec start_session(Path.t(), keyword()) :: {:ok, session()} | {:error, term()}
   def start_session(workspace, opts \\ []) do
-    worker_host = Keyword.get(opts, :worker_host)
+    start_session_impl(workspace, opts, false)
+  end
 
-    with {:ok, expanded_workspace} <-
+  defp start_session_impl(workspace, opts, qualification_probe) do
+    worker_host = Keyword.get(opts, :worker_host)
+    agent = Keyword.get(opts, :agent)
+
+    with :ok <- dispatchable_agent(agent, qualification_probe),
+         :ok <- named_options(agent, opts),
+         {:ok, expanded_workspace} <-
            validate_workspace_cwd(workspace, worker_host, Keyword.get(opts, :workspace_root)),
          {:ok, command} <- resolve_command(opts),
          {:ok, session_policies} <- session_policies(expanded_workspace, worker_host, opts),
-         {:ok, dynamic_tool_binding, dynamic_tools_enabled} <- dynamic_tool_binding(opts),
+         {:ok, initial_binding, dynamic_tools_enabled} <- dynamic_tool_binding(opts),
+         {:ok, dynamic_tool_binding} <- exclude_environment_names(initial_binding, opts),
          {:ok, requested_model} <- requested_model(opts),
          {:ok, reasoning_effort} <- reasoning_effort(opts),
          {:ok, read_timeout_ms} <- timeout_setting(opts, :read_timeout_ms),
          {:ok, turn_timeout_ms} <- timeout_setting(opts, :turn_timeout_ms),
          {:ok, port} <- start_port(expanded_workspace, worker_host, dynamic_tool_binding, command) do
       metadata = port_metadata(port, worker_host)
-      invocation_settings = invocation_settings(requested_model, reasoning_effort, read_timeout_ms, turn_timeout_ms)
+
+      invocation_settings =
+        invocation_settings(requested_model, reasoning_effort, read_timeout_ms, turn_timeout_ms)
+        |> Map.put(:agent, agent)
+        |> Map.put(:authentication_reference, opts[:authentication_reference])
 
       case do_start_session(
              port,
@@ -88,7 +104,7 @@ defmodule SymphonyElixir.Codex.AppServer do
              dynamic_tool_binding,
              invocation_settings
            ) do
-        {:ok, %{thread_id: thread_id, effective_model: effective_model}} ->
+        {:ok, %{thread_id: thread_id, effective_model: effective_model} = started} ->
           {:ok,
            %{
              port: port,
@@ -106,7 +122,11 @@ defmodule SymphonyElixir.Codex.AppServer do
              effective_model: effective_model,
              reasoning_effort: reasoning_effort,
              read_timeout_ms: read_timeout_ms,
-             turn_timeout_ms: turn_timeout_ms
+             turn_timeout_ms: turn_timeout_ms,
+             agent: agent,
+             runtime: Map.get(started, :runtime),
+             configured_effort: Map.get(started, :configured_effort),
+             saved_daybreak: Map.get(started, :saved_daybreak)
            }}
 
         {:error, reason} ->
@@ -132,7 +152,7 @@ defmodule SymphonyElixir.Codex.AppServer do
           reasoning_effort: session_reasoning_effort,
           read_timeout_ms: read_timeout_ms,
           turn_timeout_ms: turn_timeout_ms
-        },
+        } = session,
         prompt,
         issue,
         opts \\ []
@@ -150,16 +170,20 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     reasoning_effort = Keyword.get(opts, :reasoning_effort, session_reasoning_effort)
 
-    case start_turn(
-           port,
-           thread_id,
-           prompt,
-           issue,
-           workspace,
-           approval_policy,
-           turn_sandbox_policy,
-           %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms}
-         ) do
+    agent = Map.get(session, :agent)
+
+    case start_selected_turn(agent, session_reasoning_effort, reasoning_effort, fn ->
+           start_turn(
+             port,
+             thread_id,
+             prompt,
+             issue,
+             workspace,
+             approval_policy,
+             turn_sandbox_policy,
+             %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms, agent: agent}
+           )
+         end) do
       {:ok, turn_id} ->
         session_id = "#{thread_id}-#{turn_id}"
         Logger.info("Codex session started for #{issue_context(issue)} session_id=#{session_id}")
@@ -180,7 +204,7 @@ defmodule SymphonyElixir.Codex.AppServer do
                on_message,
                tool_executor,
                auto_approve_requests,
-               turn_timeout_ms
+               if(opts[:absolute_turn_timeout], do: {:deadline, System.monotonic_time(:millisecond) + turn_timeout_ms}, else: turn_timeout_ms)
              ) do
           {:ok, result} ->
             Logger.info("Codex session completed for #{issue_context(issue)} session_id=#{session_id}")
@@ -220,6 +244,159 @@ defmodule SymphonyElixir.Codex.AppServer do
     end
   end
 
+  @doc """
+  Attempts one bounded operator qualification turn, separately from workstream dispatch.
+  Daybreak probes may attempt an advertised program but never qualify it from a saved toggle.
+  """
+  @spec qualify(Path.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def qualify(workspace, prompt, issue, opts) do
+    with {:ok, session} <- start_session_impl(workspace, Keyword.merge(opts, dynamic_tools: false, read_timeout_ms: 30_000, turn_timeout_ms: 90_000), true) do
+      tag = make_ref()
+
+      callback = fn event ->
+        case event do
+          %{payload: %{"method" => "model/verification", "params" => params}} ->
+            send(self(), {tag, %{verification: Map.take(params, ["threadId", "turnId", "verifications"])}})
+
+          %{payload: %{"method" => "item/completed", "params" => %{"item" => %{"type" => "agentMessage", "text" => text}}}} when is_binary(text) ->
+            send(self(), {tag, %{assistant_output: String.slice(text, 0, 1024)}})
+
+          _ ->
+            :ok
+        end
+      end
+
+      try do
+        result = run_turn(session, prompt, issue, on_message: callback, absolute_turn_timeout: true)
+
+        {:ok,
+         %{
+           runtime: session.runtime,
+           configured: %{model: session.effective_model, reasoning_effort: session.configured_effort, daybreak: session.saved_daybreak},
+           effective: %{model: nil, reasoning_effort: nil, cyber_access_program: nil},
+           turn: qualification_result(result),
+           observations: qualification_messages(tag, [])
+         }}
+      after
+        stop_session(session)
+      end
+    else
+      {:error, {:agent_not_ready, reason, runtime}} ->
+        {:ok, %{runtime: runtime, configured: nil,
+          effective: %{model: nil, reasoning_effort: nil, cyber_access_program: nil},
+          turn: %{status: :blocked, reason: qualification_error(reason)}, observations: []}}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp qualification_result({:ok, result}), do: Map.take(result, [:thread_id, :turn_id, :session_id]) |> Map.put(:status, :completed)
+  defp qualification_result({:error, reason}), do: %{status: :blocked, reason: qualification_error(reason)}
+
+  @doc "Returns a bounded diagnostic code without serializing runtime messages or credential values."
+  @spec qualification_error(term()) :: String.t()
+  def qualification_error(reason) when is_atom(reason), do: Atom.to_string(reason)
+
+  def qualification_error({tag, reason}) when is_atom(tag) and is_atom(reason),
+    do: "#{tag}:#{reason}"
+
+  def qualification_error(reason) when is_tuple(reason) and tuple_size(reason) > 0 do
+    case elem(reason, 0) do
+      tag when is_atom(tag) -> Atom.to_string(tag)
+      _ -> "runtime_request_rejected"
+    end
+  end
+
+  def qualification_error(_reason), do: "runtime_request_rejected"
+
+  defp qualification_messages(tag, acc) do
+    receive do
+      {^tag, message} -> qualification_messages(tag, [message | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  defp dispatchable_agent(nil, true), do: {:error, :qualification_agent_required}
+  defp dispatchable_agent(nil, false), do: :ok
+  defp dispatchable_agent(agent, true), do: AgentReadiness.validate_definition(agent)
+  defp dispatchable_agent(agent, false), do: AgentReadiness.dispatch(agent)
+
+  defp named_options(nil, _opts), do: :ok
+
+  defp named_options(agent, opts) do
+    cond do
+      opts[:model] != agent.model or opts[:reasoning_effort] != agent.reasoning_effort -> {:error, :agent_settings_override}
+      agent.authentication.reference != "inherited" and opts[:authentication_reference] != agent.authentication.reference -> {:error, :agent_authentication_reference_mismatch}
+      true -> :ok
+    end
+  end
+
+  defp start_selected_turn(nil, _session_effort, _effort, start), do: start.()
+  defp start_selected_turn(_agent, effort, effort, start), do: start.()
+  defp start_selected_turn(_agent, _session_effort, _effort, _start), do: {:error, :agent_settings_override}
+
+  defp validate_named_thread(nil, _model, _effort, _daybreak), do: :ok
+
+  defp validate_named_thread(agent, model, effort, daybreak) do
+    cond do
+      model != agent.model -> {:error, :effective_model_unavailable}
+      effort != agent.reasoning_effort -> {:error, :configured_effort_mismatch}
+      daybreak != agent.daybreak -> {:error, :saved_daybreak_mismatch}
+      true -> :ok
+    end
+  end
+
+  defp named_runtime(_port, %{agent: nil}), do: {:ok, nil}
+
+  defp named_runtime(port, settings) do
+    with {:ok, account} <- request(port, 101, "account/read", %{"refreshToken" => false}, settings),
+         {:ok, models} <- model_catalog(port, settings, nil, [], 0),
+         {:ok, limits} <- request(port, 103, "account/rateLimits/read", %{}, settings),
+         {:ok, config} <- request(port, 104, "config/read", %{"includeLayers" => true}, settings) do
+      runtime = %{
+        authentication_reference: settings.authentication_reference,
+        account: %{type: get_in(account, ["account", "type"]), plan_type: get_in(account, ["account", "planType"])},
+        models: models,
+        limits: Map.take(limits, ["ordinaryUsageAllowed", "rateLimits", "rateLimitsByLimitId"]),
+        configuration: %{
+          values: Map.take(Map.get(config, "config", %{}), ["model", "model_provider", "model_reasoning_effort", "forced_login_method"]),
+          layers: Enum.map(Map.get(config, "layers") || [], &Map.take(&1, ["name", "version"]))
+        }
+      }
+
+      case AgentReadiness.check(settings.agent, runtime) do
+        :ok -> {:ok, runtime}
+        {:error, reason} -> {:error, {:agent_not_ready, reason, runtime}}
+      end
+    end
+  end
+
+  defp model_catalog(_port, _settings, _cursor, _models, 8), do: {:error, :model_catalog_limit}
+
+  defp model_catalog(port, settings, cursor, models, page) do
+    params = %{"includeHidden" => true, "limit" => 100}
+    params = if cursor, do: Map.put(params, "cursor", cursor), else: params
+
+    with {:ok, result} <- request(port, 102, "model/list", params, settings),
+         data when is_list(data) <- result["data"] do
+      models = models ++ Enum.map(data, &Map.take(&1, ["id", "model", "supportedReasoningEfforts", "availableAccessPrograms"]))
+
+      case result["nextCursor"] do
+        nil -> {:ok, models}
+        next when is_binary(next) -> model_catalog(port, settings, next, models, page + 1)
+        _ -> {:error, :invalid_model_catalog_cursor}
+      end
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_model_catalog}
+    end
+  end
+
+  defp request(port, id, method, params, settings) do
+    send_message(port, %{"id" => id, "method" => method, "params" => params})
+    await_response(port, id, settings.read_timeout_ms)
+  end
+
   @spec stop_session(session()) :: :ok
   def stop_session(%{port: port}) when is_port(port) do
     stop_port(port)
@@ -249,6 +426,17 @@ defmodule SymphonyElixir.Codex.AppServer do
 
       value ->
         {:error, {:invalid_dynamic_tools_option, value}}
+    end
+  end
+
+  # Additional names are exclusions only; values are never forwarded.
+  defp exclude_environment_names(binding, opts) do
+    names = Keyword.get(opts, :secret_environment_names, [])
+
+    if is_list(names) and valid_environment_names(names) == names do
+      {:ok, Map.update!(binding, :secret_environment_names, &Enum.uniq(&1 ++ names))}
+    else
+      {:error, :invalid_secret_environment_names}
     end
   end
 
@@ -464,9 +652,9 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     send_message(port, payload)
 
-    with {:ok, _} <- await_response(port, @initialize_id, read_timeout_ms) do
+    with {:ok, response} <- await_response(port, @initialize_id, read_timeout_ms) do
       send_message(port, %{"method" => "initialized", "params" => %{}})
-      :ok
+      {:ok, response}
     end
   end
 
@@ -485,12 +673,11 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp do_start_session(port, workspace, session_policies, dynamic_tool_binding, settings) do
-    case send_initialize(port, settings.read_timeout_ms) do
-      :ok ->
-        start_thread(port, workspace, session_policies, dynamic_tool_binding, settings)
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, initialize_info} <- send_initialize(port, settings.read_timeout_ms),
+         {:ok, runtime} <- named_runtime(port, settings),
+         {:ok, started} <- start_thread(port, workspace, session_policies, dynamic_tool_binding, settings) do
+      runtime = if runtime, do: Map.put(runtime, :server, Map.take(initialize_info, ["userAgent", "platformOs", "platformFamily"])), else: nil
+      {:ok, Map.put(started, :runtime, runtime)}
     end
   end
 
@@ -507,6 +694,16 @@ defmodule SymphonyElixir.Codex.AppServer do
     params =
       if is_binary(requested_model), do: Map.put(params, "model", requested_model), else: params
 
+    params =
+      if settings.agent do
+        params
+        |> Map.put("allowProviderModelFallback", false)
+        |> Map.put("daybreakEnabled", settings.agent.daybreak)
+        |> Map.put("config", %{"model_reasoning_effort" => settings.agent.reasoning_effort})
+      else
+        params
+      end
+
     send_message(port, %{
       "method" => "thread/start",
       "id" => @thread_start_id,
@@ -515,26 +712,30 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     case await_response(port, @thread_start_id, settings.read_timeout_ms) do
       {:ok, response_payload} ->
-        started_thread_response(response_payload, requested_model)
+        started_thread_response(response_payload, requested_model, settings.agent)
 
       other ->
         other
     end
   end
 
-  defp started_thread_response(%{"thread" => %{"id" => thread_id} = thread_payload} = response_payload, requested_model) do
-    effective_model = returned_thread_model(response_payload, thread_payload) || requested_model
+  defp started_thread_response(%{"thread" => %{"id" => thread_id} = thread_payload} = response_payload, requested_model, agent) do
+    observed_model = returned_thread_model(response_payload, thread_payload)
+    effective_model = if agent, do: observed_model, else: observed_model || requested_model
+    effort = response_payload["reasoningEffort"] || thread_payload["reasoningEffort"]
+    saved_daybreak = Map.get(thread_payload, "daybreakEnabled")
 
-    with :ok <- validate_returned_model(requested_model, effective_model) do
-      {:ok, %{thread_id: thread_id, effective_model: effective_model}}
+    with :ok <- validate_returned_model(requested_model, effective_model),
+         :ok <- validate_named_thread(agent, effective_model, effort, saved_daybreak) do
+      {:ok, %{thread_id: thread_id, effective_model: effective_model, configured_effort: effort, saved_daybreak: saved_daybreak}}
     end
   end
 
-  defp started_thread_response(%{"thread" => thread_payload}, _requested_model) do
+  defp started_thread_response(%{"thread" => thread_payload}, _requested_model, _agent) do
     {:error, {:invalid_thread_payload, thread_payload}}
   end
 
-  defp started_thread_response(response_payload, _requested_model) do
+  defp started_thread_response(response_payload, _requested_model, _agent) do
     {:error, {:invalid_thread_response, response_payload}}
   end
 
@@ -554,7 +755,7 @@ defmodule SymphonyElixir.Codex.AppServer do
          workspace,
          approval_policy,
          turn_sandbox_policy,
-         %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms}
+         %{reasoning_effort: reasoning_effort, read_timeout_ms: read_timeout_ms, agent: agent}
        ) do
     params = %{
       "threadId" => thread_id,
@@ -572,6 +773,15 @@ defmodule SymphonyElixir.Codex.AppServer do
 
     params =
       if is_binary(reasoning_effort), do: Map.put(params, "effort", reasoning_effort), else: params
+
+    params =
+      if agent do
+        params
+        |> Map.put("model", agent.model)
+        |> Map.put("cyberAccessProgram", AgentReadiness.requested(agent).cyber_access_program)
+      else
+        params
+      end
 
     send_message(port, %{
       "method" => "turn/start",
@@ -605,7 +815,11 @@ defmodule SymphonyElixir.Codex.AppServer do
   end
 
   defp receive_loop(port, on_message, timeout_ms, pending_line, tool_executor, auto_approve_requests) do
-    receive do
+    remaining_ms = remaining_turn_timeout(timeout_ms)
+    if remaining_ms == 0 do
+      {:error, :turn_timeout}
+    else
+      receive do
       {^port, {:data, {:eol, chunk}}} ->
         complete_line = pending_line <> to_string(chunk)
         handle_incoming(port, on_message, complete_line, timeout_ms, tool_executor, auto_approve_requests)
@@ -623,10 +837,14 @@ defmodule SymphonyElixir.Codex.AppServer do
       {^port, {:exit_status, status}} ->
         {:error, {:port_exit, status}}
     after
-      timeout_ms ->
+      remaining_ms ->
         {:error, :turn_timeout}
     end
+    end
   end
+
+  defp remaining_turn_timeout({:deadline, deadline}), do: max(0, deadline - System.monotonic_time(:millisecond))
+  defp remaining_turn_timeout(timeout_ms), do: timeout_ms
 
   defp handle_incoming(port, on_message, data, timeout_ms, tool_executor, auto_approve_requests) do
     payload_string = to_string(data)
@@ -634,7 +852,14 @@ defmodule SymphonyElixir.Codex.AppServer do
     case Jason.decode(payload_string) do
       {:ok, %{"method" => "turn/completed"} = payload} ->
         emit_turn_event(on_message, :turn_completed, payload, payload_string, port, payload)
-        {:ok, :turn_completed}
+
+        case get_in(payload, ["params", "turn", "status"]) do
+          status when status in ["failed", "interrupted"] -> {:error, {:turn_not_completed, status}}
+          _ -> {:ok, :turn_completed}
+        end
+
+      {:ok, %{"method" => "model/rerouted", "params" => params}} ->
+        {:error, {:codex_model_rerouted, Map.take(params, ["fromModel", "toModel", "reason"])}}
 
       {:ok, %{"method" => "turn/failed", "params" => _} = payload} ->
         emit_turn_event(
