@@ -86,6 +86,51 @@ install -d -m 0750 -o "$service_user" -g "$service_user" \
 install -d -m 0755 /srv/factory/tools /srv/factory/mise /srv/factory/mix /srv/factory/build
 install -d -m 0750 -o root -g "$service_user" /run/factory
 install -d -m 0700 -o "$service_user" -g "$service_user" "/srv/factory/homes/$service_user/.ssh"
+if [[ "$role" = worker ]]; then
+  worker_host_key_dir=/srv/factory/ssh-host-keys
+  worker_host_key_private="$worker_host_key_dir/ssh_host_ed25519_key"
+  worker_host_public_key="$(python3 /usr/local/lib/factory/cloud_io.py ensure-hostkey)"
+  [[ "$worker_host_public_key" =~ ^ssh-ed25519\ [A-Za-z0-9+/]+={0,2}$ ]] || \
+    { echo 'Durable worker host public key is invalid' >&2; exit 1; }
+  # Hold worker sshd behind the retained disk on future VM boots. On a fresh
+  # deployment this is installed after the disk is already mounted.
+  ssh_mount_dropin_dir=/etc/systemd/system/ssh.service.d
+  ssh_mount_dropin="$ssh_mount_dropin_dir/10-factory-retained-disk.conf"
+  [[ ! -L "$ssh_mount_dropin_dir" ]] || { echo 'Unsafe SSH unit drop-in directory' >&2; exit 1; }
+  install -d -m 0755 "$ssh_mount_dropin_dir"
+  [[ ! -L "$ssh_mount_dropin" && ( ! -e "$ssh_mount_dropin" || ( -f "$ssh_mount_dropin" && -O "$ssh_mount_dropin" ) ) ]] || \
+    { echo 'Unsafe SSH unit drop-in file' >&2; exit 1; }
+  ssh_mount_dropin_tmp="$(mktemp "$ssh_mount_dropin_dir/.factory-retained-disk.XXXXXX")"
+  cat >"$ssh_mount_dropin_tmp" <<'EOF'
+[Unit]
+RequiresMountsFor=/srv/factory
+ConditionPathIsMountPoint=/srv/factory
+EOF
+  chmod 0644 "$ssh_mount_dropin_tmp"
+  chown root:root "$ssh_mount_dropin_tmp"
+  mv -f -- "$ssh_mount_dropin_tmp" "$ssh_mount_dropin"
+  systemctl stop ssh.service >/dev/null 2>&1 || true
+
+  sshd_dropin_dir=/etc/ssh/sshd_config.d
+  sshd_dropin="$sshd_dropin_dir/00-factory-worker-hostkey.conf"
+  [[ ! -L "$sshd_dropin_dir" ]] || { echo 'Unsafe sshd drop-in directory' >&2; exit 1; }
+  install -d -m 0755 "$sshd_dropin_dir"
+  [[ ! -L "$sshd_dropin" && ( ! -e "$sshd_dropin" || ( -f "$sshd_dropin" && -O "$sshd_dropin" ) ) ]] || \
+    { echo 'Unsafe sshd host-key drop-in' >&2; exit 1; }
+  sshd_dropin_tmp="$(mktemp "$sshd_dropin_dir/.factory-hostkey.XXXXXX")"
+  printf 'HostKey %s\n' "$worker_host_key_private" >"$sshd_dropin_tmp"
+  chmod 0644 "$sshd_dropin_tmp"
+  chown root:root "$sshd_dropin_tmp"
+  mv -f -- "$sshd_dropin_tmp" "$sshd_dropin"
+
+  systemctl daemon-reload
+  sshd -t
+  effective_hostkeys="$(sshd -T | awk '$1 == "hostkey" { print $2 }')"
+  [[ "$effective_hostkeys" = "$worker_host_key_private" ]] || \
+    { echo 'sshd is not configured with only the retained worker host key' >&2; exit 1; }
+  systemctl enable ssh.service
+  systemctl reload-or-restart ssh.service
+fi
 # Keep the effective config available while a candidate is being validated.
 # The activation command promotes the staged public config only on success.
 if [[ ! -f /etc/factory/public.json && -f /srv/factory/active-public.json ]]; then
@@ -189,8 +234,10 @@ if [[ "$role" = worker ]]; then
   printf 'restrict %s\n' "$public_key" >"/srv/factory/homes/$service_user/.ssh/authorized_keys"
   chmod 0600 "/srv/factory/homes/$service_user/.ssh/authorized_keys"
   chown "$service_user:$service_user" "/srv/factory/homes/$service_user/.ssh/authorized_keys"
-  # Publish the worker host key through its scoped GCS identity, so the
-  # coordinator pins it rather than accepting an unauthenticated ssh-keyscan.
+  # The durable HostKey is now active. This public line is an authenticated
+  # serial-console receipt so an operator can replace a stale immutable pin.
+  printf 'FACTORY_WORKER_HOSTKEY %s\n' "$worker_host_public_key"
+  # Publish the same normalized public key through the scoped GCS identity.
   python3 /usr/local/lib/factory/cloud_io.py publish-hostkey
 else
   rm -f /run/factory/id_ed25519

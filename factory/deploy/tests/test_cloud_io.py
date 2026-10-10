@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import tarfile
 import tempfile
@@ -298,6 +299,66 @@ class ModelAuthTests(unittest.TestCase):
             self.assertNotIn("retained-refresh-value-123", sanitized)
             self.assertNotIn("legacy-refresh-value-123", sanitized)
             self.assertEqual(sanitized.count("[REDACTED]"), 2)
+
+
+@unittest.skipUnless(shutil.which("ssh-keygen"), "ssh-keygen is required for host-key lifecycle tests")
+class WorkerHostKeyTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.key_dir = self.root / "ssh-host-keys"
+        self.marker = self.root / "worker-hostkey.json"
+        self.owner_uid = os.getuid()
+
+    def ensure(self):
+        return cloud_io.ensure_worker_host_key(
+            self.key_dir, self.marker, owner_uid=self.owner_uid, strict_paths=False)
+
+    def test_repeated_bootstrap_preserves_durable_identity_and_pin_marker(self):
+        public = self.ensure()
+        private_path = self.key_dir / "ssh_host_ed25519_key"
+        public_path = self.key_dir / "ssh_host_ed25519_key.pub"
+        private_before = private_path.read_bytes()
+        marker_before = self.marker.read_bytes()
+
+        self.assertEqual(public, public_path.read_text().strip())
+        self.assertEqual(public.split()[0], "ssh-ed25519")
+        self.assertEqual(private_path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(public_path.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(self.key_dir.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.marker.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.ensure(), public)
+        self.assertEqual(private_path.read_bytes(), private_before)
+        self.assertEqual(self.marker.read_bytes(), marker_before)
+
+    def test_initialized_identity_missing_private_key_fails_closed(self):
+        self.ensure()
+        private_path = self.key_dir / "ssh_host_ed25519_key"
+        private_path.unlink()
+        with self.assertRaisesRegex(ValueError, "private key is missing"):
+            self.ensure()
+        self.assertFalse(private_path.exists())
+
+    def test_symlinked_host_key_directory_is_rejected(self):
+        target = self.root / "real-host-keys"
+        target.mkdir(mode=0o700)
+        self.key_dir.symlink_to(target, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "unsafe type, owner, or mode"):
+            self.ensure()
+        self.assertEqual(list(target.iterdir()), [])
+
+    def test_symlinked_private_key_is_rejected_without_following_target(self):
+        self.ensure()
+        private_path = self.key_dir / "ssh_host_ed25519_key"
+        outside = self.root / "outside-key"
+        outside.write_text("untouched")
+        outside.chmod(0o600)
+        private_path.unlink()
+        private_path.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "unsafe type, owner, mode"):
+            self.ensure()
+        self.assertEqual(outside.read_text(), "untouched")
 
 
 if __name__ == "__main__":

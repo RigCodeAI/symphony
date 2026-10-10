@@ -6,7 +6,9 @@ users cannot invoke this transport or obtain the instance metadata identity.
 """
 import argparse
 import base64
+import binascii
 from contextlib import closing
+import fcntl
 import gzip
 import hashlib
 import io
@@ -33,6 +35,10 @@ DATA_ROOT = Path("/srv/factory")
 MODEL_AUTH_PATH = Path("/srv/factory/homes/factory-worker/.codex/auth.json")
 MODEL_AUTH_SOURCE = DATA_ROOT / "model-auth.source.json"
 LEGACY_MODEL_AUTH_PATH = Path("/run/factory/model-auth.json")
+WORKER_HOST_KEY_DIR = DATA_ROOT / "ssh-host-keys"
+WORKER_HOST_PRIVATE_KEY = WORKER_HOST_KEY_DIR / "ssh_host_ed25519_key"
+WORKER_HOST_PUBLIC_KEY = WORKER_HOST_KEY_DIR / "ssh_host_ed25519_key.pub"
+WORKER_HOST_KEY_MARKER = DATA_ROOT / "worker-hostkey.json"
 MAX_MODEL_AUTH_BYTES = 1024 * 1024
 TOKEN_PATTERN = re.compile(r"(?:sk-|gh[pousr]_|github_pat_)[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 
@@ -293,6 +299,193 @@ def ensure_model_auth(cloud, auth_path=MODEL_AUTH_PATH, marker_path=MODEL_AUTH_S
     return "seeded"
 
 
+def _host_key_directory(path, owner_uid, strict_paths):
+    path = Path(path)
+    if not path.is_absolute():
+        raise ValueError("worker host-key path must be absolute")
+    parent = path.parent
+    if strict_paths:
+        _assert_no_symlink_components(parent)
+    _check_directory(parent, owner_uid)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        try:
+            path.mkdir(mode=0o700)
+            os.chown(path, owner_uid, pwd.getpwuid(owner_uid).pw_gid)
+            os.chmod(path, 0o700)
+        except FileExistsError:
+            pass
+        info = path.lstat()
+    if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode) or
+            info.st_uid != owner_uid or stat.S_IMODE(info.st_mode) != 0o700):
+        raise ValueError("worker host-key directory has an unsafe type, owner, or mode")
+    if strict_paths:
+        _assert_no_symlink_components(path)
+    return path
+
+
+def _host_key_file_state(path, owner_uid, mode):
+    try:
+        info = Path(path).lstat()
+    except FileNotFoundError:
+        return False
+    if (stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode) or
+            info.st_uid != owner_uid or stat.S_IMODE(info.st_mode) != mode or info.st_nlink != 1):
+        raise ValueError("worker host-key file has an unsafe type, owner, mode, or link count")
+    return True
+
+
+def _host_key_public_line(private_path):
+    try:
+        result = subprocess.run(
+            ["ssh-keygen", "-y", "-f", str(private_path)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        raise ValueError("retained worker host private key cannot be validated") from None
+    parts = result.stdout.decode("ascii", errors="strict").strip().split()
+    if len(parts) < 2 or parts[0] != "ssh-ed25519":
+        raise ValueError("retained worker host key must be ed25519")
+    try:
+        raw_key = base64.b64decode(parts[1], validate=True)
+    except (ValueError, binascii.Error):
+        raise ValueError("retained worker public key is invalid") from None
+    if len(raw_key) < 32:
+        raise ValueError("retained worker public key is invalid")
+    return f"ssh-ed25519 {parts[1]}\n"
+
+
+def _write_host_key_file(path, payload, mode, owner_uid, replace):
+    path = Path(path)
+    owner_gid = pwd.getpwuid(owner_uid).pw_gid
+    fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    temporary = Path(temporary)
+    try:
+        os.fchmod(fd, mode)
+        os.fchown(fd, owner_uid, owner_gid)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if replace:
+            os.replace(temporary, path)
+        else:
+            os.link(temporary, path, follow_symlinks=False)
+            temporary.unlink()
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _host_key_marker_digest(marker_path, owner_uid):
+    marker_path = Path(marker_path)
+    try:
+        info = marker_path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(info.st_mode):
+        raise ValueError("worker host-key marker must not be a symlink")
+    data = _read_regular_file(marker_path, expected_uid=owner_uid, expected_mode=0o600, limit=4096)
+    try:
+        marker = json.loads(data)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("worker host-key marker is invalid") from None
+    digest = marker.get("sha256") if isinstance(marker, dict) and marker.get("version") == 1 else None
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("worker host-key marker is invalid")
+    return digest
+
+
+def ensure_worker_host_key(host_key_dir=WORKER_HOST_KEY_DIR,
+                           marker_path=WORKER_HOST_KEY_MARKER,
+                           owner_uid=0, strict_paths=True):
+    """Create one durable worker host identity, then refuse silent replacement."""
+    host_key_dir = Path(host_key_dir)
+    marker_path = Path(marker_path)
+    if marker_path.parent != host_key_dir.parent:
+        raise ValueError("worker host-key marker must be beside its key directory")
+    directory = _host_key_directory(host_key_dir, owner_uid, strict_paths)
+    _check_directory(marker_path.parent, owner_uid)
+    if strict_paths:
+        _assert_no_symlink_components(marker_path.parent)
+
+    lock_path = directory / ".worker-hostkey.lock"
+    lock_base_flags = os.O_RDWR | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    try:
+        lock_fd = os.open(lock_path, lock_base_flags | os.O_CREAT | os.O_EXCL, 0o600)
+        new_lock = True
+    except FileExistsError:
+        lock_fd = os.open(lock_path, lock_base_flags)
+        new_lock = False
+    try:
+        if new_lock:
+            os.fchown(lock_fd, owner_uid, pwd.getpwuid(owner_uid).pw_gid)
+        lock_info = os.fstat(lock_fd)
+        if (not stat.S_ISREG(lock_info.st_mode) or lock_info.st_uid != owner_uid or
+                stat.S_IMODE(lock_info.st_mode) != 0o600 or lock_info.st_nlink != 1):
+            raise ValueError("worker host-key lock has an unsafe type, owner, mode, or link count")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
+        private_path = directory / "ssh_host_ed25519_key"
+        public_path = directory / "ssh_host_ed25519_key.pub"
+        has_private = _host_key_file_state(private_path, owner_uid, 0o600)
+        has_public = _host_key_file_state(public_path, owner_uid, 0o644)
+        marker_digest = _host_key_marker_digest(marker_path, owner_uid)
+
+        if not has_private:
+            if has_public or marker_digest is not None:
+                raise ValueError("retained worker host private key is missing; operator repair required")
+            with tempfile.TemporaryDirectory(prefix=".worker-hostkey-", dir=directory) as temporary:
+                generated_private = Path(temporary) / "ssh_host_ed25519_key"
+                try:
+                    subprocess.run(
+                        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "factory-worker", "-f", str(generated_private)],
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+                    )
+                except (OSError, subprocess.CalledProcessError):
+                    raise RuntimeError("could not create the durable worker host key") from None
+                private_data = _read_regular_file(generated_private, expected_uid=owner_uid, expected_mode=0o600)
+                public_line = _host_key_public_line(generated_private)
+                _write_host_key_file(private_path, private_data, 0o600, owner_uid, replace=False)
+                _write_host_key_file(public_path, public_line.encode(), 0o644, owner_uid, replace=False)
+        else:
+            _read_regular_file(private_path, expected_uid=owner_uid, expected_mode=0o600)
+            public_line = _host_key_public_line(private_path)
+            if has_public:
+                current_public = _read_regular_file(public_path, expected_uid=owner_uid, expected_mode=0o644)
+                current_parts = current_public.decode("ascii", errors="strict").strip().split()
+                if len(current_parts) < 2 or current_parts[:2] != public_line.strip().split():
+                    raise ValueError("retained worker public key does not match its private key")
+                if current_public != public_line.encode():
+                    _write_host_key_file(public_path, public_line.encode(), 0o644, owner_uid, replace=True)
+            else:
+                _write_host_key_file(public_path, public_line.encode(), 0o644, owner_uid, replace=False)
+
+        digest = hashlib.sha256(public_line.encode()).hexdigest()
+        if marker_digest is not None and marker_digest != digest:
+            raise ValueError("retained worker host key differs from its durable marker")
+        if marker_digest is None:
+            marker = json.dumps({"version": 1, "sha256": digest}, sort_keys=True).encode() + b"\n"
+            _write_host_key_file(marker_path, marker, 0o600, owner_uid, replace=False)
+        return public_line.strip()
+    finally:
+        os.close(lock_fd)
+
+
 def safe_unpack(payload, destination):
     destination = Path(destination)
     if destination.exists():
@@ -472,6 +665,7 @@ def main():
     p.add_argument("key")
     p.add_argument("destination")
     sub.add_parser("model-auth")
+    sub.add_parser("ensure-hostkey")
     sub.add_parser("publish-hostkey")
     sub.add_parser("hostkeys")
     sub.add_parser("archive")
@@ -503,9 +697,16 @@ def main():
     elif args.command == "model-auth":
         status = ensure_model_auth(cloud)
         print(f"worker model auth ready ({status})")
+    elif args.command == "ensure-hostkey":
+        if cloud.config.get("role") != "worker":
+            raise ValueError("durable host key is available only on a worker")
+        print(ensure_worker_host_key())
     elif args.command == "publish-hostkey":
+        if cloud.config.get("role") != "worker":
+            raise ValueError("host key publication is available only on a worker")
+        public_key = ensure_worker_host_key()
         cloud.put(cloud.config["release_bucket"], "host-keys/" + cloud.config["instance_name"] + ".pub",
-                  Path("/etc/ssh/ssh_host_ed25519_key.pub").read_bytes())
+                  (public_key + "\n").encode())
     elif args.command == "hostkeys":
         records = []
         for worker in cloud.config["worker_hosts"]:

@@ -18,21 +18,57 @@ formatting passed, and all three mock-provider plan tests passed. Eight focused
 Python transport/archive/backup tests passed. A disposable Linux container
 verified definition rejection, unhealthy-service rollback, effective-config
 promotion, canonical release lookup and worker activation with deterministic
-validator/service stand-ins. Python and shell syntax checks passed.
+validator/service stand-ins. Python and shell syntax checks passed. The merged
+service compiled, its Linux health endpoint responded, 52 focused tests passed,
+and the full suite passed 408 tests. The broad lint gate still reports existing
+style issues.
 
-Owner self-review corrected public-settings directory access, release-path
-resolution, staged-config promotion, evidence receipt ordering and scoped host-key
-retry permissions. Local `codex login status` reports ChatGPT authentication.
-GCP sign-in was refreshed and billing/quota were verified. The protected state
-bootstrap and compute-disabled pilot were applied; the staging drift plan is
-clean. The merged service compiled, its real Linux health endpoint responded,
-52 focused tests passed and the full suite passed 408 tests. The broad lint gate
-still reports existing style issues. See [the live staging receipt](dev-230-evidence.md).
-The read-only credential upload was confirmed and both private VMs are running.
-Bootstrap retry and runtime compilation are in progress; cloud readiness remains
-unverified. The user waived the credit balance/expiry check; credits remain
-unverified and do not block the approved pilot. No real cloud worker run, cloud restart/recreation check or final
-deployment completion is claimed.
+On 2026-10-10, release `67d7fb17236491f08dc1259d602ad6d8f2271f55` with SHA-256
+`477fd6910fe3203007a1f346c886ec128268939e2481e7f37e52aa79cc5e783a` was
+activated on both VMs. Activation was recorded at 04:11:44 UTC; both active
+release paths and the coordinator's `active.json` identify this revision. The
+coordinator returned idle state JSON after a service restart. Worker
+stop/start returned with the same release active and ChatGPT authentication
+available. Coordinator and worker data-marker hashes and both earlier report
+hashes matched before and after; the worker auth file retained mode `0600`,
+owner UID 1000 and its modification time. See the
+[live staging receipt](dev-230-evidence.md) for exact hashes and retained-state
+receipts.
+
+The archive and backup systemd units were started manually and returned
+successfully. This verifies the unit invocations, not that their periodic timers
+fire on schedule. Previously archived b2d34 smoke objects remained
+checksum-verified; because no `67d7fb1`
+smoke had run yet, the archive unit did not verify a new run from this revision.
+The backup unit produced
+`gs://factory-511117-rig-factory-backups/backups/20261010T041259Z/`; the
+downloaded manifest and `public.json` matched their recorded SHA-256 digests.
+Its manifest has `databases: []` and states that no durable runtime SQLite
+database is deployed. This is a configuration snapshot, not durable task state
+or in-flight recovery. The user waived the credit balance/expiry check; credits
+remain unverified and do not block the approved pilot.
+
+The actual invalid candidate based on `67d7fb1` was rejected by both hosts for
+a missing agent definition. Their active links and all six public/active
+configuration hashes stayed unchanged; coordinator health remained available.
+Restoring the reviewed good desired release completed successfully.
+
+The real subscription pass/fail smoke used earlier revision
+`b2d34daf8e9f49e1fb53f5999f6c4e7278299b68` over private coordinator-to-worker
+SSH. It does not verify `67d7fb1`; run a new smoke on the current revision before
+treating that gate as passed. The deployed definition-rejection case,
+invalid-release rollback, compute recreation and final drift verification also
+remain open. The initial recreation attempt on `67d7fb1` created coordinator
+instance `3352180655674097698` and worker instance `3016822406542262307`, but
+GCE regenerated the worker's `/etc/ssh` host keys. Startup refused to overwrite
+the immutable public pin, and the coordinator's strict SSH host-key check
+rejected the new key. The observed handshake key was not treated as authenticated
+and strict checking was not bypassed, so this attempt is not accepted as a
+successful recreation. Recovery is in progress: retain worker host private keys
+in root-only storage, configure `sshd` to use them, authenticate any one-time
+public pin rotation through the GCP project serial console, then repeat
+recreation and verify worker SSH, retained data and a fresh smoke. No completed
+DEV-230 claim is made.
 
 ## Proposed pilot and approved spending input
 
@@ -269,6 +305,10 @@ zero when it verifies this expected failure. Reports record the definition diges
 immutable service revision, coordinator origin and private worker address. Both
 clones have publishing disabled; neither Rig candidate is pushed. A worker lock
 rejects concurrent smoke submissions and unique run IDs reject accidental reuse.
+The verified 2026-10-10 runs (`dev230-pass-20261010a` and
+`dev230-fail-20261010a`) used revision `b2d34daf8e9f49e1fb53f5999f6c4e7278299b68`,
+before the `67d7fb1` rollout. Use new run IDs for a smoke on the current release;
+the earlier results do not pass that check.
 
 Before deleting a clone, confirm its archive manifest and each uploaded checksum.
 Evidence lives under `runs/<run-id>/` in the permanent private archive bucket.
@@ -308,6 +348,17 @@ the good release. Verify retained marker files, report checksums, health and a
 fresh private-worker smoke. This proves compute recreation, not in-flight
 lifecycle recovery; DEV-232/DEV-242 supply that later contract.
 
+The first `67d7fb1` recreation attempt failed before these checks: the newly
+created worker had different GCE-generated SSH host keys, its immutable public
+pin could not be overwritten, and the coordinator rejected the key. Do not
+disable strict checking or trust an unauthenticated SSH fingerprint. The planned
+recovery is to retain worker host private keys in root-only storage and point
+`sshd` at those files. For any necessary one-time pin rotation, compare the
+public key obtained through the authenticated GCP project serial console before
+replacing only the public pin object. Repeat the recreation and verify strict
+private SSH, retained data and a fresh smoke. This recovery and the compute
+recreation acceptance are still pending.
+
 Finally run the normal plan with the same committed configuration and variables.
 It must exit with no unexplained changes. Remove temporary plan/artifact files
 only after retaining redacted receipts. Do not run `terraform destroy` as compute
@@ -322,6 +373,16 @@ explicitly says so; configuration backup is not task persistence. Daily data-dis
 snapshots retain 14 days; rotating backups retain 30 days. Permanent evidence has
 no age deletion rule. Health, failed backup/archive and low disk alerts go to the
 configured recipients.
+
+On 2026-10-10, the archive and backup systemd service units were started after
+the `67d7fb1` rollout and returned successfully. The backup object and its
+manifest/configuration checksums were downloaded and verified; the manifest
+contained no SQLite databases. That run proves a configuration snapshot only.
+It does not preserve run state or in-flight work until the runtime database is
+implemented and included in a later verified backup. The archive unit invocation
+had no new `67d7fb1` run to archive; archive that revision's output after the
+pending fresh smoke. The exact backup object and checksums are in the
+[live staging receipt](dev-230-evidence.md).
 
 To recreate in another GCP project, bootstrap a distinct state bucket; change
 project, bucket names, billing account, region/zone and resource prefix; reauthorize
