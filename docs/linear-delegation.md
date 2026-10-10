@@ -116,8 +116,15 @@ reviewable installation change. Controlled test callbacks cannot enable producti
 From `elixir/`, start the configured workflow with:
 
 ```bash
-mise exec -- ./bin/symphony /absolute/path/to/factory/WORKFLOW.md --port 4000
+mise exec -- mix run --no-start -e 'SymphonyElixir.CLI.main(System.argv())' -- \
+  --i-understand-that-this-will-be-running-without-the-usual-guardrails \
+  /absolute/path/to/factory/WORKFLOW.md --port 4000
 ```
+
+Use the built Mix project for durable SQLite workflows: Exqlite requires its native library
+in the dependency's physical `priv` directory, which the escript does not package. The
+managed coordinator service uses this same CLI startup path from its release-specific
+built project, without compiling or fetching dependencies during startup.
 
 The service only accepts the configured organization/app identity. It fetches the current
 issue and session through the app token. Eligible issues have the configured DEV team,

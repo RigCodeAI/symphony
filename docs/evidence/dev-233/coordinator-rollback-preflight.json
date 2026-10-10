@@ -1,0 +1,13 @@
+{
+  "candidate": "4a0b36e7e6e01bda3b9e0d518b441fa55ddb658a",
+  "archive_sha256": "58b181fd8124d166be6f2d03be896dbcaf56577df412ad4d1bc6cf1f0acf35e2",
+  "build": "passed",
+  "elixir_worker_qualification": "passed",
+  "activation": "failed_and_rolled_back",
+  "startup_error": "Exqlite.Sqlite3NIF.open/2 undefined from escript during durable SQLite startup",
+  "active_release": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "dashboard_http_status": 200,
+  "webhook_ready": false,
+  "disposable_issue_delegated": false,
+  "retained_data": true
+}

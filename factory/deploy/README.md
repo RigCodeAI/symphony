@@ -27,6 +27,10 @@ Codex provisioning uses `/srv/factory/bootstrap-tools-v1`, a separate root-owned
 tree checked before reuse; root does not adopt worker-owned cached code by
 changing its owner. Runtime reads those protected binaries while Cargo writes
 its cache under the service account's retained home.
+The coordinator runs the CLI from its release-specific built Mix project, keeping
+Exqlite’s native SQLite library available. Service startup does not compile or fetch
+dependencies.
+
 Mix cache variables are set after mise selects its runtime, so mise's backend
 defaults cannot redirect archive writes into the protected runtime tree.
 The worker uses the executable `mix.sh` entrypoint under `timeout`. Run
@@ -34,7 +38,8 @@ The worker uses the executable `mix.sh` entrypoint under `timeout`. Run
 cache paths, argument handling and timeout termination.
 The service account builds a project copy under
 `/srv/factory/build/<revision>/project`; the coordinator launches its matching
-`bin/symphony` there. The verified release source stays root-owned.
+CLI through `mix run --no-start --no-compile --no-deps-check` there. The verified
+release source stays root-owned.
 The Linux `tests/build-user.sh` regression builds the actual project twice,
 forces a worker-controlled dependency to reload, and checks its recorded UID
 and cleared credential environment. Run it in the disposable `dev230-checked`

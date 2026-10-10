@@ -47,3 +47,14 @@ See [worker clone](native-worker-clone.json) and [coordinator clone](native-coor
 
 Native acknowledgement, exact delivery replay, restart and active-work undelegation still
 require the corrected deployed release. Do not treat these preflights as DEV-233 acceptance.
+
+The corrected candidate `4a0b36e7e6e01bda3b9e0d518b441fa55ddb658a` also built and
+passed actual Elixir worker qualification. Activation then failed the durable SQLite
+startup: the escript could not load `Exqlite.Sqlite3NIF.open/2`. The health check
+automatically restored coordinator release `541279aeb6a5366571e1ee8935e134c728d91c63`;
+the dashboard returned HTTP 200 and no issue had been delegated. Data, the worker release
+and control receipt were retained. See [rollback preflight](coordinator-rollback-preflight.json).
+The physical-library service entrypoint then passed a fresh Linux smoke on Elixir
+1.19.5 / OTP 28: durable SQLite opened/migrated, dashboard health returned 200,
+webhook GET returned 404 and unsigned POST returned 400. No dispatch event was sent.
+The service fix will be pinned and qualified on the actual coordinator before activation.

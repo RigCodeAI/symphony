@@ -93,8 +93,10 @@ Release SHA-256: `40a3e683da0ce8a074de05ca335a5daf44ab0e974a2bed78acdf446abc1af2
 Both existing VMs activated this release without replacement or disk changes.
 
 Mix/build commands run as the service user with a cleared environment and role
-caches, set after mise selects the runtime. The coordinator launches its matching
-user-built escript. Root validates its source, runtime and protected tool trees
+caches, set after mise selects the runtime. The coordinator launches the CLI
+from its matching user-built Mix project so SQLite can load its physical native
+library. Startup does not compile or fetch dependencies. Root validates its
+source, runtime and protected tool trees
 before reuse; it never executes the legacy worker-owned tools. SSH/Codex home
 setup runs as the service user and rejects symlinks. The worker's executable Mix
 entrypoint preserves the external timeout.

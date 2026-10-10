@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Run as root inside a disposable dev230-checked Linux container. The image
-# provides the actual pinned Elixir/OTP runtime and compiled Symphony escript;
-# the tiny mise front-end below only forwards `mise exec --` to that runtime.
+# provides the actual pinned Elixir/OTP runtime and dependency cache; the tiny
+# mise front-end below only forwards `mise exec --` to that runtime.
 set -Eeuo pipefail
 umask 077
 
 source_root="${FACTORY_TEST_SOURCE:-/factory-source/deploy}"
-[[ "$EUID" -eq 0 && -d "$source_root" && -x /workspace/elixir/bin/symphony ]] || {
-  echo 'Run inside the dev230-checked Linux image with the deploy source mounted read-only' >&2
+source_repo="$(cd -P -- "$source_root/../.." >/dev/null 2>&1 && pwd)"
+[[ "$EUID" -eq 0 && -d "$source_root" && -f "$source_repo/elixir/mix.exs" && -d /workspace/elixir/deps ]] || {
+  echo 'Run inside the dev230-checked Linux image with the repository mounted read-only' >&2
   exit 2
 }
 
@@ -20,8 +21,9 @@ otp_version="$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_relea
 
 revision=dddddddddddddddddddddddddddddddddddddddd
 release="/srv/factory/releases/$revision"
+build_dir="/srv/factory/build/$revision"
 mkdir -p /opt/factory /srv/factory/releases "$release/factory/deploy" \
-  "$release/elixir/bin" /srv/factory/tmp "/srv/factory/build/$revision/project/bin" \
+  "$release/elixir" /srv/factory/tmp "$build_dir" \
   /srv/factory/homes/factory-coordinator /srv/factory/logs/coordinator
 if ! id factory-coordinator >/dev/null 2>&1; then
   useradd --home-dir /srv/factory/homes/factory-coordinator --shell /bin/bash factory-coordinator
@@ -32,11 +34,14 @@ chmod 0755 /opt/factory /srv/factory /srv/factory/releases /srv/factory/homes
 chmod 0755 /srv/factory/logs /srv/factory/build
 chmod 0750 /srv/factory/tmp /srv/factory/logs/coordinator
 
-cp "$source_root/lib.sh" "$source_root/service.sh" "$source_root/coordinator_entrypoint.py" "$source_root/PILOT-WORKFLOW.md" \
+cp "$source_root/lib.sh" "$source_root/service.sh" "$source_root/build.sh" \
+  "$source_root/coordinator_entrypoint.py" "$source_root/PILOT-WORKFLOW.md" \
   "$release/factory/deploy/"
-cp /workspace/elixir/bin/symphony "/srv/factory/build/$revision/project/bin/symphony"
-chmod 0755 "/srv/factory/build/$revision/project/bin/symphony"
-chown -R factory-coordinator:factory-coordinator "/srv/factory/build/$revision"
+cp -R "$source_repo/elixir/." "$release/elixir/"
+# Seed the isolated candidate build with the pinned image's cached dependencies
+# and compile outputs, then build the mounted candidate source normally.
+cp -R /workspace/elixir/deps "$build_dir/deps"
+cp -R /workspace/elixir/_build/dev "$build_dir/dev"
 printf '{"service_revision":"%s"}\n' "$revision" >"$release/RELEASE.json"
 printf '%064d\n' 0 >"$release/.verified-sha256"
 chmod -R a+rX "$release"
@@ -56,13 +61,13 @@ factory_load_runtime_env "$release_dir" coordinator
 chown -R factory-coordinator:factory-coordinator /srv/factory/homes/factory-coordinator/.cache
 
 # dev230-checked has the exact pinned Erlang/Elixir runtime installed globally;
-# this test-only shim checks the toolchain then executes the real escript.
+# this test-only shim checks the toolchain then forwards the real Mix commands.
 cat >/usr/local/bin/mise <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "${1:-}" == exec && "${2:-}" == -- ]] || exit 2
 # The service starts without /usr/local/bin in PATH. mise owns selecting the
-# installed runtime and adds its bin directory for the escript.
+# installed runtime and adds its bin directory for Mix.
 export PATH="/usr/local/bin:$PATH"
 [[ "$(elixir --version | sed -n 's/^Elixir \([^ ]*\).*/\1/p')" == 1.19.5 ]]
 [[ "$(erl -noshell -eval 'io:format("~s", [erlang:system_info(otp_release)]), halt().' 2>/dev/null)" == 28 ]]
@@ -70,6 +75,9 @@ shift 2
 exec "$@"
 SH
 chmod 0755 /usr/local/bin/mise
+
+chown -R factory-coordinator:factory-coordinator "$build_dir"
+"$release/factory/deploy/build.sh" "$release" coordinator
 
 service_log=/tmp/factory-service-entrypoint.log
 if runuser --user factory-coordinator -- env PATH=/usr/bin:/bin \
@@ -123,10 +131,26 @@ server:
   port: 8080
   webhook_host: 0.0.0.0
   webhook_port: 8081
+linear_delegation:
+  organization_id: org-smoke
+  team_id: team-smoke
+  app_user_id: app-smoke
+  oauth_client_id: client-smoke
+  webhook_secret_env: LINEAR_API_TOKEN
+  token_env: LINEAR_API_KEY
+  store_path: /srv/factory/state/service-entrypoint.sqlite
+  workspace_root: /srv/factory/workspaces
+  workstream_path: /srv/factory/workstreams/software-change.yaml
+  agent_id: factory-default
+  rig_label: rig
+  workspaces:
+    issue-smoke: /srv/factory/workspaces/issue-smoke
 ---
-Controlled deployment listener test; no delegate is configured.
+Controlled memory-tracker startup test; no dispatch events are sent.
 EOF
 chmod 0644 "/etc/factory/workflows/$revision.md"
+install -d -m 0750 -o factory-coordinator -g factory-coordinator \
+  /srv/factory/state /srv/factory/workspaces/issue-smoke
 python3 - "$revision" <<'PY'
 import json
 from pathlib import Path
@@ -161,7 +185,14 @@ for _ in {1..80}; do
   sleep 0.25
 done
 [[ "$healthy" == true ]] || { cat "$service_log" >&2; exit 1; }
-[[ "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://127.0.0.1:8081/hooks/linear)" == 503 ]]
+python3 - <<'PY'
+from pathlib import Path
 
-printf 'PASS: protected pilot/linear selection and isolated webhook listener on Elixir %s / OTP %s\n' \
+path = Path('/srv/factory/state/service-entrypoint.sqlite')
+if not path.is_file() or not path.read_bytes().startswith(b'SQLite format 3\0'):
+    raise SystemExit('durable-workstream SQLite database was not opened by the service')
+PY
+[[ "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://127.0.0.1:8081/hooks/linear)" == 400 ]]
+
+printf 'PASS: Mix service entrypoint started durable-workstream SQLite and isolated webhook listener on Elixir %s / OTP %s\n' \
   "$elixir_version" "$otp_version"
