@@ -190,6 +190,52 @@ defmodule SymphonyElixir.WorkstreamRun do
     |> put_in([:operations, run.current_attempt_id, :reconciliation], inspect(reason))
   end
 
+  @doc "Records a trusted termination for the stopped run's current operation."
+  @spec confirm_termination(map()) :: map()
+  def confirm_termination(%{status: :stopped, current_attempt_id: attempt_id} = run) when is_binary(attempt_id) do
+    case Map.get(run.operations, attempt_id) do
+      %{status: status} = operation when status in [:executing, :canceled] ->
+        attempts = Enum.map(run.attempts, &confirm_canceled_attempt(&1, attempt_id))
+
+        operation_cancellation =
+          operation
+          |> Map.get(:cancellation)
+          |> cancellation_map()
+          |> Map.put(:termination, :terminated)
+
+        operation =
+          operation
+          |> Map.put(:status, :canceled)
+          |> Map.delete(:reconciliation)
+          |> Map.put(:cancellation, operation_cancellation)
+
+        cancellation =
+          run
+          |> Map.get(:cancellation)
+          |> cancellation_map()
+          |> Map.put(:termination, :terminated)
+
+        run
+        |> Map.put(:attempts, attempts)
+        |> Map.put(:operations, Map.put(run.operations, attempt_id, operation))
+        |> Map.put(:cancellation, cancellation)
+
+      _ ->
+        run
+    end
+  end
+
+  def confirm_termination(run), do: run
+
+  defp confirm_canceled_attempt(%{id: id, status: status} = attempt, attempt_id)
+       when id == attempt_id and status in [:executing, :canceled],
+       do: Map.put(attempt, :status, :canceled)
+
+  defp confirm_canceled_attempt(attempt, _attempt_id), do: attempt
+
+  defp cancellation_map(value) when is_map(value), do: value
+  defp cancellation_map(_value), do: %{}
+
   @spec retry_transport(map()) :: map()
   def retry_transport(run) do
     run = update_attempt(run, %{status: :interrupted})

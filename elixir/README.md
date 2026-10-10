@@ -5,6 +5,12 @@ For the file-defined local agent → executable gate, use
 definitions and runs synchronously without starting tracker polling. The
 existing `WORKFLOW.md` service remains compatible.
 
+Durable stopped runs retain their attempt and operation identities. Trusted termination
+confirmation cancels both records together; restart repairs older confirmed stops without
+repeating external cancellation. Unknown termination continues to reserve capacity. See
+[durable recovery](../docs/durable-workstreams.md) and
+[native delegation](../docs/linear-delegation.md) for the configured worker boundary.
+
 This directory contains the current Elixir/OTP implementation of Symphony, based on
 [`SPEC.md`](../SPEC.md) at the repository root.
 

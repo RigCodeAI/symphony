@@ -2339,9 +2339,19 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp workstream_capacity_used(state) do
     Enum.count(state.workstreams.runs, fn {_id, run} ->
-      run.status in [:executing, :reconciling] or (run.status in [:policy_blocked, :stopped] and match?(%{status: :executing}, run.operations[run.current_attempt_id]))
+      operation = run.operations[run.current_attempt_id]
+
+      run.status in [:executing, :reconciling] or
+        (run.status in [:policy_blocked, :stopped] and workstream_operation_unconfirmed?(run, operation))
     end) + map_size(state.running)
   end
+
+  defp workstream_operation_unconfirmed?(_run, %{status: :executing}), do: true
+
+  defp workstream_operation_unconfirmed?(run, %{status: :canceled}),
+    do: not trusted_workstream_termination?(run)
+
+  defp workstream_operation_unconfirmed?(_run, _operation), do: false
 
   defp start_workstream_stage(state, run) do
     run = WorkstreamRun.start_stage(run)
@@ -2415,6 +2425,7 @@ defmodule SymphonyElixir.Orchestrator do
   defp recover_workstreams(%{workstreams: nil} = state), do: state
 
   defp recover_workstreams(state) do
+    state = reconcile_stopped_workstreams(state)
     acknowledge_committed_receipts(state)
 
     Enum.reduce(state.workstreams.runs, state, fn {_id, run}, acc ->
@@ -2441,9 +2452,9 @@ defmodule SymphonyElixir.Orchestrator do
     worker = state.workstreams.workers[run.current_attempt_id]
     operation = run.operations[run.current_attempt_id]
     pid = if worker, do: worker.pid, else: if(operation, do: find_workstream_worker(state.task_supervisor, run, operation))
-    outcome = if operation && operation.status == :executing, do: :unknown, else: :terminated
+    outcome = if workstream_operation_unconfirmed?(run, operation), do: :unknown, else: :terminated
     stopped = Map.merge(run, %{status: :stopped, phase: :stopped, cancellation: %{termination: outcome}})
-    stopped = if operation && outcome == :terminated, do: put_in(stopped.operations[operation.id].status, :canceled), else: stopped
+    stopped = if operation && outcome == :terminated, do: WorkstreamRun.confirm_termination(stopped), else: stopped
     state = commit_workstream(state, stopped, run.id <> "/linear-stop", %{kind: :stopped})
     state = request_workstream_cancellation(state, stopped, pid)
 
@@ -2481,14 +2492,29 @@ defmodule SymphonyElixir.Orchestrator do
 
   defp reconcile_stopped_workstreams(state) do
     Enum.reduce(state.workstreams.runs, state, fn {_id, run}, acc ->
-      if run.status == :stopped, do: request_workstream_cancellation(acc, run, nil), else: acc
+      if run.status == :stopped, do: reconcile_stopped_workstream(acc, run), else: acc
     end)
+  end
+
+  defp reconcile_stopped_workstream(state, run) do
+    if trusted_workstream_termination?(run) do
+      updated = WorkstreamRun.confirm_termination(run)
+
+      if updated == run do
+        state
+      else
+        event_id = "#{run.current_attempt_id}/termination-normalized-v1"
+        commit_workstream(state, updated, event_id, %{kind: :termination_bookkeeping_reconciled})
+      end
+    else
+      request_workstream_cancellation(state, run, nil)
+    end
   end
 
   defp request_workstream_cancellation(state, run, worker_pid) do
     operation = run.operations[run.current_attempt_id]
 
-    if not is_nil(operation) and operation.status == :executing and not Map.has_key?(state.workstreams.cancellations, operation.id) do
+    if cancellation_confirmation_pending?(run, operation) and not Map.has_key?(state.workstreams.cancellations, operation.id) do
       canceller = Keyword.get(state.workstreams.opts, :workstream_canceller, &SymphonyElixir.WorkstreamCancellation.cancel/3)
 
       task =
@@ -2512,9 +2538,8 @@ defmodule SymphonyElixir.Orchestrator do
         run = durable_run(state, run_id)
 
         if outcome == :terminated and not is_nil(run) and run.status == :stopped and run.current_attempt_id == attempt_id do
-          updated = put_in(run.operations[attempt_id].status, :canceled)
-          updated = Map.put(updated, :cancellation, %{termination: :terminated})
-          state = commit_workstream(state, updated, attempt_id <> "/termination-confirmed", %{kind: :termination_confirmed})
+          updated = WorkstreamRun.confirm_termination(run)
+          state = commit_workstream(state, updated, attempt_id <> "/termination-confirmed-v2", %{kind: :termination_confirmed})
           send(self(), :advance_workstreams)
           state
         else
@@ -2525,6 +2550,16 @@ defmodule SymphonyElixir.Orchestrator do
         state
     end
   end
+
+  defp cancellation_confirmation_pending?(%{status: :stopped} = run, %{id: id, status: status})
+       when status in [:executing, :canceled] do
+    id == run.current_attempt_id and not trusted_workstream_termination?(run)
+  end
+
+  defp cancellation_confirmation_pending?(_run, _operation), do: false
+
+  defp trusted_workstream_termination?(%{cancellation: %{termination: :terminated}}), do: true
+  defp trusted_workstream_termination?(_run), do: false
 
   defp block_workstream_policy(state, run) do
     updated = %{run | status: :policy_blocked, phase: :reconciling}

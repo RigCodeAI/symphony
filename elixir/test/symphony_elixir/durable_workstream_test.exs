@@ -1,6 +1,6 @@
 defmodule SymphonyElixir.DurableWorkstreamTest do
   use ExUnit.Case, async: false
-  alias SymphonyElixir.{AgentRuntimeSupervisor, Orchestrator, WorkstreamStore}
+  alias SymphonyElixir.{AgentRuntimeSupervisor, Orchestrator, WorkstreamRun, WorkstreamStore}
 
   setup do
     root = Path.join(System.tmp_dir!(), "durable-smoke-#{System.unique_integer([:positive])}")
@@ -124,6 +124,50 @@ defmodule SymphonyElixir.DurableWorkstreamTest do
   defp queue(runtime, context, event \\ "queue", task \\ "task") do
     assert {:ok, id} = Orchestrator.queue_workstream(runtime.coordinator, event, task, context.path, %{"task" => "controlled smoke"}, context.options)
     id
+  end
+
+  defp persist_stopped_run(context, task_id, termination, operation_status) do
+    inputs = %{"task" => "controlled smoke"}
+    assert {:ok, definition, workspace} = SymphonyElixir.WorkstreamRunner.prepare(context.path, inputs, context.options)
+    assert {:ok, execution} = SymphonyElixir.WorkstreamRunner.pin_execution_context(context.options, workspace, definition)
+    run = WorkstreamRun.new(task_id, definition, workspace, context.options, execution) |> WorkstreamRun.start_stage()
+    attempt_id = run.current_attempt_id
+
+    attempts =
+      Enum.map(run.attempts, fn attempt ->
+        if attempt.id == attempt_id, do: Map.put(attempt, :status, :executing), else: attempt
+      end)
+
+    operation =
+      run.operations[attempt_id]
+      |> Map.put(:status, operation_status)
+      |> Map.put(:reconciliation, ":unknown")
+
+    operation =
+      if termination == :terminated do
+        Map.put(operation, :cancellation, %{termination: :terminated})
+      else
+        operation
+      end
+
+    stopped =
+      run
+      |> Map.put(:status, :stopped)
+      |> Map.put(:phase, :stopped)
+      |> Map.put(:cancellation, %{termination: termination})
+      |> Map.put(:attempts, attempts)
+      |> Map.put(:operations, Map.put(run.operations, attempt_id, operation))
+
+    assert {:ok, store} = WorkstreamStore.start_link(path: context.db, owner: self())
+    assert :ok = WorkstreamStore.commit(store, stopped, stopped.id <> "/fixture-stopped", %{kind: :stopped})
+    assert :ok = GenServer.stop(store)
+    stopped
+  end
+
+  defp await_cancellations(runtime) do
+    await(fn ->
+      if map_size(:sys.get_state(runtime.coordinator).workstreams.cancellations) == 0, do: true
+    end)
   end
 
   defp normal_executor(stage, definition, run, opts) do
@@ -257,6 +301,192 @@ defmodule SymphonyElixir.DurableWorkstreamTest do
     assert length(run_state(runtime, id, :reconciling).attempts) == 1
     assert Task.Supervisor.children(runtime.tasks) == []
     refute_receive {:started, _}
+  end
+
+  test "restart normalizes a legacy trusted stop without another worker-control call", c do
+    parent = self()
+
+    executor = fn _stage, _definition, _run, _opts ->
+      send(parent, :unexpected_replacement)
+      {:error, :stopped_run_must_not_launch}
+    end
+
+    stopped = persist_stopped_run(c, "legacy-task", :terminated, :canceled)
+    id = stopped.id
+    attempt_id = stopped.current_attempt_id
+
+    canceller = fn _run, _operation, _pid ->
+      send(parent, :unexpected_cancellation_request)
+      :unknown
+    end
+
+    recovered = runtime(c, executor, workstream_canceller: canceller)
+
+    normalized =
+      await(fn ->
+        case Orchestrator.workstream_state(recovered.coordinator, id) do
+          {:ok, %{status: :stopped, attempts: attempts, operations: operations} = run} ->
+            operation = operations[attempt_id]
+            attempt = Enum.find(attempts, &(&1.id == attempt_id))
+
+            if attempt.status == :canceled and operation.status == :canceled and not Map.has_key?(operation, :reconciliation), do: run
+
+          _ ->
+            nil
+        end
+      end)
+
+    assert normalized.cancellation.termination == :terminated
+    assert normalized.attempts |> Enum.find(&(&1.id == attempt_id)) |> Map.fetch!(:status) == :canceled
+    assert normalized.operations[attempt_id].cancellation.termination == :terminated
+    refute_receive :unexpected_cancellation_request
+    refute_receive :unexpected_replacement
+
+    assert :ok = Orchestrator.reconcile_workstreams(recovered.coordinator)
+    assert {:ok, ^normalized} = Orchestrator.workstream_state(recovered.coordinator, id)
+    refute_receive :unexpected_cancellation_request
+
+    restart(recovered)
+    assert {:ok, ^normalized} = Orchestrator.workstream_state(recovered.coordinator, id)
+    refute_receive :unexpected_cancellation_request
+    refute_receive :unexpected_replacement
+  end
+
+  test "unknown cancellation stays executing until the adapter returns trusted termination", c do
+    parent = self()
+    {:ok, proof} = Agent.start_link(fn -> %{"status" => "terminated"} end)
+    on_exit(fn -> if Process.alive?(proof), do: Agent.stop(proof) end)
+
+    stopped = persist_stopped_run(c, "unknown-task", :unknown, :canceled)
+    id = stopped.id
+    attempt_id = stopped.current_attempt_id
+
+    canceller = fn _run, operation, _pid ->
+      send(parent, {:cancellation_requested, operation.id})
+      Agent.get(proof, & &1)
+    end
+
+    replacement_executor = fn _stage, _definition, run, _opts ->
+      send(parent, {:replacement_started, run.task_id})
+
+      receive do
+        :never -> {:error, :not_expected}
+      end
+    end
+
+    recovered = runtime(c, replacement_executor, workstream_canceller: canceller)
+    assert_receive {:cancellation_requested, ^attempt_id}
+    await_cancellations(recovered)
+
+    assert {:ok, unconfirmed} = Orchestrator.workstream_state(recovered.coordinator, id)
+    assert unconfirmed.cancellation.termination == :unknown
+    assert Enum.find(unconfirmed.attempts, &(&1.id == attempt_id)).status == :executing
+    assert unconfirmed.operations[attempt_id].status == :canceled
+    assert unconfirmed.operations[attempt_id].reconciliation == ":unknown"
+
+    other_workspace = Path.join(c.root, "workspaces/other")
+    File.mkdir_p!(other_workspace)
+    {_, 0} = System.cmd("git", ["init", "--quiet", other_workspace])
+    other_options = Keyword.put(c.options, :workspace, other_workspace)
+
+    assert {:ok, queued_id} =
+             Orchestrator.queue_workstream(
+               recovered.coordinator,
+               "queue-second",
+               "second-task",
+               c.path,
+               %{"task" => "wait behind unknown cancellation"},
+               other_options
+             )
+
+    queued =
+      await(fn ->
+        case Orchestrator.workstream_state(recovered.coordinator, queued_id) do
+          {:ok, %{status: status} = run} when status in [:ready, :executing] -> run
+          _ -> nil
+        end
+      end)
+
+    assert queued.status == :ready
+    refute_receive {:replacement_started, _task_id}
+
+    assert :ok = Orchestrator.reconcile_workstreams(recovered.coordinator)
+    assert_receive {:cancellation_requested, ^attempt_id}
+    await_cancellations(recovered)
+    assert {:ok, still_unconfirmed} = Orchestrator.workstream_state(recovered.coordinator, id)
+    assert still_unconfirmed == unconfirmed
+
+    Agent.update(proof, fn _ -> :terminated end)
+    assert :ok = Orchestrator.reconcile_workstreams(recovered.coordinator)
+    assert_receive {:cancellation_requested, ^attempt_id}
+    await_cancellations(recovered)
+
+    confirmed =
+      await(fn ->
+        case Orchestrator.workstream_state(recovered.coordinator, id) do
+          {:ok, %{status: :stopped, attempts: attempts, operations: operations} = run} ->
+            operation = operations[attempt_id]
+            attempt = Enum.find(attempts, &(&1.id == attempt_id))
+
+            if attempt.status == :canceled and operation.status == :canceled and not Map.has_key?(operation, :reconciliation), do: run
+
+          _ ->
+            nil
+        end
+      end)
+
+    assert confirmed.cancellation.termination == :terminated
+    assert confirmed.operations[attempt_id].cancellation.termination == :terminated
+    assert_receive {:replacement_started, "second-task"}
+    assert %{status: :executing} = run_state(recovered, queued_id, :executing)
+
+    assert :ok = Orchestrator.reconcile_workstreams(recovered.coordinator)
+    assert {:ok, ^confirmed} = Orchestrator.workstream_state(recovered.coordinator, id)
+    refute_receive {:cancellation_requested, ^attempt_id}
+
+    restart(recovered)
+    assert {:ok, ^confirmed} = Orchestrator.workstream_state(recovered.coordinator, id)
+    refute_receive {:cancellation_requested, ^attempt_id}
+    refute_receive {:replacement_started, "second-task"}
+  end
+
+  test "termination confirmation safely fills nil cancellation metadata", _c do
+    attempt_id = "run/implement/1"
+
+    run = %{
+      status: :stopped,
+      current_attempt_id: attempt_id,
+      cancellation: nil,
+      attempts: [%{id: attempt_id, status: :executing, result: nil}],
+      operations: %{
+        attempt_id => %{id: attempt_id, status: :executing, cancellation: nil, reconciliation: ":unknown"}
+      }
+    }
+
+    confirmed = WorkstreamRun.confirm_termination(run)
+
+    assert confirmed.cancellation == %{termination: :terminated}
+    assert [%{status: :canceled, result: nil}] = confirmed.attempts
+    assert confirmed.operations[attempt_id].status == :canceled
+    assert confirmed.operations[attempt_id].cancellation == %{termination: :terminated}
+    refute Map.has_key?(confirmed.operations[attempt_id], :reconciliation)
+    assert WorkstreamRun.confirm_termination(confirmed) == confirmed
+  end
+
+  test "termination confirmation preserves a completed operation and attempt", _c do
+    attempt_id = "run/implement/1"
+
+    run = %{
+      status: :stopped,
+      current_attempt_id: attempt_id,
+      cancellation: %{termination: :terminated},
+      attempts: [%{id: attempt_id, status: :completed, result: %{candidate: "sha"}, gate: :passed}],
+      operations: %{
+        attempt_id => %{id: attempt_id, status: :completed, cancellation: %{termination: :terminated}, reconciliation: "historical"}
+      }
+    }
+
+    assert WorkstreamRun.confirm_termination(run) == run
   end
 
   test "lost action receipt reconciles known side effect without replay", c do

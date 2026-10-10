@@ -17,6 +17,7 @@ import grp
 import hashlib
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 import pwd
@@ -26,10 +27,11 @@ import signal
 import socket
 import stat
 import struct
+import subprocess
 import sys
 import threading
 import time
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Mapping
 
 
 CONTROL_SOCKET = Path("/run/factory-operations/control.sock")
@@ -48,6 +50,7 @@ MAX_ARGV_BYTES = 32 * 1024
 MAX_ARGUMENT_BYTES = 4096
 MAX_STREAM_BUFFER = 1024 * 1024
 STREAM_TIMEOUT_SECONDS = 60 * 60
+TERMINAL_STREAM_RETENTION_SECONDS = 60.0
 RELEASE_WAIT_SECONDS = 120
 REQUEST_TIMEOUT_SECONDS = 10
 
@@ -594,6 +597,97 @@ def _unlink_safe_stale_socket(path: Path, *, owner_uid: int, group_gid: int) -> 
     path.unlink()
 
 
+class _StreamSession:
+    """One broker-owned process stream with replaceable coordinator sockets."""
+
+    def __init__(self, broker: "OperationBroker", identity: Mapping[str, str], process: Any) -> None:
+        self.broker = broker
+        self.identity = dict(identity)
+        self.process = process
+        self._lock = threading.Lock()
+        self._connection: socket.socket | None = None
+        self._reserved = False
+        self._finished = False
+        self._retire_at: float | None = None
+        self.started = False
+        self.thread: threading.Thread | None = None
+
+    def attach(self, connection: socket.socket) -> bool:
+        """Reserve the single stream slot, send readiness, then hand off the socket."""
+        with self._lock:
+            if (self._finished or self._reserved or self._connection is not None
+                    or (self._retire_at is not None and time.monotonic() >= self._retire_at)):
+                return False
+            self._reserved = True
+        try:
+            # Keep the protocol handshake ahead of any buffered app-server
+            # bytes. The bridge thread cannot see this socket until afterward.
+            connection.sendall(_response_line({"ok": "stream_ready"}))
+            connection.setblocking(False)
+        except OSError:
+            with self._lock:
+                self._reserved = False
+            return False
+        with self._lock:
+            if self._finished:
+                self._reserved = False
+                return False
+            self._connection = connection
+            self._reserved = False
+        return True
+
+    def start(self) -> None:
+        with self._lock:
+            if self.started:
+                return
+            self.started = True
+            self.thread = threading.Thread(
+                target=self.broker._bridge_stdio,
+                args=(self,),
+                name="factory-operation-stream-session",
+                daemon=True,
+            )
+            thread = self.thread
+        thread.start()
+
+    def current_connection(self) -> socket.socket | None:
+        with self._lock:
+            return self._connection
+
+    def detach(self, connection: socket.socket) -> None:
+        with self._lock:
+            if self._connection is not connection:
+                return
+            self._connection = None
+        try:
+            connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            connection.close()
+        except OSError:
+            pass
+
+    def detach_current(self) -> None:
+        connection = self.current_connection()
+        if connection is not None:
+            self.detach(connection)
+
+    def mark_finished(self) -> None:
+        with self._lock:
+            self._finished = True
+
+    def pin_retirement(self, deadline: float) -> None:
+        """Set a one-way deadline after terminal status is proven."""
+        with self._lock:
+            if self._retire_at is None:
+                self._retire_at = deadline
+
+    def retirement_deadline(self) -> float | None:
+        with self._lock:
+            return self._retire_at
+
+
 class OperationBroker:
     """Threaded local broker. Engine calls are serialized; stdio bridges are not."""
 
@@ -639,6 +733,12 @@ class OperationBroker:
         self._client_threads: set[threading.Thread] = set()
         self._client_threads_lock = threading.Lock()
         self._bound_inode: tuple[int, int] | None = None
+        # A stream socket belongs to the coordinator connection, but the
+        # contained process belongs to this long-lived worker broker. Keep the
+        # latter after a client disconnect so a coordinator restart cannot
+        # turn a transient SSH EOF into app-server stdin EOF.
+        self._stream_sessions: dict[tuple[str, ...], _StreamSession] = {}
+        self._stream_sessions_lock = threading.RLock()
 
     def _bind(self) -> socket.socket:
         _validate_socket_directory(
@@ -736,6 +836,7 @@ class OperationBroker:
                     self._client_threads.discard(thread)
 
     def _serve_connection(self, connection: socket.socket) -> None:
+        handed_off = False
         try:
             connection.settimeout(self.request_timeout)
             try:
@@ -773,7 +874,7 @@ class OperationBroker:
                     connection.sendall(_safe_error_response("invalid_request"))
                     return
                 connection.settimeout(None)
-                self._serve_stream(connection, stream_request)
+                handed_off = self._serve_stream(connection, stream_request)
                 return
             try:
                 response = self._dispatch_rpc(validated)
@@ -788,10 +889,11 @@ class OperationBroker:
         except (BrokenPipeError, ConnectionResetError, TimeoutError, socket.timeout, OSError):
             return
         finally:
-            try:
-                connection.close()
-            except OSError:
-                pass
+            if not handed_off:
+                try:
+                    connection.close()
+                except OSError:
+                    pass
             current = threading.current_thread()
             with self._client_threads_lock:
                 self._client_threads.discard(current)
@@ -844,93 +946,138 @@ class OperationBroker:
                 raise ProtocolError("invalid_request")
             return result
 
-    def _serve_stream(self, connection: socket.socket, request: dict[str, Any]) -> None:
+    def _serve_stream(self, connection: socket.socket, request: dict[str, Any]) -> bool:
+        """Attach one exact operation stream. Return whether the session owns the socket."""
         identity = request["identity"]
         if request["expected_release"] != {
             "service_revision": self.service_revision,
             "release_sha256": self.release_sha256,
         }:
             connection.sendall(_safe_error_response("release_mismatch"))
-            return
-        try:
-            with self._engine_lock:
-                status = self.controller.status(identity)
-                if not isinstance(status, dict) or status.get("status") not in {"held", "running"}:
-                    connection.sendall(_safe_error_response("operation_unavailable"))
-                    return
-                returned_identity = status.get("identity")
-                if returned_identity != identity:
-                    connection.sendall(_safe_error_response("operation_unavailable"))
-                    return
-                if identity.get("machine_id") != self.expected_machine_id:
-                    connection.sendall(_safe_error_response("operation_unavailable"))
-                    return
-                process = self.controller.claim_stream(identity)
-        except Exception:
+            return False
+        if identity.get("machine_id") != self.expected_machine_id:
             connection.sendall(_safe_error_response("operation_unavailable"))
-            return
-        if not _is_binary_process(process):
-            connection.sendall(_safe_error_response("operation_unavailable"))
-            return
-        try:
-            connection.sendall(_response_line({"ok": "stream_ready"}))
-        except OSError:
-            # Do not kill or replace a started operation when its SSH client
-            # disappears. Its stdin is closed by the bridge below.
-            self._bridge_stdio(connection, process, identity)
-            return
-        self._bridge_stdio(connection, process, identity)
+            return False
 
-    def _bridge_stdio(
-        self, connection: socket.socket, process: Any, identity: Mapping[str, str]
-    ) -> None:
-        """Bridge a claimed process. SSH EOF closes stdin and never kills it."""
-        child_stdin, child_stdout = process.stdin, process.stdout
+        key = tuple(identity[name] for name in sorted(IDENTITY_KEYS))
+        with self._stream_sessions_lock:
+            session = self._stream_sessions.get(key)
+            try:
+                with self._engine_lock:
+                    status = self.controller.status(identity)
+                    if not isinstance(status, dict):
+                        connection.sendall(_safe_error_response("operation_unavailable"))
+                        return False
+                    resumable_terminal = (
+                        session is not None
+                        and _trusted_terminal_status(status, identity)
+                    )
+                    if (status.get("operation_id") != identity["operation_id"]
+                            or status.get("identity") != identity
+                            or (status.get("status") not in {"held", "running"} and not resumable_terminal)):
+                        connection.sendall(_safe_error_response("operation_unavailable"))
+                        return False
+                    if session is None:
+                        process = self.controller.claim_stream(identity)
+                    else:
+                        process = None
+            except Exception:
+                connection.sendall(_safe_error_response("operation_unavailable"))
+                return False
+
+            if session is None:
+                if not _is_binary_process(process):
+                    connection.sendall(_safe_error_response("operation_unavailable"))
+                    return False
+                session = _StreamSession(self, identity, process)
+                self._stream_sessions[key] = session
+
+            attached = session.attach(connection)
+            session.start()
+            if not attached:
+                connection.sendall(_safe_error_response("operation_unavailable"))
+                return False
+            return True
+
+    def _forget_stream_session(self, identity: Mapping[str, str], session: _StreamSession) -> None:
+        key = tuple(identity[name] for name in sorted(IDENTITY_KEYS))
+        with self._stream_sessions_lock:
+            if self._stream_sessions.get(key) is session:
+                del self._stream_sessions[key]
+
+    def _bridge_stdio(self, session: _StreamSession) -> None:
+        """Own process pipes for the broker lifetime and attach transient clients."""
+        child_stdin, child_stdout = session.process.stdin, session.process.stdout
         if child_stdin is None or child_stdout is None:
+            self._forget_stream_session(session.identity, session)
             return
-        connection.setblocking(False)
         input_fd, output_fd = child_stdin.fileno(), child_stdout.fileno()
         os.set_blocking(input_fd, False)
         os.set_blocking(output_fd, False)
         selector = selectors.DefaultSelector()
         to_child, to_client = bytearray(), bytearray()
-        client_read_open = client_write_open = child_input_open = child_output_open = True
-        deadline = time.monotonic() + self.stream_timeout
+        child_input_open = child_output_open = True
+        client: socket.socket | None = None
+        connected_until = 0.0
         next_status_poll = time.monotonic()
         try:
-            selector.register(connection, selectors.EVENT_READ, "socket")
-            selector.register(output_fd, selectors.EVENT_READ, "output")
-            while time.monotonic() < deadline:
+            while True:
                 now = time.monotonic()
                 if now >= next_status_poll:
                     try:
                         with self._engine_lock:
-                            # The controller owns proof and cleanup. Polling it
-                            # lets a transient systemd-run --wait handle exit
-                            # after the operation's cgroup becomes terminal.
-                            self.controller.status(identity)
+                            status = self.controller.status(session.identity)
+                        active = (
+                            isinstance(status, dict)
+                            and status.get("operation_id") == session.identity["operation_id"]
+                            and status.get("identity") == session.identity
+                            and status.get("status") in {"held", "running"}
+                        )
+                        terminal = (
+                            _trusted_terminal_status(status, session.identity)
+                        )
+                        if terminal:
+                            session.pin_retirement(now + TERMINAL_STREAM_RETENTION_SECONDS)
+                        elif not active:
+                            session.detach_current()
                     except Exception:
                         pass
                     next_status_poll = now + 0.5
-                if not client_read_open and not to_child and child_input_open:
-                    self._close_pipe(selector, input_fd, child_stdin)
-                    child_input_open = False
-                if not child_output_open and not to_client:
-                    break
-                try:
-                    key = selector.get_key(connection)
-                except KeyError:
-                    key = None
-                socket_events = (selectors.EVENT_READ if client_read_open and len(to_child) < MAX_STREAM_BUFFER else 0)
-                if client_write_open and to_client:
-                    socket_events |= selectors.EVENT_WRITE
-                if socket_events:
-                    if key is None:
-                        selector.register(connection, socket_events, "socket")
-                    elif key.events != socket_events:
-                        selector.modify(connection, socket_events, "socket")
-                elif key is not None:
-                    selector.unregister(connection)
+
+                attached = session.current_connection()
+                if attached is not client:
+                    if client is not None:
+                        try:
+                            selector.unregister(client)
+                        except (KeyError, ValueError):
+                            pass
+                    client = attached
+                    if client is not None:
+                        client.setblocking(False)
+                        connected_until = time.monotonic() + self.stream_timeout
+
+                if client is not None and time.monotonic() >= connected_until:
+                    session.detach(client)
+                    continue
+
+                if client is not None:
+                    try:
+                        key = selector.get_key(client)
+                    except KeyError:
+                        key = None
+                    client_events = 0
+                    if len(to_child) < MAX_STREAM_BUFFER:
+                        client_events |= selectors.EVENT_READ
+                    if to_client:
+                        client_events |= selectors.EVENT_WRITE
+                    if client_events:
+                        if key is None:
+                            selector.register(client, client_events, "socket")
+                        elif key.events != client_events:
+                            selector.modify(client, client_events, "socket")
+                    elif key is not None:
+                        selector.unregister(client)
+
                 try:
                     key = selector.get_key(output_fd)
                 except KeyError:
@@ -939,6 +1086,7 @@ class OperationBroker:
                     selector.register(output_fd, selectors.EVENT_READ, "output")
                 elif (not child_output_open or len(to_client) >= MAX_STREAM_BUFFER) and key is not None:
                     selector.unregister(output_fd)
+
                 try:
                     key = selector.get_key(input_fd)
                 except KeyError:
@@ -948,12 +1096,28 @@ class OperationBroker:
                 elif (not child_input_open or not to_child) and key is not None:
                     selector.unregister(input_fd)
 
-                wait_for = min(0.5, max(0, deadline - time.monotonic()),
-                               max(0, next_status_poll - time.monotonic()))
+                # A detached client does not close the app-server's stdin.
+                # If the operation exits, continue draining bounded output so
+                # a reconnect can receive bytes already produced by the same
+                # invocation. At the bound, pipe backpressure pauses the child
+                # instead of discarding output.
+                if (not child_output_open and not to_client
+                        and session.process.poll() is not None):
+                    break
+                terminal_output_deadline = session.retirement_deadline()
+                if terminal_output_deadline is not None and now >= terminal_output_deadline:
+                    if to_client or child_output_open:
+                        logging.getLogger(__name__).warning(
+                            "expired incomplete stream output for terminated worker operation %s",
+                            session.identity["operation_id"],
+                        )
+                    break
+
+                wait_for = min(0.5, max(0, next_status_poll - time.monotonic()))
                 for key, mask in selector.select(timeout=wait_for):
                     if key.data == "socket" and mask & selectors.EVENT_READ:
                         try:
-                            data = connection.recv(min(65536, MAX_STREAM_BUFFER - len(to_child)))
+                            data = client.recv(min(65536, MAX_STREAM_BUFFER - len(to_child)))
                         except (BlockingIOError, InterruptedError):
                             continue
                         except OSError:
@@ -961,7 +1125,7 @@ class OperationBroker:
                         if data:
                             to_child.extend(data)
                         else:
-                            client_read_open = False
+                            session.detach(client)
                     if key.data == "output" and mask & selectors.EVENT_READ:
                         try:
                             data = os.read(output_fd, min(65536, MAX_STREAM_BUFFER - len(to_client)))
@@ -969,21 +1133,20 @@ class OperationBroker:
                             continue
                         except OSError:
                             data = b""
-                        if data and client_write_open:
+                        if data:
                             to_client.extend(data)
-                        elif not data:
+                        else:
                             child_output_open = False
                             self._close_pipe(selector, output_fd, child_stdout)
-                    if key.data == "socket" and mask & selectors.EVENT_WRITE and client_write_open:
+                    if key.data == "socket" and mask & selectors.EVENT_WRITE:
                         try:
-                            sent = connection.send(to_client)
+                            sent = client.send(to_client)
                         except (BlockingIOError, InterruptedError):
                             sent = 0
                         except OSError:
                             sent = -1
                         if sent < 0:
-                            client_read_open = client_write_open = False
-                            to_client.clear()
+                            session.detach(client)
                         elif sent:
                             del to_client[:sent]
                     if key.data == "input" and mask & selectors.EVENT_WRITE and child_input_open:
@@ -994,22 +1157,44 @@ class OperationBroker:
                         except OSError:
                             sent = -1
                         if sent < 0:
-                            client_read_open = False
                             to_child.clear()
                             self._close_pipe(selector, input_fd, child_stdin)
                             child_input_open = False
                         elif sent:
                             del to_child[:sent]
-            # A closed SSH bridge or its one-hour bound proves nothing about
-            # whether the transient unit terminated.
         finally:
             selector.close()
+            session.detach_current()
             for stream in (child_stdin, child_stdout):
                 try:
                     stream.close()
                 except OSError:
                     pass
-            connection.close()
+            if session.retirement_deadline() is not None:
+                self._reap_terminal_stream_helper(session.process)
+            session.mark_finished()
+            self._forget_stream_session(session.identity, session)
+
+    @staticmethod
+    def _reap_terminal_stream_helper(process: Any) -> None:
+        """Boundedly clean up only the helper whose exact operation is proven terminal."""
+        if process.poll() is not None:
+            return
+        try:
+            process.terminate()
+            process.wait(timeout=0.25)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+                process.wait(timeout=0.25)
+            except (OSError, subprocess.TimeoutExpired):
+                logging.getLogger(__name__).warning(
+                    "could not reap stream helper for a terminated worker operation"
+                )
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "could not signal stream helper for a terminated worker operation"
+            )
 
     @staticmethod
     def _close_pipe(selector: selectors.BaseSelector, fd: int, pipe: BinaryIO) -> None:
@@ -1021,6 +1206,49 @@ class OperationBroker:
             pipe.close()
         except OSError:
             pass
+
+
+_TERMINATION_PROOF_KEYS = frozenset({
+    "machine_id", "boot_id", "unit", "invocation_id", "control_group",
+    "cgroup_state", "cgroup_populated", "active_state", "sub_state",
+    "exec_main_code", "exec_main_status", "main_pid", "systemd_version",
+    "observed_at",
+})
+
+
+def _trusted_terminal_status(status: Any, identity: Mapping[str, str]) -> bool:
+    """Require the engine's identity-bound proof before retiring a stream."""
+    if (not isinstance(status, dict)
+            or status.get("operation_id") != identity.get("operation_id")
+            or status.get("identity") != dict(identity)
+            or status.get("status") != "terminated"):
+        return False
+    proof = status.get("termination_proof")
+    if not isinstance(proof, dict) or set(proof) != _TERMINATION_PROOF_KEYS:
+        return False
+    if any(proof.get(key) != identity.get(key) for key in (
+        "machine_id", "boot_id", "unit", "invocation_id", "control_group",
+    )):
+        return False
+    if (proof.get("cgroup_state") not in {"present", "released"}
+            or type(proof.get("cgroup_populated")) is not int
+            or proof.get("cgroup_populated") != 0
+            or type(proof.get("main_pid")) is not int
+            or proof.get("main_pid") != 0
+            or not isinstance(proof.get("systemd_version"), int)
+            or isinstance(proof.get("systemd_version"), bool)
+            or proof.get("systemd_version") < 1
+            or not isinstance(proof.get("exec_main_status"), int)
+            or isinstance(proof.get("exec_main_status"), bool)
+            or proof.get("exec_main_code") not in {"none", "exited", "killed", "dumped"}
+            or not isinstance(proof.get("observed_at"), str)
+            or not proof.get("observed_at")):
+        return False
+    return (
+        (proof.get("active_state") == "active" and proof.get("sub_state") == "exited")
+        or (proof.get("active_state") == "failed" and proof.get("sub_state") == "failed")
+        or (proof.get("active_state") == "inactive" and proof.get("sub_state") in {"dead", "failed"})
+    )
 
 
 def _is_binary_process(process: Any) -> bool:

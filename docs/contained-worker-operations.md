@@ -1,12 +1,11 @@
 # Contained worker operations (DEV-233)
 
-This is the chosen SSH/systemd control path for native delegation. It is installed and
-active on the existing systemd 252 worker. The root containment card passed and produced
-a current root-owned qualification receipt. The actual coordinator forced-SSH RPC and
-stream checks also passed. The installed coordinator lacks the Elixir worker client,
-so its live `WorkerOperation.qualify/1` call requires a newer coordinator release.
-Public Linear webhook delivery and the real delegate/replay/restart/stop pilot remain pending; native
-dispatch acceptance is not claimed. See the [retained worker evidence](evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
+This is the SSH/systemd control path for native delegation. Root containment, forced-SSH
+RPC/stream checks, the live Elixir client, subscription readiness and native active
+cancellation passed on the previous releases. Active work did not survive coordinator
+restart, and stopped attempts retained stale executing metadata. The repairs described
+below still need a fresh live acceptance run. DEV-233 remains unaccepted. See the
+[native acceptance checkpoint](evidence/dev-233/native-live-acceptance.md).
 
 The existing `factory-worker` identity keeps its qualified subscription auth.
 A separate `factory-control` account receives a forced SSH command through the
@@ -37,6 +36,16 @@ worker before release. Only a matching root-written release marker allows the
 wrapper to exec. Stream loss, coordinator restart or a stale identity cannot
 authorize another launch.
 
+The broker owns the operation pipes after the first stream claim. Coordinator SSH EOF
+only detaches that client; the broker keeps app-server stdin open. A later connection
+may attach to the same exact identity, with one attached client at a time and no second
+launch. Each input/output buffer is bounded to 1 MiB and applies backpressure. Terminal
+output retention expires 60 seconds after trusted termination; cleanup then reaps only
+that stream helper. Coordinator recovery still reserves unknown
+operations; this transport behavior does not automatically resume a conversation.
+A worker broker process restart loses its in-memory stream sessions. This repair qualifies
+coordinator restart survival only; other disconnects still require trusted reconciliation.
+
 The unit has no capabilities, no delegation, a read-only cgroup hierarchy and
 hidden system/control sockets. Only its dedicated workspace and qualified worker
 home/caches are writable. It inherits a fixed runtime environment; request and
@@ -49,7 +58,11 @@ sends TERM, then KILL if needed. Capacity releases only after a recorded empty
 cgroup and terminal main process. An exact terminal invocation with an empty `ControlGroup`
 property can prove systemd released the empty cgroup; a still-reported path requires
 readable `cgroup.events` with recursive population zero. A missing unit, missing evidence, changed boot,
-connection failure or timeout stays unknown. The stopped run cannot restart.
+connection failure or timeout stays unknown. Confirmed termination cancels the current
+executing attempt and operation together and removes stale reconciliation metadata.
+Restart normalizes older stopped records with committed trusted confirmation without
+repeating cancellation or changing pinned definitions. An unknown stop still reserves
+capacity and retries exact cancellation. The stopped run cannot restart.
 Normal stream completion also requires termination proof before stage completion;
 an unproven outcome stays reconciling and reserves capacity.
 
@@ -121,8 +134,8 @@ Inspect the receipt and test output before enabling dispatch. The current passin
 receipt is installed as root mode 0600 at
 `/etc/factory/worker-operations-qualified.json`, and the service is active. The
 coordinator's live Elixir `WorkerOperation.qualify/1` call using the pinned control
-configuration remains pending. A successful host card alone does not prove native
-Linear acceptance.
+configuration passed in the later native pilot. A successful host card alone does not
+prove native Linear acceptance.
 
 Rollback first disables native dispatch and removes the qualification receipt.
 Keep the broker available until exact stop/reconciliation proves every existing
@@ -189,13 +202,14 @@ natural-exit proof/replay; an arbitrary command was rejected. See the retained
 [forced-SSH report](evidence/dev-233/worker-ssh-qualification.json) and
 [test output](evidence/dev-233/worker-live-report.log).
 
-The worker control source is `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`, archived as
+The initial worker control source was `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`, archived as
 `59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01`. The recorded systemd
 version is 252. The active application release remains
 `541279aeb6a5366571e1ee8935e134c728d91c63`. The maintenance preserved the same VM instance,
-restored metadata exactly, and preserved disks and network configuration. The coordinator
-has not run Elixir's live qualification call, and this result does not establish native
-Linear/Codex dispatch. The card log also contains Python `ResourceWarning`s for helper
+restored metadata exactly, and preserved disks and network configuration. That initial
+result did not establish native Linear/Codex dispatch. The later client and cancellation
+results are recorded in the native checkpoint above. The card log also contains Python
+`ResourceWarning`s for helper
 `Popen` handles. A later read-only check found both warned helper PIDs absent, while the
 operation cgroup and both task processes were independently observed empty/dead after stop.
 This does not establish that Python closed every helper handle; the warnings remain in the
@@ -212,7 +226,7 @@ cleanup succeeds. Review that output before installing it at the fixed receipt
 path. Run the card from the configured immutable release with
 `FACTORY_SYSTEMD_TEST_DISPOSABLE=1` and `FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1`;
 its default skip cannot generate a receipt.
-The installed app, public endpoint and actual native stop pilot must still pass
+The fresh restart-survival and stopped-state pilot must still pass
 [the live acceptance checklist](linear-delegation.md) before an acceptance PR.
 
 ### Existing systemd 252 worker

@@ -151,12 +151,14 @@ class CountingController:
                 "unit": value["unit"],
                 "invocation_id": value["invocation_id"],
                 "control_group": value["control_group"],
+                "cgroup_state": "released",
                 "cgroup_populated": 0,
                 "active_state": "active",
                 "sub_state": "exited",
                 "exec_main_code": "exited",
                 "exec_main_status": 0,
                 "main_pid": 0,
+                "systemd_version": 252,
                 "observed_at": datetime.now(timezone.utc).isoformat(),
             }
         return result
@@ -174,6 +176,131 @@ class CountingController:
             [sys.executable, "-u", "-c",
              "import sys; print('started', flush=True); line=sys.stdin.buffer.readline(); "
              "print('got:'+line.decode('ascii').strip(), flush=True)"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+        )
+        return self._process
+
+
+class ReconnectableController(CountingController):
+    def __init__(self, launch_log: Path) -> None:
+        super().__init__()
+        self.launch_log = launch_log
+        self.effects_log = launch_log.with_name("effects.log")
+
+    def status(self, value):
+        self.calls.append("status")
+        if value != self.identity:
+            return {"operation_id": value.get("operation_id"), "identity": self.identity, "status": "unknown"}
+        if self._process is not None and self._process.poll() is not None:
+            result = {"operation_id": value["operation_id"], "identity": value, "status": "terminated"}
+            result.update({"exit_status": self._process.returncode, "exit_code": "exited"})
+            result["termination_proof"] = {
+                "machine_id": value["machine_id"],
+                "boot_id": value["boot_id"],
+                "unit": value["unit"],
+                "invocation_id": value["invocation_id"],
+                "control_group": value["control_group"],
+                "cgroup_state": "released",
+                "cgroup_populated": 0,
+                "active_state": "active",
+                "sub_state": "exited",
+                "exec_main_code": "exited",
+                "exec_main_status": self._process.returncode,
+                "main_pid": 0,
+                "systemd_version": 252,
+                "observed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            return result
+        return {"operation_id": value["operation_id"], "identity": value, "status": self.controlled_status}
+
+    def claim_stream(self, value):
+        self.calls.append("claim_stream")
+        if value != self.identity or self._claimed:
+            raise RuntimeError("one-shot stream unavailable")
+        self._claimed = True
+        code = (
+            "import json,sys,time\n"
+            f"open({str(self.launch_log)!r}, 'a', encoding='ascii').write('launch\\n')\n"
+            "print(json.dumps({'event':'ready'}), flush=True)\n"
+            "for line in sys.stdin:\n"
+            " request=json.loads(line)\n"
+            f" open({str(self.effects_log)!r}, 'a', encoding='ascii').write(request.get('method', '')+'\\n')\n"
+            " print(json.dumps({'id':request.get('id'),'result':'accepted'}), flush=True)\n"
+            " if request.get('method') == 'initialize':\n"
+            "  time.sleep(0.5)\n"
+            "  print(json.dumps({'event':'continued'}), flush=True)\n"
+            " if request.get('method') == 'finish':\n"
+            "  time.sleep(0.8)\n"
+            "  print(json.dumps({'event':'final'}), flush=True)\n"
+            "  break\n"
+        )
+        self._process = subprocess.Popen(
+            [sys.executable, "-u", "-c", code],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+        )
+        return self._process
+
+    def stop(self, value):
+        self.calls.append("stop")
+        if value != self.identity or self._process is None:
+            return {"operation_id": value["operation_id"], "identity": self.identity, "status": "unknown"}
+        if self._process.poll() is None:
+            self._process.terminate()
+            self._process.wait(timeout=2)
+        return self.status(value)
+
+
+class BufferedOutputController(ReconnectableController):
+    def __init__(self, launch_log: Path) -> None:
+        super().__init__(launch_log)
+        self.force_terminal = False
+
+    def status(self, value):
+        if self.force_terminal and value == self.identity:
+            self.calls.append("status")
+            return {
+                "operation_id": value["operation_id"],
+                "identity": value,
+                "status": "terminated",
+                "termination_proof": {
+                    "machine_id": value["machine_id"],
+                    "boot_id": value["boot_id"],
+                    "unit": value["unit"],
+                    "invocation_id": value["invocation_id"],
+                    "control_group": value["control_group"],
+                    "cgroup_state": "released",
+                    "cgroup_populated": 0,
+                    "active_state": "active",
+                    "sub_state": "exited",
+                    "exec_main_code": "exited",
+                    "exec_main_status": 0,
+                    "main_pid": 0,
+                    "systemd_version": 252,
+                    "observed_at": datetime.now(timezone.utc).isoformat(),
+                },
+            }
+        return super().status(value)
+
+    def claim_stream(self, value):
+        self.calls.append("claim_stream")
+        if value != self.identity or self._claimed:
+            raise RuntimeError("one-shot stream unavailable")
+        self._claimed = True
+        code = (
+            "import sys,time\n"
+            "time.sleep(0.5)\n"
+            f"sys.stdout.buffer.write(b'x' * {transport.MAX_STREAM_BUFFER})\n"
+            "sys.stdout.buffer.flush()\n"
+            "time.sleep(5)\n"
+        )
+        self._process = subprocess.Popen(
+            [sys.executable, "-u", "-c", code],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -369,6 +496,231 @@ class WorkerOperationTransportTests(unittest.TestCase):
                 self.assertEqual(controller.calls.count("claim_stream"), 1)
             finally:
                 self.stop_broker(broker, thread)
+
+    def test_stream_reconnect_preserves_process_io_and_exact_stop(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            launch_log = directory / "launches.log"
+            controller = ReconnectableController(launch_log)
+            broker = self.make_broker(directory, controller)
+            thread = self.start_broker(broker)
+            release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
+
+            def connect_stream(value):
+                stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                stream.settimeout(3)
+                stream.connect(str(broker.socket_path))
+                request = {"action": "stream", "identity": value, "expected_release": release}
+                stream.sendall(transport._compact_json(request) + b"\n")
+                reader = stream.makefile("rb")
+                return stream, reader, json.loads(reader.readline())
+
+            def rpc(action, value):
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(3)
+                    client.connect(str(broker.socket_path))
+                    request = {"action": action, "identity": value, "expected_release": release}
+                    client.sendall(transport._compact_json(request) + b"\n")
+                    client.shutdown(socket.SHUT_WR)
+                    return json.loads(client.makefile("rb").readline())
+
+            try:
+                stale = dict(controller.identity, invocation_id="f" * 32)
+                stale_stream, stale_reader, stale_reply = connect_stream(stale)
+                self.assertEqual(stale_reply, {"error": "operation_unavailable"})
+                stale_reader.close()
+                stale_stream.close()
+                self.assertEqual(controller.calls.count("claim_stream"), 0)
+
+                stream, reader, reply = connect_stream(controller.identity)
+                self.assertEqual(reply, {"ok": "stream_ready"})
+                self.assertEqual(json.loads(reader.readline()), {"event": "ready"})
+                self.assertEqual(rpc("release", controller.identity)["ok"]["status"], "released")
+
+                duplicate, duplicate_reader, duplicate_reply = connect_stream(controller.identity)
+                self.assertEqual(duplicate_reply, {"error": "operation_unavailable"})
+                duplicate_reader.close()
+                duplicate.close()
+
+                stream.sendall(b'{"method":"initialize","id":1}\n')
+                self.assertEqual(json.loads(reader.readline()), {"id": 1, "result": "accepted"})
+                reader.close()
+                stream.close()
+
+                time.sleep(0.7)
+                resumed, resumed_reader, resumed_reply = connect_stream(controller.identity)
+                self.assertEqual(resumed_reply, {"ok": "stream_ready"})
+                self.assertEqual(json.loads(resumed_reader.readline()), {"event": "continued"})
+                resumed.sendall(b'{"method":"ping","id":2}\n')
+                self.assertEqual(json.loads(resumed_reader.readline()), {"id": 2, "result": "accepted"})
+                resumed_reader.close()
+                resumed.close()
+
+                stopped = rpc("stop", controller.identity)
+                self.assertEqual(stopped["ok"]["status"], "terminated")
+                self.assertEqual(controller._process.poll(), controller._process.returncode)
+                self.assertEqual(launch_log.read_text(encoding="ascii"), "launch\n")
+                self.assertEqual(controller.effects_log.read_text(encoding="ascii"), "initialize\nping\n")
+                self.assertEqual(controller.calls.count("claim_stream"), 1)
+                self.assertIn("stop", controller.calls)
+
+                deadline = time.monotonic() + 3
+                while broker._stream_sessions and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertEqual(broker._stream_sessions, {})
+            finally:
+                self.stop_broker(broker, thread)
+                if controller._process is not None and controller._process.poll() is None:
+                    controller._process.kill()
+                    controller._process.wait(timeout=2)
+
+    def test_terminal_detached_output_can_be_drained_and_session_reaped(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            launch_log = directory / "launches.log"
+            controller = ReconnectableController(launch_log)
+            broker = self.make_broker(directory, controller)
+            thread = self.start_broker(broker)
+            release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
+
+            def rpc(action):
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(3)
+                    client.connect(str(broker.socket_path))
+                    request = {"action": action, "identity": controller.identity, "expected_release": release}
+                    client.sendall(transport._compact_json(request) + b"\n")
+                    client.shutdown(socket.SHUT_WR)
+                    return json.loads(client.makefile("rb").readline())
+
+            try:
+                stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                stream.settimeout(3)
+                stream.connect(str(broker.socket_path))
+                envelope = {"action": "stream", "identity": controller.identity, "expected_release": release}
+                stream.sendall(transport._compact_json(envelope) + b"\n")
+                reader = stream.makefile("rb")
+                self.assertEqual(json.loads(reader.readline()), {"ok": "stream_ready"})
+                first_session = next(iter(broker._stream_sessions.values()))
+                self.assertEqual(json.loads(reader.readline()), {"event": "ready"})
+                self.assertEqual(rpc("release")["ok"]["status"], "released")
+                stream.sendall(b'{"method":"finish","id":3}\n')
+                self.assertEqual(json.loads(reader.readline()), {"id": 3, "result": "accepted"})
+                reader.close()
+                stream.close()
+                time.sleep(0.2)
+
+                deadline = time.monotonic() + 3
+                while controller._process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertIsNotNone(controller._process.poll())
+
+                resumed = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                resumed.settimeout(3)
+                resumed.connect(str(broker.socket_path))
+                resumed.sendall(transport._compact_json(envelope) + b"\n")
+                resumed_reader = resumed.makefile("rb")
+                self.assertEqual(json.loads(resumed_reader.readline()), {"ok": "stream_ready"})
+                final_line = resumed_reader.readline()
+                self.assertEqual(json.loads(final_line), {"event": "final"})
+                self.assertEqual(resumed_reader.readline(), b"")
+                resumed_reader.close()
+                resumed.close()
+
+                deadline = time.monotonic() + 3
+                while broker._stream_sessions and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertEqual(broker._stream_sessions, {})
+                self.assertFalse(first_session.thread.is_alive())
+                self.assertIsNotNone(controller._process.poll())
+                self.assertEqual(controller.calls.count("claim_stream"), 1)
+
+                # A subsequent exact operation can claim its own stream after
+                # the prior detached session has drained and reaped.
+                controller.identity = identity("run-beta/implement/1")
+                controller.controlled_status = "held"
+                controller._claimed = False
+                controller._process = None
+                second_envelope = {
+                    "action": "stream",
+                    "identity": controller.identity,
+                    "expected_release": release,
+                }
+                second = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                second.settimeout(3)
+                second.connect(str(broker.socket_path))
+                second.sendall(transport._compact_json(second_envelope) + b"\n")
+                second_reader = second.makefile("rb")
+                self.assertEqual(json.loads(second_reader.readline()), {"ok": "stream_ready"})
+                second_session = next(iter(broker._stream_sessions.values()))
+                self.assertEqual(json.loads(second_reader.readline()), {"event": "ready"})
+                self.assertEqual(rpc("release")["ok"]["status"], "released")
+                second.sendall(b'{"method":"finish","id":4}\n')
+                self.assertEqual(json.loads(second_reader.readline()), {"id": 4, "result": "accepted"})
+                self.assertEqual(json.loads(second_reader.readline()), {"event": "final"})
+                self.assertEqual(second_reader.readline(), b"")
+                second_reader.close()
+                second.close()
+
+                deadline = time.monotonic() + 3
+                while broker._stream_sessions and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertEqual(broker._stream_sessions, {})
+                self.assertFalse(second_session.thread.is_alive())
+                self.assertEqual(controller.calls.count("claim_stream"), 2)
+                self.assertEqual(launch_log.read_text(encoding="ascii"), "launch\nlaunch\n")
+                self.assertEqual(controller.effects_log.read_text(encoding="ascii"), "finish\nfinish\n")
+            finally:
+                self.stop_broker(broker, thread)
+                if controller._process is not None and controller._process.poll() is None:
+                    controller._process.kill()
+                    controller._process.wait(timeout=2)
+
+    def test_full_terminal_buffer_is_reaped_after_bounded_retention(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            controller = BufferedOutputController(directory / "launches.log")
+            broker = self.make_broker(directory, controller)
+            thread = self.start_broker(broker)
+            release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
+            envelope = {
+                "action": "stream",
+                "identity": controller.identity,
+                "expected_release": release,
+            }
+
+            try:
+                with patch.object(transport, "TERMINAL_STREAM_RETENTION_SECONDS", 0.15):
+                    stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    stream.settimeout(3)
+                    stream.connect(str(broker.socket_path))
+                    stream.sendall(transport._compact_json(envelope) + b"\n")
+                    reader = stream.makefile("rb")
+                    self.assertEqual(json.loads(reader.readline()), {"ok": "stream_ready"})
+                    session = next(iter(broker._stream_sessions.values()))
+                    reader.close()
+                    stream.close()
+
+                    # The child fills the bridge's bounded retained-output
+                    # queue after the client is gone. Simulate the engine's
+                    # exact terminal proof while the stream helper remains
+                    # alive, so cleanup cannot depend on observing pipe EOF.
+                    time.sleep(0.8)
+                    controller.force_terminal = True
+                    with self.assertLogs(transport.__name__, level="WARNING") as captured:
+                        controller._process.wait(timeout=3)
+                        deadline = time.monotonic() + 3
+                        while broker._stream_sessions and time.monotonic() < deadline:
+                            time.sleep(0.02)
+
+                    self.assertEqual(broker._stream_sessions, {})
+                    self.assertFalse(session.thread.is_alive())
+                    self.assertIn("expired incomplete stream output", "\n".join(captured.output))
+                    self.assertEqual(controller.calls.count("claim_stream"), 1)
+            finally:
+                self.stop_broker(broker, thread)
+                if controller._process is not None and controller._process.poll() is None:
+                    controller._process.kill()
+                    controller._process.wait(timeout=2)
 
     def test_controller_and_broker_hold_then_release_a_real_stream_process(self):
         with tempfile.TemporaryDirectory() as temporary:

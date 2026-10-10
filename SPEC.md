@@ -72,7 +72,11 @@ The coordinator commits that identity before acknowledging release and preserves
 restart. The provisional local Linux adapter fences machine, OS boot, process group and
 process start identity before bounded signaling. It always reports unknown, since descendants
 can escape the group. Explicit reconciliation frees a stopped slot only after trusted
-termination proof; it never restarts the stopped task.
+termination proof; it never restarts the stopped task. Confirmed termination marks the
+current executing attempt and operation canceled together and removes stale reconciliation metadata.
+Restart normalizes older stopped records that already contain committed termination confirmation;
+it does not repeat external cancellation or alter their pinned definitions. Unknown termination
+continues to reserve capacity until the trusted adapter confirms it.
 
 For a configured remote worker, a separate forced-command control account reaches a root
 broker over a peer-UID-checked Unix socket. The broker reserves each operation before launching
@@ -87,13 +91,21 @@ separate from the legacy worker-writable workspace tree. An operator provisions 
 worker-owned leaf and its matching coordinator path before adding the explicit issue
 workspace mapping. The worker cannot replace sibling workspace names. The root-owned
 launch gate remains separate; task code never selects unit properties or writable roots.
+The worker broker owns a claimed operation's stdin and stdout across coordinator connection
+loss. A disconnected stream detaches the client without closing the app-server input or
+launching a replacement. Only one client may attach to the exact retained identity at a time.
+Buffers are bounded with pipe backpressure; terminal output retention is bounded. This does
+not resume the coordinator conversation automatically. A recovered run with unknown liveness
+continues to reserve capacity until trusted reconciliation or explicit stop.
 Stop work runs in supervised jobs after the tombstone commits, keeping intake responsive.
 SSH completion alone cannot finish a stage or free capacity. A terminal exact invocation must
 have an empty cgroup, proved by readable recursive population zero or by systemd's release of
 that cgroup on a qualified systemd version. Missing evidence remains unknown. The existing
 systemd 252 worker now has a passing root containment receipt, and the actual coordinator
 forced-SSH RPC/stream path passed its live checks. The Elixir `WorkerOperation.qualify/1`
-call has not been run live, and native Linear dispatch remains unaccepted. See
+call and native active cancellation passed on the previous release; active work did not
+survive its coordinator restart. The stream and bookkeeping repairs require a fresh live
+acceptance run before native delegation is accepted. See
 [contained worker operations](docs/contained-worker-operations.md) and its
 [retained live evidence](docs/evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
