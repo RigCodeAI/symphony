@@ -113,6 +113,10 @@ defmodule SymphonyElixir.Orchestrator do
     {:noreply, LinearCoordinator.result(state, token, result, &queue_durable_workstream/6, &stop_linear_workstream/2)}
   end
 
+  def handle_info({ref, {:workstream_canceled, run_id, attempt_id, outcome}}, state) when is_reference(ref) do
+    {:noreply, accept_workstream_cancellation(state, ref, run_id, attempt_id, outcome)}
+  end
+
   def handle_info({:workstream_result, run_id, attempt_id, pid, result}, state) do
     {:noreply, accept_workstream_result(state, run_id, attempt_id, pid, result)}
   end
@@ -168,9 +172,15 @@ defmodule SymphonyElixir.Orchestrator do
       ) do
     case find_issue_id_for_ref(running, ref) do
       nil ->
-        case LinearCoordinator.down(state, ref) do
-          :unhandled -> {:noreply, workstream_worker_down(state, ref, reason)}
-          updated -> {:noreply, updated}
+        case cancellation_down(state, ref) do
+          {:handled, updated} ->
+            {:noreply, updated}
+
+          :unhandled ->
+            case LinearCoordinator.down(state, ref) do
+              :unhandled -> {:noreply, workstream_worker_down(state, ref, reason)}
+              updated -> {:noreply, updated}
+            end
         end
 
       issue_id ->
@@ -2165,7 +2175,7 @@ defmodule SymphonyElixir.Orchestrator do
           with {:ok, store} <- WorkstreamStore.start_link(path: path, owner: self()),
                {:ok, runs} <- WorkstreamStore.load(store) do
             {:ok, store_path} = SymphonyElixir.PathSafety.canonicalize(path)
-            durable = %{store: store, store_path: store_path, runs: Map.new(runs, &{&1.id, &1}), workers: %{}, opts: opts}
+            durable = %{store: store, store_path: store_path, runs: Map.new(runs, &{&1.id, &1}), workers: %{}, cancellations: %{}, opts: opts}
             {:ok, %{state | workstreams: durable, polling_enabled: false}}
           end
         end
@@ -2224,7 +2234,7 @@ defmodule SymphonyElixir.Orchestrator do
   defp register_workstream_process(state, run, identity) do
     operation = run.operations[run.current_attempt_id]
 
-    with {:ok, identity} <- SymphonyElixir.WorkstreamCancellation.validate_identity(identity, operation.id) do
+    with {:ok, identity} <- validate_external_process(run, operation, identity) do
       case operation[:external_process] do
         ^identity ->
           {:reply, :ok, state}
@@ -2242,23 +2252,31 @@ defmodule SymphonyElixir.Orchestrator do
     end
   end
 
+  defp validate_external_process(run, operation, %{"kind" => "systemd-unit"} = identity),
+    do: SymphonyElixir.WorkerOperation.validate_registration_identity(identity, operation.id, run.execution[:worker_control])
+
+  defp validate_external_process(_run, operation, identity),
+    do: SymphonyElixir.WorkstreamCancellation.validate_identity(identity, operation.id)
+
   defp existing_or_new_workstream(_state, run, _task_id, _path, _inputs, _opts) when is_map(run), do: {:ok, run}
 
   defp existing_or_new_workstream(state, nil, task_id, path, inputs, opts) do
     with true <-
            Enum.all?(opts, fn {key, value} ->
-             key in [
-               :workspace,
-               :workspace_root,
-               :codex_command,
-               :branch,
-               :issue_id,
-               :definition_sha256,
-               :validation_policy,
-               :validation_archive,
-               :validation_scratch,
-               :validation_base
-             ] and is_binary(value)
+             (key in [
+                :workspace,
+                :workspace_root,
+                :codex_command,
+                :branch,
+                :issue_id,
+                :definition_sha256,
+                :authentication_reference,
+                :validation_policy,
+                :validation_archive,
+                :validation_scratch,
+                :validation_base
+              ] and is_binary(value)) or (key == :worker_control and is_map(value)) or
+               (key == :secret_environment_names and is_list(value) and Enum.all?(value, &is_binary/1))
            end),
          {:ok, definition, workspace} <- WorkstreamRunner.prepare(path, inputs, opts),
          :ok <- check_workstream_definition(definition, opts),
@@ -2356,8 +2374,13 @@ defmodule SymphonyElixir.Orchestrator do
   defp accept_workstream_result(state, run_id, attempt_id, pid, result) do
     case {durable_run(state, run_id), Map.get(state.workstreams.workers, attempt_id)} do
       {%{current_attempt_id: ^attempt_id, status: status} = run, %{pid: ^pid, ref: ref}} when status in [:executing, :reconciling] ->
-        updated = WorkstreamRun.finish_stage(run, result)
-        state = commit_workstream(state, updated, attempt_id <> "/complete", %{kind: :stage_completed})
+        {updated, event_id, event} =
+          case result do
+            {:uncertain, reason} -> {WorkstreamRun.uncertain(run, reason), attempt_id <> "/uncertain", %{kind: :reconciliation_required}}
+            _ -> {WorkstreamRun.finish_stage(run, result), attempt_id <> "/complete", %{kind: :stage_completed}}
+          end
+
+        state = commit_workstream(state, updated, event_id, event)
         send(pid, {:workstream_ack, attempt_id})
         Process.demonitor(ref, [:flush])
         state = update_in(state.workstreams.workers, &Map.delete(&1, attempt_id))
@@ -2412,17 +2435,17 @@ defmodule SymphonyElixir.Orchestrator do
       Enum.any?(state.linear.events, fn {_id, record} -> record.event.kind == :stop and record.event.issue_id == run.issue_id end)
   end
 
-  defp stop_linear_workstream(state, %{status: :stopped}), do: state
+  defp stop_linear_workstream(state, %{status: :stopped} = run), do: request_workstream_cancellation(state, run, nil)
 
   defp stop_linear_workstream(state, run) do
     worker = state.workstreams.workers[run.current_attempt_id]
     operation = run.operations[run.current_attempt_id]
     pid = if worker, do: worker.pid, else: if(operation, do: find_workstream_worker(state.task_supervisor, run, operation))
-    canceller = Keyword.get(state.workstreams.opts, :workstream_canceller, &SymphonyElixir.WorkstreamCancellation.cancel/3)
-    outcome = if operation && operation.status == :executing, do: request_termination(canceller, run, operation, pid), else: :terminated
+    outcome = if operation && operation.status == :executing, do: :unknown, else: :terminated
     stopped = Map.merge(run, %{status: :stopped, phase: :stopped, cancellation: %{termination: outcome}})
     stopped = if operation && outcome == :terminated, do: put_in(stopped.operations[operation.id].status, :canceled), else: stopped
     state = commit_workstream(state, stopped, run.id <> "/linear-stop", %{kind: :stopped})
+    state = request_workstream_cancellation(state, stopped, pid)
 
     if pid do
       # A BEAM exit alone is not proof that a remote process tree has stopped.
@@ -2445,23 +2468,62 @@ defmodule SymphonyElixir.Orchestrator do
     _, _ -> :unknown
   end
 
+  defp cancellation_down(%{workstreams: nil}, _ref), do: :unhandled
+
+  defp cancellation_down(state, ref) do
+    case Enum.find(state.workstreams.cancellations, fn {_id, task} -> task.ref == ref end) do
+      {id, _task} -> {:handled, update_in(state.workstreams.cancellations, &Map.delete(&1, id))}
+      nil -> :unhandled
+    end
+  end
+
   defp reconcile_stopped_workstreams(%{workstreams: nil} = state), do: state
 
   defp reconcile_stopped_workstreams(state) do
-    canceller = Keyword.get(state.workstreams.opts, :workstream_canceller, &SymphonyElixir.WorkstreamCancellation.cancel/3)
-
     Enum.reduce(state.workstreams.runs, state, fn {_id, run}, acc ->
-      operation = run.operations[run.current_attempt_id]
-
-      if ((run.status == :stopped and operation) && operation.status == :executing) and
-           request_termination(canceller, run, operation, nil) == :terminated do
-        updated = put_in(run.operations[operation.id].status, :canceled)
-        updated = Map.put(updated, :cancellation, %{termination: :terminated})
-        commit_workstream(acc, updated, operation.id <> "/termination-confirmed", %{kind: :termination_confirmed})
-      else
-        acc
-      end
+      if run.status == :stopped, do: request_workstream_cancellation(acc, run, nil), else: acc
     end)
+  end
+
+  defp request_workstream_cancellation(state, run, worker_pid) do
+    operation = run.operations[run.current_attempt_id]
+
+    if not is_nil(operation) and operation.status == :executing and not Map.has_key?(state.workstreams.cancellations, operation.id) do
+      canceller = Keyword.get(state.workstreams.opts, :workstream_canceller, &SymphonyElixir.WorkstreamCancellation.cancel/3)
+
+      task =
+        Task.Supervisor.async_nolink(state.task_supervisor, fn ->
+          {:workstream_canceled, run.id, operation.id, request_termination(canceller, run, operation, worker_pid)}
+        end)
+
+      put_in(state.workstreams.cancellations[operation.id], task)
+    else
+      state
+    end
+  end
+
+  defp accept_workstream_cancellation(%{workstreams: nil} = state, _ref, _run_id, _attempt_id, _outcome), do: state
+
+  defp accept_workstream_cancellation(state, ref, run_id, attempt_id, outcome) do
+    case state.workstreams.cancellations[attempt_id] do
+      %Task{ref: ^ref} ->
+        Process.demonitor(ref, [:flush])
+        state = update_in(state.workstreams.cancellations, &Map.delete(&1, attempt_id))
+        run = durable_run(state, run_id)
+
+        if outcome == :terminated and not is_nil(run) and run.status == :stopped and run.current_attempt_id == attempt_id do
+          updated = put_in(run.operations[attempt_id].status, :canceled)
+          updated = Map.put(updated, :cancellation, %{termination: :terminated})
+          state = commit_workstream(state, updated, attempt_id <> "/termination-confirmed", %{kind: :termination_confirmed})
+          send(self(), :advance_workstreams)
+          state
+        else
+          state
+        end
+
+      _ ->
+        state
+    end
   end
 
   defp block_workstream_policy(state, run) do

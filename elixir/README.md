@@ -438,6 +438,8 @@ and enables `POST /hooks/linear` when the HTTP server is enabled. It verifies th
 signed bytes, persists receipts, checks authoritative app ownership and explicit DEV/Rig scope,
 then routes one pinned software-change run. Human assignees are preserved. Tracker polling
 is disabled in this mode. See [configuration, local tests and live acceptance](../docs/linear-delegation.md).
+Remote dispatch also needs `linear_delegation.worker_control`, a pinned machine/release and a
+current containment receipt. See [worker control installation and tests](../docs/contained-worker-operations.md).
 
 Trusted candidate validation is available locally through the pinned-policy runner and
 inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

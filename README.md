@@ -52,6 +52,8 @@ The first increments are:
 Native Linear webhook intake and durable routing are available for controlled local tests.
 See [Linear delegation](docs/linear-delegation.md) for configuration and the remaining live
 app, endpoint and worker requirements. No live delegation acceptance is claimed.
+The [contained worker control path](docs/contained-worker-operations.md) includes reviewable
+SSH/systemd installation files and remains disabled until worker qualification passes.
 
 Use live ticket dependencies to schedule work. The local files
 `docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,

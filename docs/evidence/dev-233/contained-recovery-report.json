@@ -1,0 +1,310 @@
+{
+  "status": "passed",
+  "pass": {
+    "id": "run-01ebc75f49562c6a014d607613307ad4",
+    "status": "complete",
+    "definitions": {
+      "/tmp/dev233-contained-recovery-final/definitions/agents/local-worker.yaml": "553d97a0e81f2d1c34471053696a69c618dd3ae34504c90bd5562047a2a5eb0d",
+      "/tmp/dev233-contained-recovery-final/definitions/instructions/local-rig.md": "313e4796343efae8ccd8a0990f293db639b48d563319d6d55c8b95ed26cd28eb",
+      "/tmp/dev233-contained-recovery-final/definitions/skills/local-rig/SKILL.md": "901ebd4154ab04bc957b3992267cd0ae2c5a3efa6bbe5eb3a8dffbdc70bb87f1",
+      "/tmp/dev233-contained-recovery-final/definitions/workstreams/local-recovery.yaml": "0bacd1c0c4be59a33c3d40dfc621e321b0318f517c8c0559946c9407fe3e7651"
+    },
+    "branch": "master",
+    "phase": "complete",
+    "session_id": "controlled-smoke",
+    "policy": {
+      "version": 1,
+      "lifecycle_sha256": "88e409d2625e557125d25f883c8d3098b864489ce38c5bc375b0ceb558bf58ee",
+      "executor_sha256": "95044b2261cfa8f65467b548538d6c3238f803931d45100c5f246229eca73708",
+      "gate_policy": "exit-status-v1",
+      "validation_sha256": "35e062bd2db7fc88943c3e4440fe0770f0f5abfd388e27269dd25d8b57d62e5d"
+    },
+    "outputs": {
+      "answer": "continue",
+      "candidate": {
+        "model": "controlled-worker-no-inference",
+        "requested_model": "gpt-6-luna",
+        "session_id": "controlled-smoke",
+        "thread_id": "controlled-run-01ebc75f49562c6a014d607613307ad4",
+        "workspace": "/tmp/dev233-contained-recovery-final/workspaces/pass"
+      },
+      "validation": {
+        "exit_status": 0,
+        "output": "",
+        "timed_out": false,
+        "truncated": false
+      }
+    },
+    "workspace": "/tmp/dev233-contained-recovery-final/workspaces/pass",
+    "pending_wait": null,
+    "agents": {
+      "worker": {
+        "model": "gpt-6-luna",
+        "daybreak": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "thread_id": "controlled-run-01ebc75f49562c6a014d607613307ad4",
+    "stage_id": "complete",
+    "current_attempt_id": null,
+    "operations": {
+      "run-01ebc75f49562c6a014d607613307ad4/implement/1": {
+        "id": "run-01ebc75f49562c6a014d607613307ad4/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.190.0>",
+          "boot_id": "24addfb19e3bf7dbc42acb1652702fac"
+        },
+        "stage": "implement",
+        "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/implement/1",
+        "transport_retries": 0,
+        "side_effect_id": "run-01ebc75f49562c6a014d607613307ad4/implement/1"
+      },
+      "run-01ebc75f49562c6a014d607613307ad4/validate/2": {
+        "id": "run-01ebc75f49562c6a014d607613307ad4/validate/2",
+        "status": "completed",
+        "type": "check",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.194.0>",
+          "boot_id": "24addfb19e3bf7dbc42acb1652702fac"
+        },
+        "stage": "validate",
+        "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/validate/2",
+        "transport_retries": 0,
+        "side_effect_id": "run-01ebc75f49562c6a014d607613307ad4/validate/2"
+      }
+    },
+    "issue_id": null,
+    "created_at": "2026-10-10T07:21:11.867129Z",
+    "task_id": "pass",
+    "validation_repair_rounds": 0,
+    "repairs": {},
+    "artifacts": {
+      "answer": {
+        "sha256": "4b570db91b285dd0997d54ade71f775d6f35ba7f4a9be9bfab17fbfd3fedf661",
+        "run_id": "run-01ebc75f49562c6a014d607613307ad4",
+        "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/decision/3"
+      },
+      "candidate": {
+        "sha256": "cfb6c7b90cf583950a06bf6ad809653db5bcae8101e47e6e214fc55c6db9a0fa",
+        "run_id": "run-01ebc75f49562c6a014d607613307ad4",
+        "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/implement/1"
+      },
+      "validation": {
+        "sha256": "df71038e53622689c191188b344c680574078ece6b976518b763fe793a113d24",
+        "run_id": "run-01ebc75f49562c6a014d607613307ad4",
+        "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/validate/2"
+      }
+    },
+    "attempts": [
+      {
+        "id": "run-01ebc75f49562c6a014d607613307ad4/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "model": "controlled-worker-no-inference",
+            "requested_model": "gpt-6-luna",
+            "session_id": "controlled-smoke",
+            "thread_id": "controlled-run-01ebc75f49562c6a014d607613307ad4",
+            "workspace": "/tmp/dev233-contained-recovery-final/workspaces/pass"
+          }
+        },
+        "stage": "implement",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 1
+      },
+      {
+        "id": "run-01ebc75f49562c6a014d607613307ad4/validate/2",
+        "status": "completed",
+        "type": "check",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "exit_status": 0,
+            "output": "",
+            "timed_out": false,
+            "truncated": false
+          }
+        },
+        "stage": "validate",
+        "gate": "passed",
+        "gate_detail": null,
+        "ordinal": 2
+      },
+      {
+        "id": "run-01ebc75f49562c6a014d607613307ad4/decision/3",
+        "status": "completed",
+        "type": "human_wait",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "reply": {
+              "answer": "continue"
+            },
+            "wait_id": "run-01ebc75f49562c6a014d607613307ad4/decision/3/wait",
+            "artifact_ids": {
+              "candidate": {
+                "sha256": "cfb6c7b90cf583950a06bf6ad809653db5bcae8101e47e6e214fc55c6db9a0fa",
+                "run_id": "run-01ebc75f49562c6a014d607613307ad4",
+                "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/implement/1"
+              },
+              "validation": {
+                "sha256": "df71038e53622689c191188b344c680574078ece6b976518b763fe793a113d24",
+                "run_id": "run-01ebc75f49562c6a014d607613307ad4",
+                "attempt_id": "run-01ebc75f49562c6a014d607613307ad4/validate/2"
+              }
+            }
+          }
+        },
+        "stage": "decision",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 3
+      }
+    ],
+    "retry_operation_id": null,
+    "review_repair_rounds": 0,
+    "transport_retries": 0
+  },
+  "fail": {
+    "id": "run-7d6e3930da663c33ceaf954447455032",
+    "status": "blocked",
+    "definitions": {
+      "/tmp/dev233-contained-recovery-final/definitions/agents/local-worker.yaml": "553d97a0e81f2d1c34471053696a69c618dd3ae34504c90bd5562047a2a5eb0d",
+      "/tmp/dev233-contained-recovery-final/definitions/instructions/local-rig.md": "313e4796343efae8ccd8a0990f293db639b48d563319d6d55c8b95ed26cd28eb",
+      "/tmp/dev233-contained-recovery-final/definitions/skills/local-rig/SKILL.md": "79b0039c99f5bbb5705a7a3de3eafa059f3dd4db06cf84d5f30d3954335d0a1c",
+      "/tmp/dev233-contained-recovery-final/definitions/workstreams/local-recovery.yaml": "0bacd1c0c4be59a33c3d40dfc621e321b0318f517c8c0559946c9407fe3e7651"
+    },
+    "branch": "master",
+    "phase": "blocked",
+    "session_id": "controlled-smoke",
+    "policy": {
+      "version": 1,
+      "lifecycle_sha256": "88e409d2625e557125d25f883c8d3098b864489ce38c5bc375b0ceb558bf58ee",
+      "executor_sha256": "95044b2261cfa8f65467b548538d6c3238f803931d45100c5f246229eca73708",
+      "gate_policy": "exit-status-v1",
+      "validation_sha256": "35e062bd2db7fc88943c3e4440fe0770f0f5abfd388e27269dd25d8b57d62e5d"
+    },
+    "outputs": {
+      "candidate": {
+        "model": "controlled-worker-no-inference",
+        "requested_model": "gpt-6-luna",
+        "session_id": "controlled-smoke",
+        "thread_id": "controlled-run-7d6e3930da663c33ceaf954447455032",
+        "workspace": "/tmp/dev233-contained-recovery-final/workspaces/fail"
+      }
+    },
+    "workspace": "/tmp/dev233-contained-recovery-final/workspaces/fail",
+    "pending_wait": null,
+    "agents": {
+      "worker": {
+        "model": "gpt-6-luna",
+        "daybreak": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "thread_id": "controlled-run-7d6e3930da663c33ceaf954447455032",
+    "stage_id": "blocked",
+    "current_attempt_id": null,
+    "operations": {
+      "run-7d6e3930da663c33ceaf954447455032/implement/1": {
+        "id": "run-7d6e3930da663c33ceaf954447455032/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.208.0>",
+          "boot_id": "24addfb19e3bf7dbc42acb1652702fac"
+        },
+        "stage": "implement",
+        "attempt_id": "run-7d6e3930da663c33ceaf954447455032/implement/1",
+        "transport_retries": 0,
+        "side_effect_id": "run-7d6e3930da663c33ceaf954447455032/implement/1"
+      },
+      "run-7d6e3930da663c33ceaf954447455032/validate/2": {
+        "id": "run-7d6e3930da663c33ceaf954447455032/validate/2",
+        "status": "completed",
+        "type": "check",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.210.0>",
+          "boot_id": "24addfb19e3bf7dbc42acb1652702fac"
+        },
+        "stage": "validate",
+        "attempt_id": "run-7d6e3930da663c33ceaf954447455032/validate/2",
+        "transport_retries": 0,
+        "side_effect_id": "run-7d6e3930da663c33ceaf954447455032/validate/2"
+      }
+    },
+    "issue_id": null,
+    "created_at": "2026-10-10T07:21:11.935462Z",
+    "task_id": "fail",
+    "validation_repair_rounds": 0,
+    "repairs": {},
+    "artifacts": {
+      "candidate": {
+        "sha256": "f612a9e5f4bad50d83a60c9749e3d7124be055541d82e40adaad95040b532918",
+        "run_id": "run-7d6e3930da663c33ceaf954447455032",
+        "attempt_id": "run-7d6e3930da663c33ceaf954447455032/implement/1"
+      }
+    },
+    "attempts": [
+      {
+        "id": "run-7d6e3930da663c33ceaf954447455032/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "model": "controlled-worker-no-inference",
+            "requested_model": "gpt-6-luna",
+            "session_id": "controlled-smoke",
+            "thread_id": "controlled-run-7d6e3930da663c33ceaf954447455032",
+            "workspace": "/tmp/dev233-contained-recovery-final/workspaces/fail"
+          }
+        },
+        "stage": "implement",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 1
+      },
+      {
+        "id": "run-7d6e3930da663c33ceaf954447455032/validate/2",
+        "status": "completed",
+        "type": "check",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "exit_status": 1,
+            "output": "",
+            "timed_out": false,
+            "truncated": false
+          }
+        },
+        "stage": "validate",
+        "gate": "failed",
+        "gate_detail": null,
+        "ordinal": 2
+      }
+    ],
+    "retry_operation_id": null,
+    "review_repair_rounds": 0,
+    "transport_retries": 0
+  },
+  "controlled_workers": true,
+  "checks": [
+    "stage-boundary restart",
+    "pinned human-wait restart",
+    "duplicate queue/answer",
+    "one real executable side effect",
+    "failed migration rollback",
+    "changed files affect new runs",
+    "failing gate blocks"
+  ]
+}

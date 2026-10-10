@@ -162,6 +162,26 @@ defmodule SymphonyElixir.SSHTest do
              "bash -lc 'printf '\"'\"'hello'\"'\"''"
   end
 
+  test "forced operation command reaches SSH without a shell wrapper" do
+    root = Path.join(System.tmp_dir!(), "symphony-ssh-forced-#{System.unique_integer([:positive])}")
+    trace_file = Path.join(root, "ssh.trace")
+    previous_path = System.get_env("PATH")
+
+    on_exit(fn ->
+      restore_env("PATH", previous_path)
+      File.rm_rf(root)
+    end)
+
+    install_fake_ssh!(root, trace_file)
+    command = "factory-operation rpc eyJhY3Rpb24iOiJjYXBhYmlsaXRpZXMifQ"
+    assert {:ok, port} = SSH.start_port("factory-control@worker:2222", command, raw_command: true, line: 1024)
+    wait_for_trace!(trace_file)
+    trace = File.read!(trace_file)
+    assert trace =~ "-T -p 2222 factory-control@worker #{command}"
+    refute trace =~ "bash -lc"
+    if Port.info(port), do: Port.close(port)
+  end
+
   defp install_fake_ssh!(test_root, trace_file, script \\ nil) do
     fake_bin_dir = Path.join(test_root, "bin")
     fake_ssh = Path.join(fake_bin_dir, "ssh")

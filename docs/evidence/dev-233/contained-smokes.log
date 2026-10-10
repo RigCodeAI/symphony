@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "report": "/tmp/dev233-contained-intake-final/report.json",
+  "database": "/tmp/dev233-contained-intake-final/state.sqlite"
+}
+╭─ SYMPHONY STATUS
+│ app_status=offline
+╰─
+{
+  "status": "passed",
+  "report": "/tmp/dev233-contained-recovery-final/report.json",
+  "database": "/tmp/dev233-contained-recovery-final/state/runs.sqlite",
+  "pass_run": "run-01ebc75f49562c6a014d607613307ad4",
+  "fail_run": "run-7d6e3930da663c33ceaf954447455032"
+}

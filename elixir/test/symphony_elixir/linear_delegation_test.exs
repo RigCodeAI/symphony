@@ -576,6 +576,32 @@ defmodule SymphonyElixir.LinearDelegationTest do
     refute_receive {:stage_started, _, _, _}, 100
   end
 
+  test "stop acknowledges while termination is pending and keeps the coordinator responsive", c do
+    parent = self()
+
+    canceller = fn _run, _operation, _pid ->
+      send(parent, {:termination_pending, self()})
+
+      receive do
+        :confirm_termination -> :terminated
+      end
+    end
+
+    runtime = runtime(c, workstream_canceller: canceller)
+    assert :ok = Orchestrator.receive_linear_event(runtime.coordinator, event(c, :created, "async-created"))
+    assert_receive {:stage_started, "implement", _worker, run_id}, 5_000
+    assert :ok = Orchestrator.receive_linear_event(runtime.coordinator, event(c, :stop, "async-stop"))
+    assert_receive {:termination_pending, cancellation}, 5_000
+    assert %{status: :stopped, cancellation: %{termination: :unknown}} = run_state(runtime, run_id)
+    stored = :sys.get_state(runtime.coordinator).workstreams.runs[run_id]
+    assert stored.operations[stored.current_attempt_id].status == :executing
+    assert {:duplicate, _} = Orchestrator.receive_linear_event(runtime.coordinator, event(c, :stop, "async-stop"))
+    assert :ok = Orchestrator.reconcile_workstreams(runtime.coordinator)
+    refute_receive {:termination_pending, _}, 100
+    send(cancellation, :confirm_termination)
+    wait_run(runtime, run_id, &(&1.cancellation.termination == :terminated))
+  end
+
   test "reconciliation releases a stopped slot only after trusted termination proof", c do
     proof = start_supervised!({Agent, fn -> :unknown end})
     runtime = runtime(c, workstream_canceller: fn _run, _operation, _pid -> Agent.get(proof, & &1) end)
@@ -587,12 +613,39 @@ defmodule SymphonyElixir.LinearDelegationTest do
     assert %{cancellation: %{termination: :unknown}} = run_state(runtime, run_id)
     Agent.update(proof, fn _ -> :terminated end)
     assert :ok = Orchestrator.reconcile_workstreams(runtime.coordinator)
+    wait_run(runtime, run_id, &(&1.cancellation.termination == :terminated))
     assert %{status: :stopped, cancellation: %{termination: :terminated}} = run_state(runtime, run_id)
     stored = :sys.get_state(runtime.coordinator).workstreams.runs[run_id]
     assert stored.operations[stored.current_attempt_id].status == :canceled
     assert is_pid(restart(runtime))
     assert %{status: :stopped, cancellation: %{termination: :terminated}} = run_state(runtime, run_id)
     refute_receive {:stage_started, _, _, _}, 100
+  end
+
+  test "a lost external termination proof keeps the completed worker's operation reserved", c do
+    parent = self()
+
+    executor = fn _stage, _definition, run, _opts ->
+      send(parent, {:uncertain_worker, self(), run.id})
+
+      receive do
+        :finish_without_proof -> {:uncertain, :external_termination_unknown}
+      end
+    end
+
+    runtime = runtime(c, stage_executor: executor, max_concurrent_agents: 1)
+    assert :ok = Orchestrator.receive_linear_event(runtime.coordinator, event(c, :created, "uncertain-result"))
+    assert_receive {:uncertain_worker, worker, run_id}, 5_000
+    send(worker, :finish_without_proof)
+    await(fn -> if run_state(runtime, run_id).status == :reconciling, do: true end)
+    stored = :sys.get_state(runtime.coordinator).workstreams.runs[run_id]
+    assert stored.operations[stored.current_attempt_id].status == :executing
+    assert List.last(stored.attempts).status == :executing
+    assert is_pid(restart(runtime))
+    assert run_state(runtime, run_id).status == :reconciling
+    assert :ok = Orchestrator.step_workstreams(runtime.coordinator)
+    refute_receive {:uncertain_worker, _, _}, 100
+    refute File.exists?(Path.join(c.workspace, "effects"))
   end
 
   test "real dispatch stays blocked when execution control is unavailable", c do

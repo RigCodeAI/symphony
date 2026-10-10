@@ -48,12 +48,13 @@ The shipped [software-change definition](../factory/workstreams/software-change.
 DEV-231's `factory/agents/default-cloud.yaml`. It implements a local candidate, checks that
 HEAD exists and the working tree is clean, then pauses at a durable human wait. This local
 inspection does not qualify arbitrary Rig candidates using the
-demo validation policy or publish them. The shared agent/readiness combination must be
-integrated before production startup can dispatch.
-Production qualification also requires contained worker execution control. Until that
-integration exists, the default returns `worker_execution_control_unavailable` before
-acknowledgement or launch. Controlled tests supply an explicit execution-control callback;
-that callback is not a workflow configuration switch.
+demo validation policy or publish them. DEV-231 supplies the shared agent/readiness implementation; the intended worker must
+remain qualified before production dispatch.
+Production qualification also requires `worker_control` with an exact machine and verified
+release, plus a current root-owned containment receipt. Its absence returns
+`worker_execution_control_unavailable` before acknowledgement or launch. See
+[contained worker operations](contained-worker-operations.md) for configuration and the
+reviewable installation change. Controlled test callbacks cannot enable production control.
 
 From `elixir/`, start the configured workflow with:
 
@@ -91,26 +92,21 @@ retain their evidence and workspaces. There is no automatic cleanup, merge or re
 reset in this increment.
 
 A stage executor receives an `on_process_start` callback. It must hold execution until the
-coordinator durably accepts the operation's external identity. The current registration
-path accepts a local Linux process group identity: operation ID, machine ID, OS boot ID,
-leader PID, group ID and process start ticks. Only the current supervised worker can
-register it. Repeated identical registration is safe across coordinator restart; conflicting
-or stale identity rejects. The ordinary Codex launcher does not yet use this held-launch
-contract, so these tests do not establish controlled production execution.
+coordinator durably accepts the operation's external identity. The production registration
+path accepts a systemd operation identity: operation ID, machine, OS boot, unit,
+invocation, cgroup and request digest. Only the current supervised worker can register
+it. Repeated identical registration is safe across coordinator restart; conflicting or
+stale identity rejects. The Codex launcher and executable checks use the same held-launch
+control path when configured.
 
-The provisional local adapter verifies this identity before TERM and bounded KILL. It keeps
-the result `unknown` even after group cleanup, because a descendant can escape with `setsid`.
-Terminating the supervised Elixir task or local SSH process cannot prove remote termination.
-Unknown external execution reserves capacity through restart. Explicit reconciliation may
-release it only when a trusted adapter returns termination proof; the stopped task remains
-stopped and cannot restart. External whole-tree proof remains a live acceptance requirement.
-
-The proposed production path uses the existing SSH connection to a worker-owned transient
-systemd unit. Hold launch, persist the operation ID, worker machine/OS boot identity, unit
-name and invocation identity, then release. Stop/reconcile must verify those identities,
-request bounded termination and prove the operation's entire cgroup is empty. A connection
-failure, stale identity or missing proof keeps capacity reserved. This path needs worker
-support and deployment qualification; no remote control transport is implemented here.
+The provisional local process-group adapter remains available for controlled tests. It
+always reports `unknown`, since a descendant can escape with `setsid`. Terminating the
+Elixir task or SSH client cannot prove remote termination. Stop commits immediately, then
+bounded supervised cancellation verifies the exact worker invocation and its whole cgroup.
+Unknown execution reserves capacity through restart. Reconciliation frees the slot only
+after trusted termination proof; the stopped task cannot restart. A completed SSH stream
+without proof leaves the run reconciling. The chosen SSH/root-broker/systemd transport is
+implemented locally; deployment and real containment qualification remain pending.
 
 The verifier bounds raw intake to 256 KiB, requires unique signature/delivery/event headers,
 checks HMAC-SHA256 over original bytes and checks the signed `webhookTimestamp` within
@@ -153,8 +149,10 @@ removing only that disposable output directory. It makes no Linear API call or a
    using app authentication. Record organization/app/OAuth identity IDs, without secret values.
 2. Provision the signing secret and OAuth token to the coordinator only. Register the HTTPS
    `/hooks/linear` endpoint and the required native session, app notification and Issue updates.
-3. Integrate and qualify Default Cloud readiness on the intended worker; install the explicit
-   software-change definition and dedicated Rig clone. Prove external cancellation works.
+3. Qualify Default Cloud readiness on the intended worker; install the explicit software-change
+   definition and dedicated Rig clone. Review the control account/root broker installation,
+   run the disposable systemd card, and install its reviewed current containment receipt.
+   Prove natural completion, replay/recovery and external whole-tree cancellation work.
 4. Delegate one disposable eligible DEV/Rig issue with its human assignee intact. Record the
    acknowledged activity UUID, run/stage IDs, selected agent and pinned definition digests.
 5. Replay the same signed delivery within its freshness window and restart the coordinator;

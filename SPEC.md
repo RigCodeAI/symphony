@@ -27,7 +27,7 @@ Transport retries preserve the side-effect identity and do not reset repair coun
 Transactional migrations fail startup clearly and preserve previously committed data.
 
 This is a controlled local alpha. Durable mode does not poll a tracker, publish PRs, merge,
-or implement remote-worker fencing. The existing tracker-mode workflow, supervision and
+or implement general remote-worker scheduling. The existing tracker-mode workflow, supervision and
 in-memory scheduling behavior remain compatible.
 
 ### Opt-in native Linear delegation
@@ -44,8 +44,8 @@ do not authorize dispatch. The current agent session must belong to the configur
 issue. The human assignee is preserved. A created session selects the explicit software-change
 entry and cloud agent, pins one run per issue, and acknowledges using a persisted activity UUID
 before any stage launches. Unknown routing, unavailable readiness or unsafe credentials block.
-Production dispatch also requires contained worker execution control; it remains blocked
-until that control is integrated and qualified.
+Production dispatch also requires the pinned SSH/systemd worker control path and a current
+root-owned containment qualification receipt. Missing or stale qualification blocks dispatch.
 Enqueue must match the resolved definition digest used for qualification; a source change in
 that interval blocks. Recovery requalifies an orphaned pinned run before linking its task.
 
@@ -63,6 +63,19 @@ restart. The provisional local Linux adapter fences machine, OS boot, process gr
 process start identity before bounded signaling. It always reports unknown, since descendants
 can escape the group. Explicit reconciliation frees a stopped slot only after trusted
 termination proof; it never restarts the stopped task.
+
+For a configured remote worker, a separate forced-command control account reaches a root
+broker over a peer-UID-checked Unix socket. The broker reserves each operation before launching
+a fixed held wrapper in a unique systemd unit. It accepts no client-selected unit properties
+or environment. Durable acknowledgement precedes release. Machine, boot, unit invocation and
+request digest fence every later action. There is one active or unknown operation per worker
+UID/host. This contains processes; it does not isolate historical tasks sharing that UID.
+Stop work runs in supervised jobs after the tombstone commits, keeping intake responsive.
+SSH completion alone cannot finish a stage or free capacity. A terminal exact invocation must
+have an empty cgroup, proved by readable recursive population zero or by systemd's release of
+that cgroup on a qualified systemd version. Missing evidence remains unknown. Installation is
+an explicit reviewed operator action; no deployed qualification is claimed. See
+[contained worker operations](docs/contained-worker-operations.md).
 
 Status: Draft v1 (language-agnostic)
 

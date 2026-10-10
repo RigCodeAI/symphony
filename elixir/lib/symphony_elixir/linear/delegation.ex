@@ -3,10 +3,10 @@ defmodule SymphonyElixir.Linear.Delegation do
 
   alias SymphonyElixir.Linear.Client
   alias SymphonyElixir.Tracker.Issue
-  alias SymphonyElixir.WorkstreamRunner
+  alias SymphonyElixir.{WorkerOperation, WorkstreamRunner}
 
   @required ~w(organization_id team_id app_user_id oauth_client_id webhook_secret_env token_env store_path workspace_root workstream_path agent_id rig_label)
-  @optional ~w(workspaces codex_command reconcile_interval_ms)
+  @optional ~w(workspaces codex_command reconcile_interval_ms worker_control)
 
   @spec validate(map()) :: {:ok, map()} | {:error, atom()}
   def validate(config) when is_map(config) do
@@ -60,6 +60,7 @@ defmodule SymphonyElixir.Linear.Delegation do
     workspace = config["workspaces"][issue.id]
     execution = [workspace: workspace, workspace_root: config["workspace_root"], issue_id: issue.id]
     execution = if config["codex_command"], do: Keyword.put(execution, :codex_command, config["codex_command"]), else: execution
+    execution = if config["worker_control"], do: Keyword.put(execution, :worker_control, config["worker_control"]), else: execution
 
     with true <- is_binary(workspace),
          {:ok, definition, _workspace} <- WorkstreamRunner.prepare(config["workstream_path"], inputs, execution),
@@ -68,6 +69,7 @@ defmodule SymphonyElixir.Linear.Delegation do
          true <- agent == config["agent_id"] and Map.has_key?(definition.agents, agent),
          :ok <- qualify(definition, agent, config, opts) do
       execution = Keyword.put(execution, :definition_sha256, definition_digest(definition))
+      execution = pin_agent_authentication(execution, definition.agents[agent])
       {:ok, %{path: config["workstream_path"], inputs: inputs, execution: execution, agent_id: agent}}
     else
       false -> {:error, :unknown_workstream_agent_or_workspace}
@@ -82,9 +84,17 @@ defmodule SymphonyElixir.Linear.Delegation do
   @spec qualify(map(), String.t(), map(), keyword()) :: :ok | {:error, term()}
   def qualify(definition, agent, config, opts) do
     readiness = Keyword.get(opts, :linear_readiness, &qualified_agent/2)
-    control = Keyword.get(opts, :linear_execution_control, fn _definition, _agent -> {:error, :worker_execution_control_unavailable} end)
+    control = Keyword.get(opts, :linear_execution_control, fn _definition, _agent -> qualify_worker_control(config["worker_control"]) end)
     with :ok <- credential_environment(config), :ok <- readiness.(definition, agent), do: control.(definition, agent)
   end
+
+  defp qualify_worker_control(nil), do: {:error, :worker_execution_control_unavailable}
+  defp qualify_worker_control(control), do: WorkerOperation.qualify(control)
+
+  defp pin_agent_authentication(execution, %{authentication: %{reference: reference}}),
+    do: Keyword.put(execution, :authentication_reference, reference)
+
+  defp pin_agent_authentication(execution, _agent), do: execution
 
   @spec acknowledge(map(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def acknowledge(task, config, opts) do
@@ -148,7 +158,9 @@ defmodule SymphonyElixir.Linear.Delegation do
 
   defp valid_optional?(config) do
     interval = config["reconcile_interval_ms"] || 5_000
-    is_integer(interval) and interval >= 1_000 and (is_nil(config["codex_command"]) or is_binary(config["codex_command"]))
+
+    is_integer(interval) and interval >= 1_000 and (is_nil(config["codex_command"]) or is_binary(config["codex_command"])) and
+      (is_nil(config["worker_control"]) or (is_nil(config["codex_command"]) and WorkerOperation.validate_config(config["worker_control"]) == :ok))
   end
 
   defp credential_environment(config) do

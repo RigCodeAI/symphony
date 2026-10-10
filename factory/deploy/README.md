@@ -1,5 +1,10 @@
 # Portable pilot deployment
 
+Native delegation uses a separate, opt-in contained-operation broker. Review
+[its installation and qualification card](../../docs/contained-worker-operations.md)
+before installing the control account or root service. Existing bootstrap and
+activation do not enable that path.
+
 These scripts operate a pilot release extracted under
 `/opt/factory/releases/<service-revision>`. A deployment contains
 `RELEASE.json` with a 40-character `service_revision` and a root-written

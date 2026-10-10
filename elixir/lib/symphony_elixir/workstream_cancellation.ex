@@ -1,10 +1,11 @@
 defmodule SymphonyElixir.WorkstreamCancellation do
   @moduledoc """
-  Provisional cancellation for a locally controlled Linux process group.
+  Cancellation through the pinned external operation adapter.
 
   Process groups provide bounded best-effort cleanup, but descendants can escape
-  with `setsid`. This adapter therefore always reports `:unknown`; a future
-  operation-scoped cgroup or systemd boundary can provide whole-tree proof.
+  with `setsid`, so the local group adapter always reports `:unknown`. A systemd
+  operation releases capacity only after the worker confirms termination of the
+  exact contained operation. That control path requires worker qualification.
   """
 
   @kind "linux-process-group"
@@ -61,7 +62,10 @@ defmodule SymphonyElixir.WorkstreamCancellation do
   Even after local cleanup, process-group control cannot prove that no descendant
   escaped the group, so the result remains `:unknown` and must not trigger replacement.
   """
-  @spec cancel(map(), map(), pid() | nil) :: :unknown
+  @spec cancel(map(), map(), pid() | nil) :: :unknown | :terminated
+  def cancel(run, %{external_process: %{"kind" => "systemd-unit"} = identity}, _worker_pid),
+    do: SymphonyElixir.WorkerOperation.stop(run.execution[:worker_control], identity)
+
   def cancel(_run, operation, _worker_pid) when is_map(operation) do
     with operation_id when is_binary(operation_id) and operation_id != "" <- map_value(operation, :id),
          identity when is_map(identity) <- map_value(operation, :external_process),
