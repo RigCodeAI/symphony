@@ -183,6 +183,25 @@ class CountingController:
 
 
 class WorkerOperationTransportTests(unittest.TestCase):
+    def test_stdin_pipe_forwards_short_request_before_eof(self):
+        read_fd, write_fd = os.pipe()
+        source = os.fdopen(read_fd, "rb")
+        sender, receiver = socket.socketpair()
+        thread = threading.Thread(target=transport._copy_stdin_to_socket, args=(source, sender), daemon=True)
+        request = b'{"method":"initialize","id":0}\n'
+        thread.start()
+        try:
+            os.write(write_fd, request)
+            receiver.settimeout(0.5)
+            self.assertEqual(receiver.recv(1024), request)
+        finally:
+            os.close(write_fd)
+            thread.join(timeout=1)
+            source.close()
+            sender.close()
+            receiver.close()
+        self.assertFalse(thread.is_alive(), "stdin copy thread did not stop at EOF")
+
     def make_broker(self, directory: Path, controller, *, control_uid: int | None = None,
                     stream_timeout: float = 5.0) -> transport.OperationBroker:
         directory.chmod(0o750)

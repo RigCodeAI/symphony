@@ -1077,9 +1077,14 @@ def _emit_error(output: BinaryIO, code: str) -> int:
 
 
 def _copy_stdin_to_socket(source: BinaryIO, connection: socket.socket) -> None:
+    # Persistent SSH stdin must forward short requests without waiting for EOF
+    # or enough bytes to fill a buffered read.
+    read = getattr(source, "read1", None)
+    if not callable(read):
+        read = source.read
     try:
         while True:
-            chunk = source.read(65536)
+            chunk = read(65536)
             if not chunk:
                 break
             connection.sendall(chunk)
