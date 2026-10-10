@@ -35,8 +35,21 @@ in-memory scheduling behavior remain compatible.
 `linear_delegation` enables authenticated `POST /hooks/linear` intake into the same durable
 coordinator. The service verifies HMAC against the original request bytes and requires a
 signed timestamp within 60 seconds. Delivery identity and normalized event contents are
-persisted before HTTP acknowledgement; conflicting replay contents reject. Raw prompts and
+persisted before HTTP acknowledgement; conflicting replay contents reject. Only bounded, redacted human prompt bodies are retained for reply delivery; raw webhook payloads and
 credentials are not persisted in receipt records.
+
+Native `prompted` messages are associated with the saved session and persisted once by
+activity ID, independently of HTTP delivery ID. Questions pin the run, stage attempt and
+artifact identities. They publish native elicitations through a persisted outbox; progress,
+failure and stop use the same idempotent publication path. Agent-authored activities do not
+trigger human replies. Necessary input closes the app-server operation with trusted
+termination before releasing capacity. Unknown termination retains the ownership reservation.
+Restart preserves waits and pending replies. Continuation reconstructs pinned stage context
+in a fresh conversation; pending JSON-RPC IDs from the closed connection are never replayed.
+Native user-input requests become clarifications; unsupported permission approvals remain
+explicit blockers. Trusted `human_wait` stages can declare `approval: true`, requiring an
+explicit approval of the current wait and artifact digest. Ordinary clarification and stale
+artifact approval cannot satisfy that gate. See [question/reply contract](docs/linear-questions.md).
 
 Delegation can use coordinator-only OAuth client credentials through `client_secret_env`
 instead of the compatible legacy `token_env`. Exactly one is configured. App tokens use
