@@ -3,7 +3,7 @@
 # in instance metadata, Terraform inputs, release archives or object backups.
 set -Eeuo pipefail
 umask 077
-trap 'printf "FACTORY_EVENT startup_failed\n" >>/var/log/factory-events.log' ERR
+trap 'factory_startup_exit=$?; printf "%s FACTORY_EVENT startup_failed exit=%s line=%s\n" "$(date -u +%FT%TZ)" "$factory_startup_exit" "$LINENO" >>/var/log/factory-events.log' ERR
 
 [[ "$EUID" -eq 0 ]] || { echo 'Startup requires root' >&2; exit 1; }
 # The Compute startup unit omits a login environment. Re-enter as the actual
