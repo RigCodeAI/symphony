@@ -1,5 +1,27 @@
 # DEV-233 local checkpoint
 
+## Selected dashboard domain, 2026-10-10
+
+The user selected managed-domain dashboard access as `domain:rig.ai`. Source adds
+`iap_viewer_domains` with a default empty set, keeps existing email input/resource
+addresses and scopes both grants to the dashboard backend's
+`roles/iap.httpsResourceAccessor`. Operator tunnel/OS Login inputs are separate.
+The [morning card](../../dev-233-morning-decision.md) records the selection while
+hostname, managed-domain/organization eligibility, app and ingress rollout stay pending.
+
+Focused Terraform checks: **nine module mock plans** passed
+([output](iap-domain-module.log)); **four root mock plans** passed
+([output](iap-domain-root.log)). They cover domain-only and mixed access, unchanged
+email addresses/grants, disabled ingress, malformed domains, the empty-viewer gate
+and unconfirmed organization rejection. Commands: `terraform -chdir=infra/gcp/modules/pilot
+test` and `terraform -chdir=infra/gcp/pilot test -filter=tests/iap-domain.tftest.hcl`.
+Both configurations validate; recursive formatting and diff checks pass. Self-review
+confirmed only dashboard backend IAM is added and ingress remains default-off.
+No broad tests, cloud IAM changes or apply ran. Mock plans do not verify real domain
+eligibility or access; check the managed customer and eligible users before deployment,
+including any primary/secondary domains attached to the same customer. See Google's
+[domain semantics](https://docs.cloud.google.com/iam/docs/principals-overview#domains).
+
 ## Existing-worker compatibility and deployment wiring, 2026-10-10
 
 Read-only IAP/SSH preflight found the existing worker idle, with systemd 252.39,

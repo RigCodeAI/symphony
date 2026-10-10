@@ -314,10 +314,10 @@ variable "enable_https_iap" {
     condition = !var.enable_https_iap || (
       var.viewer_hostname != null &&
       can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.viewer_hostname)) &&
-      length(var.iap_viewer_emails) > 0 &&
+      (length(var.iap_viewer_emails) + length(var.iap_viewer_domains)) > 0 &&
       var.iap_google_managed_oauth_confirmed
     )
-    error_message = "enable_https_iap requires a DNS hostname, at least one viewer email and confirmation that Google-managed OAuth is supported by the project organization."
+    error_message = "enable_https_iap requires a DNS hostname, at least one viewer email or managed domain and confirmation that Google-managed OAuth is supported by the project organization."
   }
 }
 
@@ -366,6 +366,17 @@ variable "iap_viewer_emails" {
   validation {
     condition     = alltrue([for email in var.iap_viewer_emails : can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", email))])
     error_message = "iap_viewer_emails must contain valid email addresses."
+  }
+}
+
+variable "iap_viewer_domains" {
+  description = "Google Workspace or Cloud Identity managed domains allowed through dashboard IAP. Verify domain and project organization eligibility before deployment."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for domain in var.iap_viewer_domains : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", domain))])
+    error_message = "iap_viewer_domains must contain bare lowercase DNS domains, without wildcards, email addresses or principal prefixes."
   }
 }
 

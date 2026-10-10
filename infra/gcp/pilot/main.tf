@@ -65,6 +65,7 @@ module "pilot" {
   enable_https_iap                   = var.enable_https_iap
   viewer_hostname                    = var.viewer_hostname
   iap_viewer_emails                  = var.iap_viewer_emails
+  iap_viewer_domains                 = var.iap_viewer_domains
   iap_google_managed_oauth_confirmed = var.iap_google_managed_oauth_confirmed
 
   depends_on = [google_project_service.required]

@@ -182,7 +182,7 @@ run "optional_https_ingress_requires_iap_allowlist" {
   }
 
   assert {
-    condition     = google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].role == "roles/iap.httpsResourceAccessor"
+    condition     = google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].role == "roles/iap.httpsResourceAccessor" && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].member == "user:viewer@example.test" && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].web_backend_service == "rig-factory-coordinator-https"
     error_message = "Only the configured viewer allowlist may use the optional HTTPS endpoint."
   }
 
@@ -190,6 +190,58 @@ run "optional_https_ingress_requires_iap_allowlist" {
     condition     = toset(google_compute_firewall.https_healthcheck[0].source_ranges) == toset(["130.211.0.0/22", "35.191.0.0/16"])
     error_message = "The optional HTTP backend must accept traffic only from Google load-balancer probes and proxies."
   }
+}
+
+run "managed_domain_only_dashboard_access" {
+  command = plan
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_domains                 = ["rig.ai"]
+    iap_google_managed_oauth_confirmed = true
+  }
+  assert {
+    condition     = google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].member == "domain:rig.ai" && google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].role == "roles/iap.httpsResourceAccessor" && google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].web_backend_service == "rig-factory-coordinator-https" && length(google_iap_web_backend_service_iam_member.https_viewer) == 0 && google_compute_backend_service.coordinator_https[0].iap[0].enabled
+    error_message = "Managed-domain access must grant only the dashboard backend IAP role."
+  }
+  assert {
+    condition     = keys(google_iap_tunnel_instance_iam_member.iap_tunnel_operator) == ["operator@example.test"] && length(google_compute_instance_iam_member.os_login_operator) == 1
+    error_message = "Dashboard domains must not receive operator tunnel or OS Login access."
+  }
+}
+
+run "mixed_domain_and_email_dashboard_access" {
+  command = plan
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_domains                 = ["rig.ai"]
+    iap_viewer_emails                  = ["viewer@example.test"]
+    iap_google_managed_oauth_confirmed = true
+  }
+  assert {
+    condition     = length(google_iap_web_backend_service_iam_member.https_domain_viewer) == 1 && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].member == "user:viewer@example.test"
+    error_message = "Domain support must preserve existing email resource addresses and grants."
+  }
+}
+
+run "disabled_ingress_has_no_domain_access_grants" {
+  command = plan
+  variables {
+    iap_viewer_domains = ["rig.ai"]
+  }
+  assert {
+    condition     = length(google_iap_web_backend_service_iam_member.https_domain_viewer) == 0 && length(google_iap_web_backend_service_iam_member.https_viewer) == 0
+    error_message = "Disabled ingress must not create dashboard IAM grants."
+  }
+}
+
+run "invalid_domain_principals_rejected" {
+  command = plan
+  variables {
+    iap_viewer_domains = ["*.rig.ai", "user@rig.ai", "domain:rig.ai", "allUsers"]
+  }
+  expect_failures = [var.iap_viewer_domains]
 }
 
 run "linear_webhook_has_only_an_exact_public_route_and_coordinator_credentials" {

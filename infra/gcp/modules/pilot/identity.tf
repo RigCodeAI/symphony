@@ -175,3 +175,14 @@ resource "google_iap_web_backend_service_iam_member" "https_viewer" {
 
   depends_on = [google_compute_backend_service.coordinator_https]
 }
+
+resource "google_iap_web_backend_service_iam_member" "https_domain_viewer" {
+  for_each = local.ingress_enabled ? var.iap_viewer_domains : toset([])
+
+  project             = var.project_id
+  web_backend_service = "${var.name_prefix}-coordinator-https"
+  role                = "roles/iap.httpsResourceAccessor"
+  member              = "domain:${each.value}"
+
+  depends_on = [google_compute_backend_service.coordinator_https]
+}

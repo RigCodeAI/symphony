@@ -32,6 +32,15 @@ See [worker preflight](evidence/dev-233/worker-preflight.json),
 [name-only secret inventory](evidence/dev-233/linear-secret-inventory.json).
 These are point-in-time observations, not a containment or live-delegation receipt.
 
+Dashboard viewer selection is resolved: the user chose everyone in the managed
+`rig.ai` domain, represented by the IAP principal `domain:rig.ai`. This means Google
+Workspace/Cloud Identity domain members, rather than an email-suffix check. Domain
+ownership, membership and eligibility with this project's Google-managed IAP OAuth
+remain unverified and must be confirmed before deployment. Google documents
+[domain principal identifiers](https://docs.cloud.google.com/iam/docs/principal-identifiers)
+and [IAP domain access](https://docs.cloud.google.com/iap/docs/authenticate-users-google-accounts).
+This selection does not grant worker maintenance or SSH access.
+
 ## Locally prepared changes
 
 The reviewed checkpoint `77f72fafbb0806fa6b724aed2403896c84bcaead` remains in history.
@@ -58,9 +67,10 @@ not permission to install, grant access, expose ingress or claim host qualificat
    Worker root maintenance access was not established by the read-only service-user SSH
    route. Use the existing administrator's GCP maintenance route; no new SSH/IAM grant is
    assumed. No new VM, project, region or key pair is needed by the source design.
-2. **Hostname and dashboard access:** choose a DNS hostname controlled by Rig, confirm
-   DNS administration and Google-managed IAP eligibility, and provide the dashboard viewer
-   allowlist. `factory.rig.ai` is only an example, not a selected or verified hostname.
+2. **Hostname and eligibility:** choose a DNS hostname controlled by Rig and confirm
+   DNS administration, the managed `rig.ai` domain and Google-managed IAP eligibility.
+   Dashboard viewers are selected as `domain:rig.ai`; no individual viewer list is needed.
+   `factory.rig.ai` is only an example, not a selected or verified hostname.
    The same host can receive `/hooks/linear` through the separate signed backend. Review
    the concrete Terraform plan before authorizing public ingress or credential IAM changes.
 3. **Assignable Linear app:** identify/install one app using app authentication and record
@@ -99,8 +109,9 @@ optional_integration_secrets = {
 enable_https_iap = true
 enable_linear_webhook = true
 viewer_hostname = "<chosen-hostname>"
-iap_viewer_emails = ["<approved-viewer>"]
-iap_google_managed_oauth_confirmed = true # Only after confirming eligibility.
+iap_viewer_domains = ["rig.ai"] # Emits domain:rig.ai on the dashboard backend only.
+iap_viewer_emails = [] # Existing email inputs remain supported when needed.
+iap_google_managed_oauth_confirmed = true # Only after confirming organization/domain eligibility.
 ```
 
 Keep existing optional refs rather than replacing unrelated entries. Check the plan for

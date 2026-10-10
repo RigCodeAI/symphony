@@ -115,4 +115,15 @@ variable "viewer_hostname" {
   nullable = true
 }
 variable "iap_viewer_emails" { type = set(string) }
+variable "iap_viewer_domains" {
+  description = "Google Workspace or Cloud Identity managed domains allowed through dashboard IAP. Verify domain and project organization eligibility before deployment."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for domain in var.iap_viewer_domains : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", domain))])
+    error_message = "iap_viewer_domains must contain bare lowercase DNS domains, without wildcards, email addresses or principal prefixes."
+  }
+}
+
 variable "iap_google_managed_oauth_confirmed" { type = bool }

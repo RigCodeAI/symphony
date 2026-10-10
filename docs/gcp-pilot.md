@@ -337,6 +337,17 @@ organization support and an explicit Google identity allowlist. Proposed
 `factory.rig.ai` and `hooks.factory.rig.ai` are inputs, not configured DNS or live
 webhook endpoints. Do not publish the dashboard without the identity gate.
 
+The selected dashboard audience is the managed `rig.ai` domain. Set
+`iap_viewer_domains = ["rig.ai"]` to produce `domain:rig.ai`, scoped to the dashboard
+backend's `roles/iap.httpsResourceAccessor`. Existing `iap_viewer_emails` inputs retain
+their user grants and Terraform resource addresses; both inputs can be combined.
+These dashboard inputs grant no operator SSH or OS Login access. Confirm that `rig.ai`
+is a Google Workspace/Cloud Identity managed domain and its intended users are eligible
+for this project's Google-managed IAP OAuth before enabling ingress. That confirmation
+is pending; a matching email suffix alone is insufficient. See Google's
+[principal identifiers](https://docs.cloud.google.com/iam/docs/principal-identifiers)
+and [IAP authentication guidance](https://docs.cloud.google.com/iap/docs/authenticate-users-google-accounts).
+
 ## Smoke, definition rejection and retention
 
 From the coordinator as its service identity, submit the same definition used
