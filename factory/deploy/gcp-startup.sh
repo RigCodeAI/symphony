@@ -238,6 +238,7 @@ if ! dpkg-query -W google-cloud-ops-agent >/dev/null 2>&1; then
   bash /run/factory/install-ops-agent.sh --also-install
   rm /run/factory/install-ops-agent.sh
 fi
+# User settings merge with built-ins; retain the default hostmetrics pipeline.
 cat >/etc/google-cloud-ops-agent/config.yaml <<'EOF'
 logging:
   receivers:
@@ -248,15 +249,6 @@ logging:
     pipelines:
       factory:
         receivers: [factory-events]
-metrics:
-  receivers:
-    host:
-      type: hostmetrics
-      collection_interval: 60s
-  service:
-    pipelines:
-      host:
-        receivers: [host]
 EOF
 systemctl restart google-cloud-ops-agent
 printf '%s FACTORY_EVENT startup_ready\n' "$(date -u +%FT%TZ)" >>/var/log/factory-events.log
