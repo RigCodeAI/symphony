@@ -36,8 +36,10 @@ worker before release. Only a matching root-written release marker allows the
 wrapper to exec. Stream loss, coordinator restart or a stale identity cannot
 authorize another launch.
 
-The broker owns the operation pipes after the first stream claim. Coordinator SSH EOF
-only detaches that client; the broker keeps app-server stdin open. A later connection
+The broker owns the operation pipes after the first stream claim. A full coordinator SSH
+disconnect detaches that client; the broker keeps app-server stdin open. Closing only SSH
+input preserves the client's output connection so it can receive the remaining output.
+A later connection
 may attach to the same exact identity, with one attached client at a time and no second
 launch. Each input/output buffer is bounded to 1 MiB and applies backpressure. Terminal
 output retention expires 60 seconds after trusted termination; cleanup then reaps only

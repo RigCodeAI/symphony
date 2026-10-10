@@ -93,7 +93,9 @@ workspace mapping. The worker cannot replace sibling workspace names. The root-o
 launch gate remains separate; task code never selects unit properties or writable roots.
 The worker broker owns a claimed operation's stdin and stdout across coordinator connection
 loss. A disconnected stream detaches the client without closing the app-server input or
-launching a replacement. Only one client may attach to the exact retained identity at a time.
+launching a replacement. Closing only the client's input keeps its output connection open
+until output drains; a full peer close releases the attachment. Only one client may attach
+to the exact retained identity at a time.
 Buffers are bounded with pipe backpressure; terminal output retention is bounded. This does
 not resume the coordinator conversation automatically. A recovered run with unknown liveness
 continues to reserve capacity until trusted reconciliation or explicit stop.

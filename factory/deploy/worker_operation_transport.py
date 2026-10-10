@@ -1018,7 +1018,9 @@ class OperationBroker:
         to_child, to_client = bytearray(), bytearray()
         child_input_open = child_output_open = True
         client: socket.socket | None = None
+        client_read_open = False
         connected_until = 0.0
+        next_peer_probe = 0.0
         next_status_poll = time.monotonic()
         try:
             while True:
@@ -1055,10 +1057,30 @@ class OperationBroker:
                     if client is not None:
                         client.setblocking(False)
                         connected_until = time.monotonic() + self.stream_timeout
+                        client_read_open = True
+                        next_peer_probe = 0.0
+                    else:
+                        client_read_open = False
 
                 if client is not None and time.monotonic() >= connected_until:
                     session.detach(client)
                     continue
+
+                if (client is not None and not client_read_open
+                        and time.monotonic() >= next_peer_probe):
+                    try:
+                        # recv EOF is ambiguous: forced-SSH clients half-close
+                        # stdin before they read this socket's output. A zero
+                        # length write preserves that distinction without
+                        # adding bytes to the raw app-server protocol; a true
+                        # peer close raises on Unix stream sockets.
+                        client.send(b"")
+                    except (BlockingIOError, InterruptedError):
+                        pass
+                    except OSError:
+                        session.detach(client)
+                        continue
+                    next_peer_probe = time.monotonic() + 0.5
 
                 if client is not None:
                     try:
@@ -1066,7 +1088,7 @@ class OperationBroker:
                     except KeyError:
                         key = None
                     client_events = 0
-                    if len(to_child) < MAX_STREAM_BUFFER:
+                    if client_read_open and len(to_child) < MAX_STREAM_BUFFER:
                         client_events |= selectors.EVENT_READ
                     if to_client:
                         client_events |= selectors.EVENT_WRITE
@@ -1125,7 +1147,11 @@ class OperationBroker:
                         if data:
                             to_child.extend(data)
                         else:
-                            session.detach(client)
+                            # The peer may only have closed its write side.
+                            # Keep the read side for app-server output and
+                            # probe periodically for a full disconnect.
+                            client_read_open = False
+                            next_peer_probe = time.monotonic() + 0.5
                     if key.data == "output" and mask & selectors.EVENT_READ:
                         try:
                             data = os.read(output_fd, min(65536, MAX_STREAM_BUFFER - len(to_client)))

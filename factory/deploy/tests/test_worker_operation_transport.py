@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import grp
+import io
 import json
 import os
 from pathlib import Path
@@ -185,10 +186,11 @@ class CountingController:
 
 
 class ReconnectableController(CountingController):
-    def __init__(self, launch_log: Path) -> None:
+    def __init__(self, launch_log: Path, *, initialize_delay: float = 0.5) -> None:
         super().__init__()
         self.launch_log = launch_log
         self.effects_log = launch_log.with_name("effects.log")
+        self.initialize_delay = initialize_delay
 
     def status(self, value):
         self.calls.append("status")
@@ -230,7 +232,7 @@ class ReconnectableController(CountingController):
             f" open({str(self.effects_log)!r}, 'a', encoding='ascii').write(request.get('method', '')+'\\n')\n"
             " print(json.dumps({'id':request.get('id'),'result':'accepted'}), flush=True)\n"
             " if request.get('method') == 'initialize':\n"
-            "  time.sleep(0.5)\n"
+            f"  time.sleep({self.initialize_delay!r})\n"
             "  print(json.dumps({'event':'continued'}), flush=True)\n"
             " if request.get('method') == 'finish':\n"
             "  time.sleep(0.8)\n"
@@ -501,7 +503,7 @@ class WorkerOperationTransportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             launch_log = directory / "launches.log"
-            controller = ReconnectableController(launch_log)
+            controller = ReconnectableController(launch_log, initialize_delay=1.5)
             broker = self.make_broker(directory, controller)
             thread = self.start_broker(broker)
             release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
@@ -544,10 +546,15 @@ class WorkerOperationTransportTests(unittest.TestCase):
 
                 stream.sendall(b'{"method":"initialize","id":1}\n')
                 self.assertEqual(json.loads(reader.readline()), {"id": 1, "result": "accepted"})
+                session = next(iter(broker._stream_sessions.values()))
                 reader.close()
                 stream.close()
 
-                time.sleep(0.7)
+                detach_deadline = time.monotonic() + 1.5
+                while session.current_connection() is not None and time.monotonic() < detach_deadline:
+                    time.sleep(0.02)
+                self.assertIsNone(session.current_connection(), "full disconnect should release the stream slot")
+                self.assertIsNone(controller._process.poll(), "full disconnect must leave the operation alive")
                 resumed, resumed_reader, resumed_reply = connect_stream(controller.identity)
                 self.assertEqual(resumed_reply, {"ok": "stream_ready"})
                 self.assertEqual(json.loads(resumed_reader.readline()), {"event": "continued"})
@@ -568,6 +575,114 @@ class WorkerOperationTransportTests(unittest.TestCase):
                 while broker._stream_sessions and time.monotonic() < deadline:
                     time.sleep(0.02)
                 self.assertEqual(broker._stream_sessions, {})
+            finally:
+                self.stop_broker(broker, thread)
+                if controller._process is not None and controller._process.poll() is None:
+                    controller._process.kill()
+                    controller._process.wait(timeout=2)
+
+    def test_stream_half_close_preserves_output_for_the_reading_peer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            controller = ReconnectableController(directory / "launches.log")
+            broker = self.make_broker(directory, controller)
+            thread = self.start_broker(broker)
+            release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
+
+            def rpc(action):
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(3)
+                    client.connect(str(broker.socket_path))
+                    request = {"action": action, "identity": controller.identity, "expected_release": release}
+                    client.sendall(transport._compact_json(request) + b"\n")
+                    client.shutdown(socket.SHUT_WR)
+                    return json.loads(client.makefile("rb").readline())
+
+            try:
+                stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                stream.settimeout(3)
+                stream.connect(str(broker.socket_path))
+                envelope = {
+                    "action": "stream",
+                    "identity": controller.identity,
+                    "expected_release": release,
+                }
+                stream.sendall(transport._compact_json(envelope) + b"\n")
+                reader = stream.makefile("rb")
+                self.assertEqual(json.loads(reader.readline()), {"ok": "stream_ready"})
+                self.assertEqual(json.loads(reader.readline()), {"event": "ready"})
+                self.assertEqual(rpc("release")["ok"]["status"], "released")
+
+                stream.sendall(b'{"method":"finish","id":5}\n')
+                stream.shutdown(socket.SHUT_WR)
+                self.assertEqual(json.loads(reader.readline()), {"id": 5, "result": "accepted"})
+                self.assertEqual(json.loads(reader.readline()), {"event": "final"})
+                self.assertEqual(reader.readline(), b"")
+                reader.close()
+                stream.close()
+
+                session_deadline = time.monotonic() + 3
+                while broker._stream_sessions and time.monotonic() < session_deadline:
+                    time.sleep(0.02)
+                self.assertEqual(broker._stream_sessions, {})
+                self.assertEqual(controller.calls.count("claim_stream"), 1)
+                self.assertEqual(controller.effects_log.read_text(encoding="ascii"), "finish\n")
+                self.assertIsNotNone(controller._process.poll())
+            finally:
+                self.stop_broker(broker, thread)
+                if controller._process is not None and controller._process.poll() is None:
+                    controller._process.kill()
+                    controller._process.wait(timeout=2)
+
+    def test_forced_ssh_half_closed_stdin_still_returns_worker_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            controller = ReconnectableController(directory / "launches.log")
+            broker = self.make_broker(directory, controller)
+            thread = self.start_broker(broker)
+            release = {"service_revision": REVISION, "release_sha256": RELEASE_SHA256}
+
+            def rpc(action):
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(3)
+                    client.connect(str(broker.socket_path))
+                    request = {"action": action, "identity": controller.identity, "expected_release": release}
+                    client.sendall(transport._compact_json(request) + b"\n")
+                    client.shutdown(socket.SHUT_WR)
+                    return json.loads(client.makefile("rb").readline())
+
+            try:
+                self.assertEqual(rpc("release")["ok"]["status"], "released")
+                output = io.BytesIO()
+                result = transport.ssh_client_main(
+                    environment={
+                        "SSH_ORIGINAL_COMMAND": transport.encode_ssh_command(
+                            "stream",
+                            {"identity": controller.identity, "expected_release": release},
+                        ),
+                    },
+                    input_stream=io.BytesIO(b'{"method":"finish","id":6}\n'),
+                    output_stream=output,
+                    socket_path=broker.socket_path,
+                    expected_socket_uid=os.getuid(),
+                    expected_socket_gid=os.getgid(),
+                    expected_directory_uid=os.getuid(),
+                    expected_directory_gid=os.getgid(),
+                )
+
+                self.assertEqual(result, 0)
+                self.assertEqual(
+                    [json.loads(line) for line in output.getvalue().splitlines()],
+                    [
+                        {"ok": "stream_ready"},
+                        {"event": "ready"},
+                        {"id": 6, "result": "accepted"},
+                        {"event": "final"},
+                    ],
+                )
+                self.assertEqual(controller.calls.count("claim_stream"), 1)
+                self.assertEqual(controller.effects_log.read_text(encoding="ascii"), "finish\n")
+                self.assertIsNotNone(controller._process.poll())
             finally:
                 self.stop_broker(broker, thread)
                 if controller._process is not None and controller._process.poll() is None:
