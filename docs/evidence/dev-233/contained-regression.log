@@ -1,0 +1,35 @@
+specs.check: all public functions have @spec or exemption
+Running ExUnit with seed: 645367, max_cases: 6
+Excluding tags: [:validation_docker]
+
+......................................
+Finished in 11.7 seconds (0.6s async, 11.0s sync)
+38 tests, 0 failures
+Finding suitable PLTs
+Checking PLT...
+[:asn1, :bandit, :compiler, :crypto, :date_time_parser, :db_connection, :decimal, :ecto, :eex, :elixir, :exqlite, :finch, :hpax, :jason, :kernel, :logger, :mime, :mint, :mix, :nimble_options, :nimble_pool, :phoenix, :phoenix_html, :phoenix_live_view, :phoenix_pubsub, :phoenix_template, :plug, :plug_crypto, :public_key, :req, :solid, :ssl, :stdlib, :symphony_elixir, :telemetry, :thousand_island, :websock, :websock_adapter, :yamerl, :yaml_elixir]
+PLT is up to date!
+No :ignore_warnings opt specified in mix.exs and default does not exist.
+
+Starting Dialyzer
+[
+  check_plt: false,
+  init_plt: ~c"/workspace/elixir/_build/dev/dialyxir_erlang-28.5.0.6_elixir-1.19.5_deps-dev.plt",
+  files: [~c"/workspace/elixir/_build/dev/lib/symphony_elixir/ebin/Elixir.SymphonyElixir.GitHub.Client.beam",
+   ~c"/workspace/elixir/_build/dev/lib/symphony_elixir/ebin/Elixir.SymphonyElixirWeb.Router.Helpers.beam",
+   ~c"/workspace/elixir/_build/dev/lib/symphony_elixir/ebin/Elixir.SymphonyElixir.GitLab.Adapter.beam",
+   ~c"/workspace/elixir/_build/dev/lib/symphony_elixir/ebin/Elixir.SymphonyElixir.WorkflowStore.State.beam",
+   ~c"/workspace/elixir/_build/dev/lib/symphony_elixir/ebin/Elixir.SymphonyElixir.WorkstreamRunner.beam",
+   ...],
+  ...
+]
+Total errors: 2, Skipped: 0, Unnecessary Skips: 0
+lib/symphony_elixir/workstream_store.ex:879:11:pattern_match_cov The pattern variable _other@1 can never match the type, because it is covered by previous clauses.
+lib/symphony_elixir/workstream_store.ex:938:13:pattern_match The pattern can never match the type
+  {:error,
+   :invalid_run_payload
+   | {:term_decode_failed, %{:__exception__ => true, :__struct__ => atom(), atom() => _}}}
+.
+done in 0m2.33s
+done (warnings were emitted)
+Halting VM with exit status 2

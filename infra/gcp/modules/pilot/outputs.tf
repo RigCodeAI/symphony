@@ -33,3 +33,8 @@ output "secret_resource_names" {
 output "coordinator_https_url" {
   value = local.ingress_enabled ? "https://${var.viewer_hostname}" : null
 }
+
+output "viewer_ipv4" {
+  description = "Reserved global HTTPS IPv4 for the DNS-only viewer A record; null while ingress is disabled."
+  value       = try(google_compute_global_address.viewer[0].address, null)
+}

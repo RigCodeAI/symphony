@@ -1,0 +1,22 @@
+{
+  "runtime": {
+    "elixir": "1.19.5",
+    "otp": "28"
+  },
+  "command": "docker run --name dev233-service-smoke-debug --mount type=bind,src=/Users/patarino/.codex/worktrees/f55b/symphony,dst=/source,readonly -e FACTORY_TEST_SOURCE=/source/factory/deploy --entrypoint /bin/bash dev230-checked:latest -x /source/factory/deploy/tests/service-entrypoint.sh",
+  "result": "passed",
+  "database_header": "SQLite format 3",
+  "database_bytes": 53248,
+  "database_tables": [
+    "events",
+    "linear_events",
+    "linear_tasks",
+    "operations",
+    "runs",
+    "stage_attempts"
+  ],
+  "dashboard_status": 200,
+  "webhook_get_status": 404,
+  "unsigned_webhook_post_status": 400,
+  "native_dispatch": false
+}

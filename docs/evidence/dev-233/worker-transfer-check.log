@@ -1,0 +1,13 @@
+{
+  "error_type": "AssertionError",
+  "release_sha256": "13e98ad67fcc65d046a13aefd27281741211ad18062b0716e7169f2b787cae0f",
+  "service_revision": "2b093e97e420b41821b6cc2e6043324b14948404",
+  "stage": "verified_unpack",
+  "status": "failed"
+}
+
+TEST_LOG_START
+Traceback (most recent call last):
+  File "<stdin>", line 53, in <module>
+AssertionError
+

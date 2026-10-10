@@ -1,0 +1,7 @@
+specs.check: all public functions have @spec or exemption
+Running ExUnit with seed: 58764, max_cases: 6
+Excluding tags: [:validation_docker]
+
+....................................................................................
+Finished in 13.5 seconds (0.7s async, 12.8s sync)
+84 tests, 0 failures

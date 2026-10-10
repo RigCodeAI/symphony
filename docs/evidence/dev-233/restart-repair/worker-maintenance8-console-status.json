@@ -1,0 +1,90 @@
+{
+  "command_failures": [],
+  "console_bytes": 18838,
+  "events": [
+    {
+      "status": "started",
+      "type": "preflight"
+    },
+    {
+      "status": "passed",
+      "type": "preflight"
+    },
+    {
+      "status": "started",
+      "type": "backup"
+    },
+    {
+      "status": "passed",
+      "type": "backup"
+    },
+    {
+      "status": "started",
+      "type": "archive"
+    },
+    {
+      "status": "passed",
+      "type": "archive"
+    },
+    {
+      "status": "started",
+      "type": "broker"
+    },
+    {
+      "status": "passed",
+      "type": "broker"
+    },
+    {
+      "status": "started",
+      "type": "install"
+    },
+    {
+      "status": "passed",
+      "type": "install"
+    },
+    {
+      "status": "started",
+      "type": "transport_tests"
+    },
+    {
+      "status": "passed",
+      "type": "transport_tests"
+    },
+    {
+      "status": "started",
+      "type": "systemd_card"
+    },
+    {
+      "status": "passed",
+      "type": "systemd_card"
+    },
+    {
+      "status": "started",
+      "type": "qualification"
+    },
+    {
+      "status": "passed",
+      "type": "qualification"
+    },
+    {
+      "status": "started",
+      "type": "preservation"
+    },
+    {
+      "status": "passed",
+      "type": "preservation"
+    },
+    {
+      "status": "passed",
+      "type": "broker"
+    }
+  ],
+  "failure_codes": [],
+  "final_markers": [
+    "status=passed"
+  ],
+  "rollback_failures": [],
+  "startup_exit_codes": [],
+  "startup_script_mentions": 23,
+  "startup_script_started": false
+}

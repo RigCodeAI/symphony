@@ -151,6 +151,18 @@ if [[ -f "$active_public" ]]; then
     fail "effective public config snapshot must be root-owned mode 0644"
 fi
 
+if [[ "$role" == coordinator && -f "$config_file" ]]; then
+  python3 - "$config_file" "$desired_config" <<'PY'
+import json
+from pathlib import Path
+import sys
+active, desired = (json.loads(Path(path).read_text()) for path in sys.argv[1:])
+keys = {'coordinator_workflow': 'pilot', 'coordinator_secret_versions': {}, 'coordinator_secret_fingerprints': {}, 'enable_linear_webhook': False}
+if active.get('service_revision') == desired.get('service_revision') and any(active.get(key, default) != desired.get(key, default) for key, default in keys.items()):
+    raise SystemExit('changed coordinator configuration requires a distinct service revision')
+PY
+fi
+
 public_backup="$data_root/.public-backup.$$"
 active_public_backup="$data_root/.active-public-backup.$$"
 pending_backup="$data_root/.pending-public-backup.$$"
@@ -217,7 +229,7 @@ discard_config_backups() {
 health_check() {
   local attempt
   for ((attempt = 1; attempt <= health_attempts; attempt++)); do
-    if curl --connect-timeout 2 --max-time 4 --fail --silent "$health_url" >/dev/null 2>&1; then
+    if curl --connect-timeout 2 --max-time 4 --fail --silent "$health_url" >/dev/null 2>&1 && webhook_health; then
       return 0
     fi
     if ((attempt < health_attempts)); then
@@ -225,6 +237,33 @@ health_check() {
     fi
   done
   return 1
+}
+
+webhook_health() {
+  local enabled
+  enabled="$(python3 - "$config_file" <<'PY'
+import json
+from pathlib import Path
+import pwd
+import sys
+public_path = Path(sys.argv[1])
+pending_path = public_path.with_name('public.pending.json')
+revision = Path('/opt/factory/current').resolve().name
+if pending_path.exists() and json.loads(pending_path.read_text()).get('service_revision') == revision:
+    public_path = pending_path
+enabled = json.loads(public_path.read_text()).get('enable_linear_webhook', False)
+if not isinstance(enabled, bool):
+    raise SystemExit(1)
+if enabled:
+    uid = pwd.getpwnam('factory-coordinator').pw_uid
+    rows = Path('/proc/net/tcp').read_text().splitlines()[1:]
+    if not any(row.split()[1] == '00000000:1F91' and row.split()[3] == '0A' and int(row.split()[7]) == uid for row in rows):
+        raise SystemExit(1)
+print('true' if enabled else 'false')
+PY
+  )" || return 1
+  [[ "$enabled" == false ]] || \
+    [[ "$(curl --connect-timeout 2 --max-time 4 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8081/api/v1/state)" == 404 ]]
 }
 
 write_active() {

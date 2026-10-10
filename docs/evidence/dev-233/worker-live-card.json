@@ -1,0 +1,30 @@
+{
+  "preservation": {
+    "active_release": true,
+    "auth_and_existing_data": true,
+    "metadata_deny_rule": true,
+    "root_config": true
+  },
+  "qualification": {
+    "boot_id": "4418dae454694f88ab9bbc4280b94547",
+    "checks": [
+      "held_launch",
+      "duplicate_prepare",
+      "stale_identity_rejected",
+      "setsid_child_terminated",
+      "natural_exit",
+      "restart_recovery",
+      "manager_reexec"
+    ],
+    "machine_id": "fe9b1ece921d40aeac95b10940000311",
+    "protocol_version": 1,
+    "release_sha256": "59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01",
+    "service_revision": "cc85ca7871a27afb03bc2b6e86722a142ff93e7e",
+    "status": "passed",
+    "systemd_version": 252
+  },
+  "release_sha256": "59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01",
+  "service_revision": "cc85ca7871a27afb03bc2b6e86722a142ff93e7e",
+  "stage": "complete",
+  "status": "passed"
+}

@@ -1,0 +1,13 @@
+{
+  "candidate": "080c048448cc949cf796f10564f16c8cf83a60e8",
+  "exit_code": 0,
+  "application_started": false,
+  "result": {
+    "prepare": "ok",
+    "worker_qualification": "ok",
+    "unknown_agent": ":unknown_workstream_agent_or_workspace",
+    "unknown_workstream": "{:definition_file_error, :workstream, \"/srv/factory/definitions/nonexistent-workstream.yaml\", :enoent}",
+    "worker_control_revision": "cc85ca7871a27afb03bc2b6e86722a142ff93e7e",
+    "definition_digest": "3679bdf5de7c7cca530e2366d79011caf8eb523b68a5985f5f5ed874fa06b27d"
+  }
+}

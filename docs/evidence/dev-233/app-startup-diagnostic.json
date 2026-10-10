@@ -1,0 +1,23 @@
+{
+  "candidate": "080c048448cc949cf796f10564f16c8cf83a60e8",
+  "exit_code": 0,
+  "application_started": false,
+  "phase_results": [
+    {
+      "status": "timeout",
+      "method": "initialize"
+    },
+    {
+      "termination": "terminated"
+    }
+  ],
+  "turn_started": false,
+  "probe": "WorkerOperation.start, initialize only, 15-second response deadline, stop in finally",
+  "app_server_start_session": {
+    "status": "blocked",
+    "reason_code": "response_timeout",
+    "read_timeout_ms": 30000,
+    "turn_started": false,
+    "application_started": false
+  }
+}

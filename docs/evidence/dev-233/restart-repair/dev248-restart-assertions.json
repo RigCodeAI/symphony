@@ -1,0 +1,11 @@
+{
+  "coordinator_conversation_resumed": false,
+  "elapsed_seconds": 62.88334107398987,
+  "phase_after_restart": "reconciling",
+  "same_cgroup": "0::/system.slice/factory-operation-0881d35ea3e82631faf76029d7780ec2c27110e54865db605b7f049fd8a7be8b.service",
+  "same_run_session_ack_assignee_attempt": true,
+  "same_sleep_pid": 2674,
+  "same_start_ticks": "23122",
+  "same_worker_processes": true,
+  "status": "passed"
+}

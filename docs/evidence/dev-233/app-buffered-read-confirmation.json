@@ -1,0 +1,21 @@
+{
+  "candidate": "080c048448cc949cf796f10564f16c8cf83a60e8",
+  "exit_code": 0,
+  "application_started": false,
+  "phase_results": [
+    {
+      "status": "received",
+      "keys": [
+        "codexHome",
+        "platformFamily",
+        "platformOs",
+        "userAgent"
+      ],
+      "method": "initialize"
+    },
+    {
+      "termination": "terminated"
+    }
+  ],
+  "request": "initialize followed by harmless whitespace sufficient to fill the existing64KiB bridge read; no turn"
+}

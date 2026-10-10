@@ -1,0 +1,14 @@
+{
+  "status": "started",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "medium",
+  "daybreak": false,
+  "termination": ":ok",
+  "candidate_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "probe_exit_code": 0,
+  "thread_started": true,
+  "agent_turn_started": false,
+  "full_startup_qualification_passed": true,
+  "subscription_readiness_passed": true,
+  "reset_consumed_by_agent": false
+}

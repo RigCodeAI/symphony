@@ -27,8 +27,91 @@ Transport retries preserve the side-effect identity and do not reset repair coun
 Transactional migrations fail startup clearly and preserve previously committed data.
 
 This is a controlled local alpha. Durable mode does not poll a tracker, publish PRs, merge,
-or implement remote-worker fencing and integrations. The existing tracker-mode workflow,
-supervision and in-memory scheduling behavior remain compatible and unchanged.
+or implement general remote-worker scheduling. The existing tracker-mode workflow, supervision and
+in-memory scheduling behavior remain compatible.
+
+### Opt-in native Linear delegation
+
+`linear_delegation` enables authenticated `POST /hooks/linear` intake into the same durable
+coordinator. The service verifies HMAC against the original request bytes and requires a
+signed timestamp within 60 seconds. Delivery identity and normalized event contents are
+persisted before HTTP acknowledgement; conflicting replay contents reject. Raw prompts and
+credentials are not persisted in receipt records.
+
+Delegation can use coordinator-only OAuth client credentials through `client_secret_env`
+instead of the compatible legacy `token_env`. Exactly one is configured. App tokens use
+fixed `read,write,app:assignable` scopes, are held in bounded memory per issue run and never
+persisted or passed to workers. Expiry or one HTTP 401 triggers renewal; a second 401,
+unavailable credentials or failed acquisition blocks the API operation. Restart reacquires
+tokens. Signing and client secrets remain distinct stripped coordinator environment names.
+
+The authoritative issue must have the configured DEV team, `DEV-` identifier, explicit Rig
+label, active DEV status and installed app delegate. Project membership and human assignment
+do not authorize dispatch. The current agent session must belong to the configured app and
+issue. The human assignee is preserved. A created session selects the explicit software-change
+entry and cloud agent, pins one run per issue, and acknowledges using a persisted activity UUID
+before any stage launches. Session and activity ownership is read through GraphQL relations;
+only the provider's specific missing-activity response permits creating the saved activity UUID.
+Other lookup errors and conflicting session identities block acknowledgement. Unknown routing,
+unavailable readiness or unsafe credentials block.
+Production dispatch also requires the pinned SSH/systemd worker control path and a current
+root-owned containment qualification receipt. Missing or stale qualification blocks dispatch.
+Enqueue must match the resolved definition digest used for qualification; a source change in
+that interval blocks. Recovery requalifies an orphaned pinned run before linking its task.
+
+Ownership is checked again before each stage, with a short authorization lease. Stop or
+undelegation receipts persist a tombstone before cancellation; later queued events cannot
+restart that task. Restart replays pending stops before restoring workers and reuses an already
+pinned run if its task link was interrupted. External termination requires a trusted adapter;
+an unknown outcome remains visible and reserves capacity. Local controlled tests do not prove
+that a remote process tree stopped or that a Linear app is installed. See
+[configuration and live acceptance limits](docs/linear-delegation.md).
+
+A held executor can register its external operation identity through the current worker.
+The coordinator commits that identity before acknowledging release and preserves it across
+restart. The provisional local Linux adapter fences machine, OS boot, process group and
+process start identity before bounded signaling. It always reports unknown, since descendants
+can escape the group. Explicit reconciliation frees a stopped slot only after trusted
+termination proof; it never restarts the stopped task. Confirmed termination marks the
+current executing attempt and operation canceled together and removes stale reconciliation metadata.
+Restart normalizes older stopped records that already contain committed termination confirmation;
+it does not repeat external cancellation or alter their pinned definitions. Unknown termination
+continues to reserve capacity until the trusted adapter confirms it.
+
+For a configured remote worker, a separate forced-command control account reaches a root
+broker over a peer-UID-checked Unix socket. The broker reserves each operation before launching
+a fixed held wrapper in a unique systemd unit. It accepts no client-selected unit properties
+or environment. Preparation waits for a live process in the exact contained unit, with its working
+directory set to the canonical workspace. Workspace paths cannot contain systemd
+substitution characters. Durable acknowledgement precedes release. Machine, boot, unit invocation and
+request digest fence every later action. There is one active or unknown operation per worker
+UID/host. This contains processes; it does not isolate historical tasks sharing that UID.
+Contained operation workspaces use a root-owned, worker-group parent with mode 0750,
+separate from the legacy worker-writable workspace tree. An operator provisions each
+worker-owned leaf and its matching coordinator path before adding the explicit issue
+workspace mapping. The worker cannot replace sibling workspace names. The root-owned
+launch gate remains separate; task code never selects unit properties or writable roots.
+The worker broker owns a claimed operation's stdin and stdout across coordinator connection
+loss. A disconnected stream detaches the client without closing the app-server input or
+launching a replacement. Closing only the client's input keeps its output connection open
+until output drains; a full peer close releases the attachment. Only one client may attach
+to the exact retained identity at a time.
+Buffers are bounded with pipe backpressure; terminal output retention is bounded. This does
+not resume the coordinator conversation automatically. A recovered run with unknown liveness
+continues to reserve capacity until trusted reconciliation or explicit stop.
+Stop work runs in supervised jobs after the tombstone commits, keeping intake responsive.
+SSH completion alone cannot finish a stage or free capacity. A terminal exact invocation must
+have an empty cgroup, proved by readable recursive population zero or by systemd's release of
+that cgroup on a qualified systemd version. Missing evidence remains unknown. The existing
+systemd 252 worker now has a passing root containment receipt, and the actual coordinator
+forced-SSH RPC/stream path passed its live checks. The Elixir `WorkerOperation.qualify/1`
+call and a fresh native run passed on the repaired release: the same foreground worker
+survived coordinator restart, then native undelegation terminated its exact operation.
+Confirmed stopped attempts and reconciliation metadata now match the retained termination
+proofs. Conversation resume and worker broker restart remain unqualified. See the
+[restart repair acceptance](docs/evidence/dev-233/restart-repair-acceptance.md),
+[contained worker operations](docs/contained-worker-operations.md) and its
+[retained live evidence](docs/evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
 
 Status: Draft v1 (language-agnostic)
 
@@ -1503,6 +1586,11 @@ Extension config:
   - Enables the HTTP server extension.
   - `0` requests an ephemeral port for local development and tests.
   - CLI `--port` overrides `server.port` when both are present.
+- `server.webhook_port` (integer, OPTIONAL, 0–65535) starts a separate native Linear
+  listener. `server.webhook_host` defaults to `127.0.0.1`. It exposes only exact
+  `POST /hooks/linear`, with the same raw-byte signature, timestamp and durable-intake
+  checks; all other paths and methods return 404. It exposes no dashboard, API,
+  method override, session or LiveView surface. Listener changes require restart.
 
 Enablement (extension):
 

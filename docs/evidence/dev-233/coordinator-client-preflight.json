@@ -1,0 +1,10 @@
+{
+  "active_release": "/srv/factory/releases/541279aeb6a5366571e1ee8935e134c728d91c63",
+  "worker_operation_source_exists": false,
+  "elixir_lookup_exit": 1,
+  "elixir_executable": null,
+  "coordinator_service": "active",
+  "compiled_ssh_module_count": 9,
+  "compiled_worker_operation_module_found": false,
+  "elixir_lookup_note": "Root mise lookup failed in the inspection environment; the running service uses its configured runtime. This is not a claim that Elixir is absent."
+}

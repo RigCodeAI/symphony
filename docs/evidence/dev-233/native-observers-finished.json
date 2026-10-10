@@ -1,0 +1,137 @@
+{
+  "bootstrap_finished": {
+    "checked_at": "2026-10-10T14:20:55.922101+00:00",
+    "client_id": "571c3dc755d9e63cfe74748787f6a533",
+    "discovery_token_revoked": true,
+    "expires_in": 2591999,
+    "identity": {
+      "organization": {
+        "id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "name": "Rig",
+        "urlKey": "rigai"
+      },
+      "teams": {
+        "nodes": [
+          {
+            "id": "41e1aa00-b853-44a9-930d-79e424259565",
+            "key": "DEV",
+            "name": "Dev"
+          }
+        ]
+      },
+      "viewer": {
+        "active": true,
+        "id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "isAssignable": true,
+        "isMentionable": false,
+        "name": "Rig Factory"
+      }
+    },
+    "scopes": "app:assignable read write",
+    "status": "passed"
+  },
+  "diagnostic_status_receipts": [
+    {
+      "exit_code": 0,
+      "operation_id": "dev233-app-start-diagnostic-080c048",
+      "receipt": {
+        "ok": {
+          "exit_code": "exited",
+          "exit_status": 0,
+          "identity": {
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "control_group": "/system.slice/factory-operation-2aae54c3d1fb1cc69c0ecc11b750c2491e5d706bf49f8b637dc3d1230ba2eaf7.service",
+            "invocation_id": "f8cf35a4439746eea926aad8ee3dcf1c",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "dev233-app-start-diagnostic-080c048",
+            "request_sha256": "4bcb9056cc4c07fcdc395c2f3a4d5cd3147e9002f42e0615f285c34f250f5ac6",
+            "unit": "factory-operation-2aae54c3d1fb1cc69c0ecc11b750c2491e5d706bf49f8b637dc3d1230ba2eaf7.service"
+          },
+          "operation_id": "dev233-app-start-diagnostic-080c048",
+          "status": "terminated",
+          "termination_proof": {
+            "active_state": "active",
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "cgroup_populated": 0,
+            "cgroup_state": "released",
+            "control_group": "/system.slice/factory-operation-2aae54c3d1fb1cc69c0ecc11b750c2491e5d706bf49f8b637dc3d1230ba2eaf7.service",
+            "exec_main_code": "exited",
+            "exec_main_status": 0,
+            "invocation_id": "f8cf35a4439746eea926aad8ee3dcf1c",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "main_pid": 0,
+            "observed_at": "2026-10-10T14:32:04.510356+00:00",
+            "sub_state": "exited",
+            "systemd_version": 252,
+            "unit": "factory-operation-2aae54c3d1fb1cc69c0ecc11b750c2491e5d706bf49f8b637dc3d1230ba2eaf7.service"
+          }
+        }
+      }
+    },
+    {
+      "exit_code": 0,
+      "operation_id": "dev233-app-wire-diagnostic-080c048",
+      "receipt": {
+        "ok": {
+          "exit_code": "exited",
+          "exit_status": 0,
+          "identity": {
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "control_group": "/system.slice/factory-operation-d2e2195ab67954e8e352a63db5d66f9daa21bc8c4caf45f6ca9d4de052546d2f.service",
+            "invocation_id": "ce6c634c3d6c451fae9145c5dd827c36",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "dev233-app-wire-diagnostic-080c048",
+            "request_sha256": "b978bbc621b597ee418bb3661269ac52746b3af675f1bab5c023531a3d608ee7",
+            "unit": "factory-operation-d2e2195ab67954e8e352a63db5d66f9daa21bc8c4caf45f6ca9d4de052546d2f.service"
+          },
+          "operation_id": "dev233-app-wire-diagnostic-080c048",
+          "status": "terminated",
+          "termination_proof": {
+            "active_state": "active",
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "cgroup_populated": 0,
+            "cgroup_state": "released",
+            "control_group": "/system.slice/factory-operation-d2e2195ab67954e8e352a63db5d66f9daa21bc8c4caf45f6ca9d4de052546d2f.service",
+            "exec_main_code": "exited",
+            "exec_main_status": 0,
+            "invocation_id": "ce6c634c3d6c451fae9145c5dd827c36",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "main_pid": 0,
+            "observed_at": "2026-10-10T14:33:34.049381+00:00",
+            "sub_state": "exited",
+            "systemd_version": 252,
+            "unit": "factory-operation-d2e2195ab67954e8e352a63db5d66f9daa21bc8c4caf45f6ca9d4de052546d2f.service"
+          }
+        }
+      }
+    }
+  ],
+  "native_receipts": [
+    {
+      "action": "update",
+      "bytes": 7989,
+      "delivery_id": "ad35280d-e3a2-4f44-b872-7971cfc5e280",
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "session_id": null,
+      "timestamp": 1791642392006,
+      "type": "Issue"
+    },
+    {
+      "action": "issueUnassignedFromYou",
+      "bytes": 1366,
+      "delivery_id": "c74077fc-0822-4100-8aa5-f3e2042f12c5",
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "session_id": null,
+      "timestamp": 1791642330266,
+      "type": "AppUserNotification"
+    }
+  ],
+  "removed_private_capture_count": 2,
+  "temporary_units": {
+    "dev233-app-bootstrap": "inactive",
+    "dev233-native-capture": "inactive",
+    "dev233-native-capture-unrelated": "inactive"
+  }
+}

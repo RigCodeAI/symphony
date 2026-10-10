@@ -1,0 +1,30 @@
+[Unit]
+Description=Rig factory contained worker operation control
+After=dbus.service
+RequiresMountsFor=/srv/factory /var/lib/factory-operations
+ConditionPathExists=/etc/factory/worker-operations.json
+
+[Service]
+Type=simple
+User=root
+Group=factory-control
+SupplementaryGroups=factory-worker
+ExecStart=/usr/bin/python3 -I @RELEASE@/factory/deploy/worker_operation_transport.py --config /etc/factory/worker-operations.json
+Restart=on-failure
+RestartSec=2
+RuntimeDirectory=factory-operations
+RuntimeDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/factory-operations /run/factory-operations
+
+[Install]
+WantedBy=multi-user.target

@@ -38,8 +38,8 @@ defmodule RecoverySmoke do
     monitor = Process.monitor(store)
     Supervisor.stop(runtime)
     receive do {:DOWN, ^monitor, :process, ^store, _} -> :ok after 2000 -> raise "store did not close" end
-    {:error, {:migration_failed, 2, reason}} = WorkstreamStore.start_link(path: db, owner: self(), migrations: [
-      {1, "SELECT 1"}, {2, "ALTER TABLE runs ADD COLUMN rollback_probe TEXT; INVALID SQL"}])
+    {:error, {:migration_failed, 3, reason}} = WorkstreamStore.start_link(path: db, owner: self(), migrations: [
+      {1, "SELECT 1"}, {2, "SELECT 1"}, {3, "ALTER TABLE runs ADD COLUMN rollback_probe TEXT; INVALID SQL"}])
     File.write!(Path.join(root, "migration-error.txt"), inspect(reason))
     {:ok, runtime} = AgentRuntimeSupervisor.start_link(opts)
     Process.unlink(runtime)

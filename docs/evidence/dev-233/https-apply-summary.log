@@ -1,0 +1,12 @@
+module.pilot.google_compute_ssl_policy.viewer[0]: Creation complete after 11s [id=projects/factory-511117/global/sslPolicies/rig-factory-viewer-tls]
+module.pilot.google_compute_managed_ssl_certificate.viewer[0]: Creation complete after 11s [id=projects/factory-511117/global/sslCertificates/rig-factory-viewer]
+module.pilot.google_compute_firewall.https_healthcheck[0]: Creation complete after 11s [id=projects/factory-511117/global/firewalls/rig-factory-https-healthcheck]
+module.pilot.google_compute_health_check.coordinator_http[0]: Creation complete after 11s [id=projects/factory-511117/global/healthChecks/rig-factory-coordinator-8080]
+module.pilot.google_compute_instance_group.coordinator[0]: Creation complete after 12s [id=projects/factory-511117/zones/us-central1-a/instanceGroups/rig-factory-coordinator-backend]
+module.pilot.google_compute_backend_service.coordinator_https[0]: Creation complete after 1m44s [id=projects/factory-511117/global/backendServices/rig-factory-coordinator-https]
+module.pilot.google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"]: Creation complete after 5s [id=projects/factory-511117/iap_web/compute/services/rig-factory-coordinator-https/roles/iap.httpsResourceAccessor/domain:rig.ai]
+module.pilot.google_compute_url_map.viewer[0]: Creation complete after 12s [id=projects/factory-511117/global/urlMaps/rig-factory-viewer]
+module.pilot.google_compute_target_https_proxy.viewer[0]: Creation complete after 12s [id=projects/factory-511117/global/targetHttpsProxies/rig-factory-viewer]
+module.pilot.google_compute_global_forwarding_rule.viewer_https[0]: Creation complete after 33s [id=projects/factory-511117/global/forwardingRules/rig-factory-viewer-https]
+Apply complete! Resources: 10 added, 0 changed, 0 destroyed.
+Final scoped drift check: exit 0; no changes.

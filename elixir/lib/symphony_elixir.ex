@@ -38,8 +38,10 @@ defmodule SymphonyElixir.Application do
     children = [
       {Phoenix.PubSub, name: SymphonyElixir.PubSub},
       SymphonyElixir.WorkflowStore,
+      SymphonyElixir.Linear.OAuth,
       SymphonyElixir.AgentRuntimeSupervisor,
       SymphonyElixir.HttpServer,
+      SymphonyElixir.LinearWebhookServer,
       SymphonyElixir.StatusDashboard
     ]
 

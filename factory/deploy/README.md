@@ -1,5 +1,10 @@
 # Portable pilot deployment
 
+Native delegation uses a separate, opt-in contained-operation broker. Review
+[its installation and qualification card](../../docs/contained-worker-operations.md)
+before installing the control account or root service. Existing bootstrap and
+activation do not enable that path.
+
 These scripts operate a pilot release extracted under
 `/opt/factory/releases/<service-revision>`. A deployment contains
 `RELEASE.json` with a 40-character `service_revision` and a root-written
@@ -22,6 +27,10 @@ Codex provisioning uses `/srv/factory/bootstrap-tools-v1`, a separate root-owned
 tree checked before reuse; root does not adopt worker-owned cached code by
 changing its owner. Runtime reads those protected binaries while Cargo writes
 its cache under the service account's retained home.
+The coordinator runs the CLI from its release-specific built Mix project, keeping
+Exqlite’s native SQLite library available. Service startup does not compile or fetch
+dependencies.
+
 Mix cache variables are set after mise selects its runtime, so mise's backend
 defaults cannot redirect archive writes into the protected runtime tree.
 The worker uses the executable `mix.sh` entrypoint under `timeout`. Run
@@ -29,7 +38,8 @@ The worker uses the executable `mix.sh` entrypoint under `timeout`. Run
 cache paths, argument handling and timeout termination.
 The service account builds a project copy under
 `/srv/factory/build/<revision>/project`; the coordinator launches its matching
-`bin/symphony` there. The verified release source stays root-owned.
+CLI through `mix run --no-start --no-compile --no-deps-check` there. The verified
+release source stays root-owned.
 The Linux `tests/build-user.sh` regression builds the actual project twice,
 forces a worker-controlled dependency to reload, and checks its recorded UID
 and cleared credential environment. Run it in the disposable `dev230-checked`
@@ -75,12 +85,20 @@ it finishes.
 
 ## Submit the worker smoke
 
-The coordinator's Symphony service uses `PILOT-WORKFLOW.md`, an idle memory
+By default the coordinator's Symphony service uses `PILOT-WORKFLOW.md`, an idle memory
 tracker with no hooks. It listens on port 8080 on the VM's private interfaces;
 the health check uses localhost, and GCP firewall rules restrict ingress to
 load-balancer health checks and proxies when optional HTTPS ingress is enabled.
 Pilot tasks start only when an operator invokes `factory-pilot` as the
 coordinator user. Submit separate pass and fail runs with unique IDs:
+
+DEV-233 adds an explicit Linear deployment mode, protected per-release credentials and
+`/etc/factory/workflows/<revision>.md`. Install workflows without overwriting an existing
+revision; changes to integration pins require a distinct committed release. The signed
+webhook uses a separate listener, while dashboard/API remain behind IAP.
+See [Linear deployment](../../docs/linear-delegation.md#gcp-coordinator-deployment) and
+the [pending morning card](../../docs/dev-233-morning-decision.md). These paths are locally
+tested and have not been applied to the pilot.
 
 ```bash
 sudo -u factory-coordinator -- \

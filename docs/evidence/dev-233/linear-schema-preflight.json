@@ -1,0 +1,133 @@
+{
+  "activity_fields": [
+    {
+      "name": "id",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "SCALAR",
+          "name": "ID"
+        }
+      }
+    },
+    {
+      "name": "agentSession",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "OBJECT",
+          "name": "AgentSession"
+        }
+      }
+    }
+  ],
+  "checked_at": "2026-10-10T13:56:10.858866+00:00",
+  "create_input": [
+    {
+      "name": "id",
+      "type": {
+        "kind": "SCALAR",
+        "name": "String",
+        "ofType": null
+      }
+    },
+    {
+      "name": "agentSessionId",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "SCALAR",
+          "name": "String"
+        }
+      }
+    },
+    {
+      "name": "signal",
+      "type": {
+        "kind": "ENUM",
+        "name": "AgentActivitySignal",
+        "ofType": null
+      }
+    },
+    {
+      "name": "signalMetadata",
+      "type": {
+        "kind": "SCALAR",
+        "name": "JSONObject",
+        "ofType": null
+      }
+    },
+    {
+      "name": "contextualMetadata",
+      "type": {
+        "kind": "SCALAR",
+        "name": "JSONObject",
+        "ofType": null
+      }
+    },
+    {
+      "name": "content",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "SCALAR",
+          "name": "JSONObject"
+        }
+      }
+    },
+    {
+      "name": "ephemeral",
+      "type": {
+        "kind": "SCALAR",
+        "name": "Boolean",
+        "ofType": null
+      }
+    }
+  ],
+  "discovery_token_revoked": true,
+  "session_fields": [
+    {
+      "name": "id",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "SCALAR",
+          "name": "ID"
+        }
+      }
+    },
+    {
+      "name": "appUser",
+      "type": {
+        "kind": "NON_NULL",
+        "name": null,
+        "ofType": {
+          "kind": "OBJECT",
+          "name": "User"
+        }
+      }
+    },
+    {
+      "name": "issue",
+      "type": {
+        "kind": "OBJECT",
+        "name": "Issue",
+        "ofType": null
+      }
+    },
+    {
+      "name": "dismissedAt",
+      "type": {
+        "kind": "SCALAR",
+        "name": "DateTime",
+        "ofType": null
+      }
+    }
+  ],
+  "status": "passed"
+}

@@ -1,0 +1,59 @@
+{
+  "capabilities": {
+    "boot_id": "f76f87db6972439ca13738e1d54594fa",
+    "cgroup_v2": true,
+    "contained": true,
+    "containment_qualified": true,
+    "machine_id": "fe9b1ece921d40aeac95b10940000311",
+    "protocol_version": 1,
+    "release_sha256": "67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89",
+    "released_cgroup_proof": true,
+    "required_isolation": true,
+    "service_revision": "064f892f95847ea2eed0eb684da36c6e1bb5fce6",
+    "system_manager": true,
+    "systemd_version": 252,
+    "worker_account_isolated": true
+  },
+  "startup_operation_identity": {
+    "boot_id": "f76f87db6972439ca13738e1d54594fa",
+    "control_group": "/system.slice/factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service",
+    "invocation_id": "c657a446631743449dc9ca05a7dffd65",
+    "kind": "systemd-unit",
+    "machine_id": "fe9b1ece921d40aeac95b10940000311",
+    "operation_id": "dev233-restart-repair-app-start-v2",
+    "request_sha256": "d537440d95154ccc10232e64541327102fd8b3bb97d6d314415f2a40cc39eb50",
+    "unit": "factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service"
+  },
+  "status": {
+    "exit_code": "exited",
+    "exit_status": 0,
+    "identity": {
+      "boot_id": "f76f87db6972439ca13738e1d54594fa",
+      "control_group": "/system.slice/factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service",
+      "invocation_id": "c657a446631743449dc9ca05a7dffd65",
+      "kind": "systemd-unit",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "operation_id": "dev233-restart-repair-app-start-v2",
+      "request_sha256": "d537440d95154ccc10232e64541327102fd8b3bb97d6d314415f2a40cc39eb50",
+      "unit": "factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service"
+    },
+    "operation_id": "dev233-restart-repair-app-start-v2",
+    "status": "terminated",
+    "termination_proof": {
+      "active_state": "active",
+      "boot_id": "f76f87db6972439ca13738e1d54594fa",
+      "cgroup_populated": 0,
+      "cgroup_state": "released",
+      "control_group": "/system.slice/factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service",
+      "exec_main_code": "exited",
+      "exec_main_status": 0,
+      "invocation_id": "c657a446631743449dc9ca05a7dffd65",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "main_pid": 0,
+      "observed_at": "2026-10-10T18:56:39.842603+00:00",
+      "sub_state": "exited",
+      "systemd_version": 252,
+      "unit": "factory-operation-0084fb2dbe7eb9f5502b9ba2c55dfb65b027e9b2a5b345128a27c2ba47203602.service"
+    }
+  }
+}

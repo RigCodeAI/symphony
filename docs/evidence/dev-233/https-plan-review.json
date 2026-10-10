@@ -1,0 +1,80 @@
+{
+  "source_revision": "cc85ca7871a27afb03bc2b6e86722a142ff93e7e",
+  "scope": "dashboard HTTPS and backend-specific IAP domain access only",
+  "hostname": "factory.rig.ai",
+  "ipv4": "8.232.241.86",
+  "address_import": "module.pilot.google_compute_global_address.viewer[0]",
+  "terraform_version": "1.13.5",
+  "provider_version": "hashicorp/google 8.5.0",
+  "backend_bucket": "factory-511117-symphony-tfstate",
+  "backend_prefix": "dev-230/pilot",
+  "vm_metadata_preservation_overlay": "# Scoped dashboard ingress only: preserve installed VM metadata verbatim.\n# Application deployment and its bootstrap upgrade require a separate plan.\nresource \"google_compute_instance\" \"coordinator\" {\n  lifecycle { ignore_changes = [metadata] }\n}\nresource \"google_compute_instance\" \"worker\" {\n  lifecycle { ignore_changes = [metadata] }\n}\n",
+  "overlay_sha256": "758fef102494211733a8dc28fe58abd6d99db015dfffcbe7edc897c38157deb7",
+  "changes": [
+    {
+      "address": "module.pilot.google_compute_backend_service.coordinator_https[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_firewall.https_healthcheck[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_global_forwarding_rule.viewer_https[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_health_check.coordinator_http[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_instance_group.coordinator[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_managed_ssl_certificate.viewer[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_ssl_policy.viewer[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_target_https_proxy.viewer[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_compute_url_map.viewer[0]",
+      "actions": [
+        "create"
+      ]
+    },
+    {
+      "address": "module.pilot.google_iap_web_backend_service_iam_member.https_domain_viewer[\"rig.ai\"]",
+      "actions": [
+        "create"
+      ]
+    }
+  ],
+  "native_dispatch": false,
+  "public_webhook_route": false,
+  "local_source_delta": [
+    "module and root viewer_ipv4 outputs"
+  ]
+}

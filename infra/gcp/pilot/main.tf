@@ -50,6 +50,9 @@ module "pilot" {
   secret_ids                         = var.secret_ids
   secret_versions                    = var.secret_versions
   optional_integration_secrets       = var.optional_integration_secrets
+  coordinator_workflow               = var.coordinator_workflow
+  coordinator_secret_env             = var.coordinator_secret_env
+  enable_linear_webhook              = var.enable_linear_webhook
   archive_bucket_name                = var.archive_bucket_name
   backup_bucket_name                 = var.backup_bucket_name
   release_bucket_name                = var.release_bucket_name
@@ -62,6 +65,7 @@ module "pilot" {
   enable_https_iap                   = var.enable_https_iap
   viewer_hostname                    = var.viewer_hostname
   iap_viewer_emails                  = var.iap_viewer_emails
+  iap_viewer_domains                 = var.iap_viewer_domains
   iap_google_managed_oauth_confirmed = var.iap_google_managed_oauth_confirmed
 
   depends_on = [google_project_service.required]

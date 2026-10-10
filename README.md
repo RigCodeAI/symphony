@@ -49,6 +49,35 @@ The first increments are:
    stages through the remaining tickets. Integrate Coverage Factory's separate contracts
    and qualify capacity after the pilot works.
 
+The current coordinator and root worker control use source commit
+`064f892f95847ea2eed0eb684da36c6e1bb5fce6`, archive SHA-256
+`67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89`. The worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`; worker machine
+`fe9b1ece921d40aeac95b10940000311` is on boot
+`f76f87db6972439ca13738e1d54594fa` under systemd 252.39. Root checks, transport tests,
+actual SSH qualification and Elixir route checks passed. App Server startup and subscription
+readiness also passed with GPT-6 Luna, medium effort and Daybreak disabled; it made no model
+turn and was stopped with exact termination proof. No reset or API-billing fallback was used.
+
+DEV-248 passed the scoped native restart and durable metadata acceptance. Its same foreground
+worker survived a coordinator service restart with all seven process identities, task IDs,
+session and acknowledgement unchanged; no replacement launched. Native undelegation then
+stopped that operation. The final audit found four stopped runs with trusted termination proofs,
+no executing attempts and no operation awaiting reconciliation. DEV-245's initial run failed
+before a thread or turn; DEV-246's earlier restart attempt failed when its SSH stream ended the
+worker; DEV-247's live undelegation did stop its worker. Those remain historical results. See
+the [restart repair acceptance record](docs/evidence/dev-233/restart-repair-acceptance.md),
+[Linear delegation](docs/linear-delegation.md) and
+[current decision card](docs/dev-233-morning-decision.md).
+
+This accepts the scoped DEV-233 native delegation, restart-survival, active-stop and durable
+metadata boundary. Automatic conversation resume, worker broker restart, signed-in dashboard
+access, provider token lifecycle, Daybreak, scaled capacity and the wider Factory Setup flow
+remain unqualified. Rig candidate publication and merge were not attempted.
+
+Coordinator-only client credentials mint app tokens in memory per delegated run; see
+[Linear app setup](docs/linear-delegation.md#linear-app-setup) for scopes, events and secret references.
+
 Use live ticket dependencies to schedule work. The local files
 `docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,
 are earlier drafts. They predate the workstream additions and published ticket updates;

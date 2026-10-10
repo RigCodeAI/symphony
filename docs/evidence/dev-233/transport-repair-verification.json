@@ -1,0 +1,22 @@
+{
+  "status": "worker_deployed_and_qualified_coordinator_staged_usage_paused",
+  "regression": {
+    "test": "test_stdin_pipe_forwards_short_request_before_eof",
+    "before": "socket peer timed out while pipe writer remained open",
+    "after": "short request received before EOF; copy thread stopped after EOF"
+  },
+  "commands": [
+    {
+      "command": "python3 -m unittest factory.deploy.tests.test_worker_operation_transport factory.deploy.tests.test_worker_operation",
+      "tests": 38,
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "live_acceptance": "pending; no thread or turn started; DEV-246 never delegated",
+  "worker_control_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "deployment_evidence": "transport-deployment.md"
+}

@@ -5,6 +5,12 @@ For the file-defined local agent → executable gate, use
 definitions and runs synchronously without starting tracker polling. The
 existing `WORKFLOW.md` service remains compatible.
 
+Durable stopped runs retain their attempt and operation identities. Trusted termination
+confirmation cancels both records together; restart repairs older confirmed stops without
+repeating external cancellation. Unknown termination continues to reserve capacity. See
+[durable recovery](../docs/durable-workstreams.md) and
+[native delegation](../docs/linear-delegation.md) for the configured worker boundary.
+
 This directory contains the current Elixir/OTP implementation of Symphony, based on
 [`SPEC.md`](../SPEC.md) at the repository root.
 
@@ -430,6 +436,33 @@ and failing executable gates. Its agents are controlled workers; it does not run
 or require Linear/GCP. Inspect the generated `waiting.json`, `report.json` and SQLite
 database before deleting that one disposable directory. See
 [API, recovery rules and engineer test card](../docs/durable-workstreams.md).
+
+## Native Linear delegation
+
+Use `client_secret_env` for coordinator-only app client credentials with fixed
+`read,write,app:assignable` scopes. Tokens are kept in memory per issue run and renewed
+on expiry or one 401. The legacy `token_env` remains supported; configure exactly one.
+See [app setup and deployment](../docs/linear-delegation.md#linear-app-setup).
+
+An optional `linear_delegation` front-matter map starts the same coordinator in durable mode
+and enables `POST /hooks/linear` when the HTTP server is enabled. It verifies the original
+signed bytes, persists receipts, checks authoritative app ownership and explicit DEV/Rig scope,
+then routes one pinned software-change run. Human assignees are preserved. Tracker polling
+is disabled in this mode. See [configuration, local tests and live acceptance](../docs/linear-delegation.md).
+Remote dispatch also needs `linear_delegation.worker_control`, a pinned machine/release and a
+current containment receipt. See [worker control installation and tests](../docs/contained-worker-operations.md).
+`server.webhook_port` and `server.webhook_host` optionally start a separate listener that
+exposes only exact `POST /hooks/linear`; its default bind is loopback. It uses the same signed
+intake and rejects every dashboard/API path. The GCP configuration uses `0.0.0.0:8081` for
+this listener and keeps the dashboard on port 8080 behind IAP. Both listeners require restart
+after configuration changes. See [coordinator deployment](../docs/linear-delegation.md#gcp-coordinator-deployment).
+
+The scoped DEV-233 native acceptance passed with DEV-248: the same live worker survived a
+coordinator restart, native undelegation stopped it, and the durable audit reconciled all four
+retained runs. See the [restart repair acceptance record](../docs/evidence/dev-233/restart-repair-acceptance.md).
+This qualifies the tested subscription-worker path; automatic conversation resume, worker broker
+restart, signed-in dashboard access, provider token lifecycle, Daybreak, scaled capacity and the
+wider Factory Setup flow remain unqualified.
 
 Trusted candidate validation is available locally through the pinned-policy runner and
 inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

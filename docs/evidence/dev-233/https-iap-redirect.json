@@ -1,0 +1,9 @@
+{
+  "tls_verified": true,
+  "status_line": "HTTP/2 302 ",
+  "redirect_scheme": "https",
+  "redirect_host": "accounts.google.com",
+  "redirect_path": "/o/oauth2/v2/auth",
+  "query_recorded": false,
+  "cookies_recorded": false
+}

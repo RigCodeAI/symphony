@@ -63,6 +63,31 @@ variable "optional_integration_secrets" {
     error_message = "Each base and optional integration secret container must have a distinct Secret Manager ID."
   }
 }
+
+variable "coordinator_workflow" {
+  type    = string
+  default = "pilot"
+  validation {
+    condition     = contains(["pilot", "linear"], var.coordinator_workflow)
+    error_message = "coordinator_workflow must be pilot or linear."
+  }
+}
+variable "coordinator_secret_env" {
+  type    = map(string)
+  default = {}
+  validation {
+    condition     = alltrue([for env, key in var.coordinator_secret_env : contains(["LINEAR_API_KEY", "LINEAR_API_TOKEN", "OAUTH_TOKEN"], env) && contains(keys(var.optional_integration_secrets), key)]) && length(distinct(values(var.coordinator_secret_env))) == length(var.coordinator_secret_env) && (var.coordinator_workflow == "linear" ? toset(keys(var.coordinator_secret_env)) == toset(["LINEAR_API_KEY", "LINEAR_API_TOKEN"]) : length(var.coordinator_secret_env) == 0)
+    error_message = "Coordinator credentials must map distinct optional secrets to allowed Linear environment names."
+  }
+}
+variable "enable_linear_webhook" {
+  type    = bool
+  default = false
+  validation {
+    condition     = !var.enable_linear_webhook || (var.enable_https_iap && var.coordinator_workflow == "linear")
+    error_message = "The public webhook requires HTTPS ingress and linear coordinator workflow."
+  }
+}
 variable "archive_bucket_name" {
   type     = string
   nullable = true
@@ -90,4 +115,15 @@ variable "viewer_hostname" {
   nullable = true
 }
 variable "iap_viewer_emails" { type = set(string) }
+variable "iap_viewer_domains" {
+  description = "Google Workspace or Cloud Identity managed domains allowed through dashboard IAP. Verify domain and project organization eligibility before deployment."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for domain in var.iap_viewer_domains : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", domain))])
+    error_message = "iap_viewer_domains must contain bare lowercase DNS domains, without wildcards, email addresses or principal prefixes."
+  }
+}
+
 variable "iap_google_managed_oauth_confirmed" { type = bool }

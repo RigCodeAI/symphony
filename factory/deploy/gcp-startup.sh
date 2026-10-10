@@ -490,6 +490,7 @@ if [[ "$role" = worker ]]; then
   # Publish the same normalized public key through the scoped GCS identity.
   python3 /usr/local/lib/factory/cloud_io.py publish-hostkey
 else
+  python3 /usr/local/lib/factory/cloud_io.py coordinator-env
   rm -f /run/factory/id_ed25519
   python3 /usr/local/lib/factory/cloud_io.py secret worker_ssh /run/factory/id_ed25519
   chown "$service_user:$service_user" /run/factory/id_ed25519

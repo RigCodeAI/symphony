@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-10-10T12:30:12.872834+00:00",
+  "route": "existing coordinator private key with strict worker host pin; no new key or grant",
+  "checks": {
+    "factory-worker": {
+      "exit_code": 1,
+      "stdout": "uid=1000(factory-worker) gid=1003(factory-worker) groups=1003(factory-worker)",
+      "stderr": "sudo: a password is required"
+    },
+    "adam_rig_ai": {
+      "exit_code": 255,
+      "stdout": "",
+      "stderr": "adam_rig_ai@10.42.0.2: Permission denied (publickey)."
+    },
+    "root": {
+      "exit_code": 255,
+      "stdout": "",
+      "stderr": "root@10.42.0.2: Permission denied (publickey)."
+    }
+  }
+}

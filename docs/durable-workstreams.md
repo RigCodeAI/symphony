@@ -128,6 +128,13 @@ failures. A crash between spawn and durable worker registration also remains blo
 conservatively; this alpha does not guess whether an unregistered worker is safe to adopt.
 Host/process disappearance is not a fencing guarantee.
 
+For stopped runs, trusted termination confirmation cancels the current executing attempt
+and operation in the same durable transition and clears stale reconciliation metadata. Restart normalizes
+older stopped records with an already committed termination confirmation without repeating
+external cancellation or changing their pinned definitions. Unknown cancellation keeps its
+capacity reservation and is retried through the trusted cancellation adapter; it cannot
+silently restart the stopped task.
+
 ## Checks
 
 ```bash

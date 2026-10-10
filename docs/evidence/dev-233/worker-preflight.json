@@ -1,0 +1,100 @@
+{
+  "observed_at": "2026-10-10T07:37:36.402522+00:00",
+  "identity": "factory-worker",
+  "systemd": "systemd 252 (252.39-1~deb12u2)",
+  "pid1": "systemd",
+  "cgroup_v2": true,
+  "machine_id": "fe9b1ece921d40aeac95b10940000311",
+  "release_path": "/srv/factory/releases/541279aeb6a5366571e1ee8935e134c728d91c63",
+  "accounts": {
+    "factory-worker": {
+      "exists": true,
+      "uid": 1000,
+      "gid": 1003,
+      "home": "/srv/factory/homes/factory-worker",
+      "shell": "/bin/bash",
+      "groups": [
+        "factory-worker"
+      ]
+    },
+    "factory-control": {
+      "exists": false
+    },
+    "factory-coordinator": {
+      "exists": false
+    }
+  },
+  "paths": {
+    "/etc/factory/worker-operations.json": {
+      "exists": false
+    },
+    "/etc/factory/worker-operations-qualified.json": {
+      "exists": false
+    },
+    "/run/factory-operations/control.sock": {
+      "exists": false
+    },
+    "/etc/systemd/system/factory-worker-operations.service": {
+      "exists": false
+    },
+    "/srv/factory/homes/factory-worker/.codex/auth.json": {
+      "exists": true,
+      "uid": 1000,
+      "gid": 1003,
+      "mode": "0o600",
+      "executable": false
+    },
+    "/srv/factory/bootstrap-tools-v1/rig-tools/node-v24.19.0-linux-x64/bin/node": {
+      "exists": true,
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o755",
+      "executable": true
+    },
+    "/srv/factory/bootstrap-tools-v1/rig-tools/codex/bin/codex": {
+      "exists": true,
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o755",
+      "executable": true
+    },
+    "/srv/factory/bootstrap-tools-v1/cargo/bin/rustc": {
+      "exists": true,
+      "uid": 0,
+      "gid": 0,
+      "mode": "0o755",
+      "executable": true
+    }
+  },
+  "owned_process_names": {
+    "systemd": 1,
+    "(sd-pam)": 1,
+    "sh": 8,
+    "sshd": 1,
+    "python3": 1
+  },
+  "agent_build_process_names": {},
+  "operation_units": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "memory": {
+    "MemTotal": "65854752 kB",
+    "MemAvailable": "64548460 kB"
+  },
+  "data_disk_bytes": {
+    "total": 527295578112,
+    "free": 495324667904
+  },
+  "node_version": {
+    "exit_code": 0,
+    "stdout": "v24.19.0",
+    "stderr": ""
+  },
+  "codex_version": {
+    "exit_code": 0,
+    "stdout": "codex-cli 0.159.2",
+    "stderr": ""
+  }
+}

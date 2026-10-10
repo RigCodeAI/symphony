@@ -1,0 +1,37 @@
+{
+  "exit_code": 0,
+  "private_log": "/srv/factory/dev233-rollbacks/3e81a8a418f585928bc9f4462f5187584a3bad38/elixir-qualification-private.log",
+  "qualification": {
+    "agent_inference_started": false,
+    "candidate": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+    "routes": [
+      {
+        "definition_sha256": "76eb86b85aaf840b614c4c9ebc515e800cea204b76458ae8d104a54a47c37039",
+        "identifier": "DEV-245",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev245"
+      },
+      {
+        "definition_sha256": "c31fe0568665eeea2bf61a436772152d9fa504b3d72047e54d2ad49d5cfe84ab",
+        "identifier": "DEV-246",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev246"
+      },
+      {
+        "definition_sha256": "de1308b2319adb79db9721151e0a773d9de8313b0932dfdd5a3c59259b88e72e",
+        "identifier": "DEV-247",
+        "status": "ok",
+        "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev247"
+      }
+    ],
+    "symphony_application_started": false,
+    "unknown_agent": "rejected",
+    "unknown_workspace": "rejected",
+    "unknown_workstream": "rejected",
+    "worker_control_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "worker_control_sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c",
+    "worker_qualification": "ok",
+    "workstream_path": "/srv/factory/releases/3e81a8a418f585928bc9f4462f5187584a3bad38/factory/workstreams/software-change.yaml"
+  },
+  "raw_process_output_printed": false
+}

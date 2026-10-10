@@ -1,0 +1,60 @@
+{
+  "private_capture_bodies_removed": 6,
+  "retained_metadata_receipts": [
+    {
+      "action": "created",
+      "bytes": 5907,
+      "delivery_id": "6542a4bb-f6ed-42cb-8414-1372fd96ccc9",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": "b8423098-7b7d-470e-ad89-0a9e86eef22a",
+      "timestamp": 1791649756925,
+      "type": "AgentSessionEvent"
+    },
+    {
+      "action": "update",
+      "bytes": 7097,
+      "delivery_id": "2fd9c43c-e3eb-44f6-a895-121515be4009",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": null,
+      "timestamp": 1791649756910,
+      "type": "Issue"
+    },
+    {
+      "action": "issueAssignedToYou",
+      "bytes": 1362,
+      "delivery_id": "0c089e1a-5ac9-4df4-b18d-a26ff629059b",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": null,
+      "timestamp": 1791649757021,
+      "type": "AppUserNotification"
+    },
+    {
+      "action": "issueSubscribed",
+      "bytes": 1356,
+      "delivery_id": "c400b6c6-b422-449c-8bc3-24e7c3f33166",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": null,
+      "timestamp": 1791649757024,
+      "type": "AppUserNotification"
+    },
+    {
+      "action": "update",
+      "bytes": 6824,
+      "delivery_id": "8b862877-98af-4705-9073-de950e12ef13",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": null,
+      "timestamp": 1791649774748,
+      "type": "Issue"
+    },
+    {
+      "action": "issueUnassignedFromYou",
+      "bytes": 1370,
+      "delivery_id": "c8071d78-c841-4228-9c63-bc7658804348",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "session_id": null,
+      "timestamp": 1791649775074,
+      "type": "AppUserNotification"
+    }
+  ],
+  "unit_active": false
+}

@@ -279,17 +279,21 @@ defmodule SymphonyElixir.Config.Schema do
     embedded_schema do
       field(:port, :integer)
       field(:host, :string, default: "127.0.0.1")
+      field(:webhook_port, :integer)
+      field(:webhook_host, :string, default: "127.0.0.1")
     end
 
     @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
     def changeset(schema, attrs) do
       schema
-      |> cast(attrs, [:port, :host], empty_values: [])
+      |> cast(attrs, [:port, :host, :webhook_port, :webhook_host], empty_values: [])
       |> validate_number(:port, greater_than_or_equal_to: 0)
+      |> validate_number(:webhook_port, greater_than_or_equal_to: 0, less_than: 65_536)
     end
   end
 
   embedded_schema do
+    field(:linear_delegation, :map, default: %{})
     embeds_one(:tracker, Tracker, on_replace: :update, defaults_to_struct: true)
     embeds_one(:polling, Polling, on_replace: :update, defaults_to_struct: true)
     embeds_one(:workspace, Workspace, on_replace: :update, defaults_to_struct: true)
@@ -383,7 +387,7 @@ defmodule SymphonyElixir.Config.Schema do
 
   defp changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [])
+    |> cast(attrs, [:linear_delegation])
     |> cast_embed(:tracker, with: &Tracker.changeset/2)
     |> cast_embed(:polling, with: &Polling.changeset/2)
     |> cast_embed(:workspace, with: &Workspace.changeset/2)

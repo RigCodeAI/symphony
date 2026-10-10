@@ -1,0 +1,126 @@
+{
+  "coordinator_release": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "dashboard_counts": {
+    "blocked": 0,
+    "retrying": 0,
+    "running": 0
+  },
+  "linear_tasks": [
+    {
+      "activity_id": "c79c7124-7dc4-48bb-a4c5-9ad6c45be8fe",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "cancellation": null,
+      "current_attempt_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+      "error": null,
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "phase": "implementing",
+      "run_id": "run-e65005caafe229f8a542d4b80b12c82f",
+      "session_id": "b8423098-7b7d-470e-ad89-0a9e86eef22a",
+      "stage_id": "implement",
+      "status": "acknowledged"
+    },
+    {
+      "activity_id": "5bf9b6f0-69b7-4da4-98f3-776320ed113c",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "current_attempt_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+      "error": null,
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "phase": "stopped",
+      "run_id": "run-ef2e798787754ccf02ef91637fc5eb7d",
+      "session_id": "f95a51d9-cf38-417d-a738-bb237d4a907d",
+      "stage_id": "implement",
+      "status": "stopped"
+    },
+    {
+      "activity_id": "db1d26d0-abbb-42f5-a454-eeac8b38355c",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "current_attempt_id": null,
+      "error": null,
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "phase": "stopped",
+      "run_id": "run-d8d02683e2ce5992d098289c3edf4cc3",
+      "session_id": "ba067e10-6e28-447b-acf3-f0cfe281b908",
+      "stage_id": "blocked",
+      "status": "stopped"
+    }
+  ],
+  "observed_at": 1791649764.3595147,
+  "worker_processes": [
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 4956,
+      "program": "node",
+      "sleep_fixture": false,
+      "start_ticks": "505254",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 4992,
+      "program": "codex",
+      "sleep_fixture": false,
+      "start_ticks": "505356",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 5125,
+      "program": "codex-code-mode-host",
+      "sleep_fixture": false,
+      "start_ticks": "505917",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 5145,
+      "program": "codex-linux-sandbox",
+      "sleep_fixture": false,
+      "start_ticks": "505919",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 5148,
+      "program": "bwrap",
+      "sleep_fixture": false,
+      "start_ticks": "505921",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 5149,
+      "program": "codex-linux-sandbox",
+      "sleep_fixture": false,
+      "start_ticks": "505922",
+      "state": "S"
+    },
+    {
+      "api_billing_credentials_absent": true,
+      "cgroup": "0::/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+      "linear_credentials_absent": true,
+      "pid": 5150,
+      "program": "sleep",
+      "sleep_fixture": true,
+      "start_ticks": "505923",
+      "state": "S"
+    }
+  ]
+}

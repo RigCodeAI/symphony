@@ -1,0 +1,8 @@
+{
+  "cause": "systemd-journald kernel line interleaved inside the exact revision marker",
+  "follow_up": "Removed only kernel log records to reconstruct the exact current marker; all current maintenance stages and final status passed; actual current-boot SSH capability and release pins passed",
+  "raw_console_retained_in_repository": false,
+  "runner_report": "startup marker timeout; exact metadata restored in finally",
+  "startup_script_sha256": "9d933f2492f1e99148ec5c335cbcdcf8ca9b09366df5595e0787f6b1b4b0e53e",
+  "worker_app_revision": "541279aeb6a5366571e1ee8935e134c728d91c63"
+}

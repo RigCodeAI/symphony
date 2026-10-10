@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "snapshot": {
+    "enabled": true,
+    "tasks": [
+      {
+        "status": "stopped",
+        "session_id": null,
+        "issue_id": "controlled-issue",
+        "run_id": null
+      }
+    ]
+  },
+  "controlled_intake": true,
+  "live_acceptance": false,
+  "checks": [
+    "workflow-configured application startup",
+    "signed raw HTTP bytes",
+    "duplicate receipt",
+    "invalid signature",
+    "coordinator restart"
+  ]
+}

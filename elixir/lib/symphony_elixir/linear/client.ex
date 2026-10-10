@@ -104,6 +104,90 @@ defmodule SymphonyElixir.Linear.Client do
   }
   """
 
+  @delegated_issue_query """
+  query SymphonyLinearDelegatedIssue($id: String!) {
+    issue(id: $id) {
+      id
+      identifier
+      title
+      description
+      state {
+        name
+        type
+      }
+      assignee {
+        id
+      }
+      delegate {
+        id
+      }
+      team {
+        id
+      }
+      labels {
+        nodes {
+          name
+        }
+      }
+      url
+      branchName
+    }
+  }
+  """
+
+  @agent_session_query """
+  query SymphonyLinearAgentSession($id: String!) {
+    agentSession(id: $id) {
+      id
+      appUser {
+        id
+      }
+      issue {
+        id
+      }
+      dismissedAt
+    }
+  }
+  """
+
+  @agent_activity_query """
+  query SymphonyLinearAgentActivity($id: String!) {
+    agentActivity(id: $id) {
+      id
+      agentSession {
+        id
+      }
+    }
+  }
+  """
+
+  @create_agent_activity_mutation """
+  mutation SymphonyLinearAgentActivityCreate($input: AgentActivityCreateInput!) {
+    agentActivityCreate(input: $input) {
+      success
+      agentActivity {
+        id
+      }
+    }
+  }
+  """
+
+  @update_delegated_status_mutation """
+  mutation SymphonyLinearDelegatedStatusUpdate($id: String!, $input: IssueUpdateInput!) {
+    issueUpdate(id: $id, input: $input) {
+      success
+      issue {
+        id
+        state {
+          id
+          name
+          type
+        }
+      }
+    }
+  }
+  """
+
   @spec fetch_issues_by_states([String.t()]) :: {:ok, [Issue.t()]} | {:error, term()}
   def fetch_issues_by_states(state_names) when is_list(state_names) do
     normalized_states = Enum.map(state_names, &to_string/1) |> Enum.uniq()
@@ -164,6 +248,186 @@ defmodule SymphonyElixir.Linear.Client do
         {:error, {:linear_api_request, reason}}
     end
   end
+
+  @spec fetch_delegated_issue(String.t(), keyword()) :: {:ok, Issue.t()} | {:error, term()}
+  def fetch_delegated_issue(issue_id, opts \\ []) when is_binary(issue_id) and is_list(opts) do
+    case graphql(@delegated_issue_query, %{"id" => issue_id}, opts) do
+      {:ok, response} ->
+        case response_object_or_nil(response, "issue") do
+          {:ok, nil} ->
+            {:error, :linear_issue_not_found}
+
+          {:ok, raw_issue} ->
+            case normalize_issue(raw_issue, nil) do
+              %Issue{} = issue -> {:ok, issue}
+              _other -> {:error, :linear_unknown_payload}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec fetch_agent_session(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def fetch_agent_session(session_id, opts \\ []) when is_binary(session_id) and is_list(opts) do
+    case graphql(@agent_session_query, %{"id" => session_id}, opts) do
+      {:ok, response} ->
+        case response_object_or_nil(response, "agentSession") do
+          {:ok, %{} = session} ->
+            case normalize_agent_session(session) do
+              %{} = normalized -> {:ok, normalized}
+              nil -> {:error, :linear_unknown_payload}
+            end
+
+          {:ok, nil} ->
+            {:error, :linear_agent_session_not_found}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec acknowledge_agent_session(String.t(), String.t(), String.t(), keyword()) ::
+          {:ok, map()} | {:error, term()}
+  def acknowledge_agent_session(session_id, activity_id, body, opts \\ [])
+      when is_binary(session_id) and is_binary(activity_id) and is_binary(body) and is_list(opts) do
+    with {:ok, response} <- graphql(@agent_activity_query, %{"id" => activity_id}, opts) do
+      case response_object_or_nil(response, "agentActivity") do
+        {:ok, nil} ->
+          create_agent_activity(session_id, activity_id, body, opts)
+
+        {:ok, raw_activity} ->
+          case normalize_agent_activity(raw_activity) do
+            %{"id" => ^activity_id, "agentSessionId" => ^session_id} ->
+              {:ok, %{id: activity_id}}
+
+            %{"id" => ^activity_id} ->
+              {:error, {:linear_agent_activity_conflict, activity_id}}
+
+            %{} ->
+              {:error, :linear_unknown_payload}
+
+            nil ->
+              {:error, :linear_unknown_payload}
+          end
+
+        {:error, {:linear_graphql_errors, errors} = reason} ->
+          if missing_agent_activity?(errors) do
+            create_agent_activity(session_id, activity_id, body, opts)
+          else
+            {:error, reason}
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  @spec update_delegated_status(String.t(), String.t(), keyword()) ::
+          {:ok, map()} | {:error, term()}
+  def update_delegated_status(issue_id, status_id, opts \\ [])
+      when is_binary(issue_id) and is_binary(status_id) and is_list(opts) do
+    with {:ok, response} <-
+           graphql(
+             @update_delegated_status_mutation,
+             %{"id" => issue_id, "input" => %{"stateId" => status_id}},
+             opts
+           ),
+         {:ok, %{"success" => true} = result} <- response_object_or_nil(response, "issueUpdate") do
+      {:ok, result}
+    else
+      {:ok, %{"success" => false}} -> {:error, :linear_issue_update_failed}
+      {:ok, nil} -> {:error, :linear_issue_update_failed}
+      {:error, reason} -> {:error, reason}
+      _other -> {:error, :linear_unknown_payload}
+    end
+  end
+
+  defp create_agent_activity(session_id, activity_id, body, opts) do
+    input = %{
+      "id" => activity_id,
+      "agentSessionId" => session_id,
+      "content" => %{"type" => "thought", "body" => body}
+    }
+
+    with {:ok, response} <- graphql(@create_agent_activity_mutation, %{"input" => input}, opts),
+         {:ok, result} <- response_object_or_nil(response, "agentActivityCreate") do
+      case result do
+        nil ->
+          {:error, :linear_agent_activity_create_failed}
+
+        %{"success" => true, "agentActivity" => %{"id" => ^activity_id}} ->
+          {:ok, %{id: activity_id}}
+
+        %{"success" => true, "agentActivity" => %{"id" => _other_id}} ->
+          {:error, {:linear_agent_activity_conflict, activity_id}}
+
+        %{"success" => false} ->
+          {:error, :linear_agent_activity_create_failed}
+
+        _other ->
+          {:error, :linear_unknown_payload}
+      end
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp response_object_or_nil(%{"errors" => errors}, _field)
+       when is_list(errors) and errors != [] do
+    {:error, {:linear_graphql_errors, errors}}
+  end
+
+  defp response_object_or_nil(%{"data" => data}, field) when is_map(data) and is_binary(field) do
+    case Map.fetch(data, field) do
+      {:ok, nil} -> {:ok, nil}
+      {:ok, %{} = object} -> {:ok, object}
+      _other -> {:error, :linear_unknown_payload}
+    end
+  end
+
+  defp response_object_or_nil(_response, _field), do: {:error, :linear_unknown_payload}
+
+  defp normalize_agent_session(%{"issue" => %{"id" => issue_id}} = session)
+       when is_binary(issue_id) do
+    session
+    |> Map.delete("issue")
+    |> Map.put("issueId", issue_id)
+  end
+
+  defp normalize_agent_session(_session), do: nil
+
+  defp normalize_agent_activity(%{"agentSession" => %{"id" => session_id}} = activity)
+       when is_binary(session_id) do
+    activity
+    |> Map.delete("agentSession")
+    |> Map.put("agentSessionId", session_id)
+  end
+
+  defp normalize_agent_activity(_activity), do: nil
+
+  defp missing_agent_activity?([
+         %{
+           "message" => "Entity not found: AgentActivity",
+           "extensions" => %{
+             "code" => "INPUT_ERROR",
+             "type" => "invalid input",
+             "userError" => true
+           }
+         }
+       ]),
+       do: true
+
+  defp missing_agent_activity?(_errors), do: false
 
   @doc false
   @spec normalize_issue_for_test(map()) :: Issue.t() | nil
@@ -476,9 +740,12 @@ defmodule SymphonyElixir.Linear.Client do
         description: issue["description"],
         priority: parse_priority(issue["priority"]),
         state: state_name,
+        state_type: assignee_field(issue["state"], "type"),
         branch_name: issue["branchName"],
         url: issue["url"],
         assignee_id: assignee_field(assignee, "id"),
+        delegate_id: assignee_field(issue["delegate"], "id"),
+        team_id: assignee_field(issue["team"], "id"),
         blocked_by: blockers,
         labels: extract_labels(issue),
         dispatchable: dispatchable?(state_name, blockers, assignee, assignee_filter),

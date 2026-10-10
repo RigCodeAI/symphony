@@ -1,20 +1,25 @@
 locals {
   coordinator_config = {
-    version               = 1
-    project_id            = var.project_id
-    project_number        = var.project_number
-    role                  = "coordinator"
-    instance_name         = "${var.name_prefix}-coordinator"
-    service_revision      = var.service_revision
-    archive_bucket        = google_storage_bucket.archive.name
-    backup_bucket         = google_storage_bucket.backups.name
-    release_bucket        = google_storage_bucket.releases.name
-    release_object        = var.release_object
-    release_sha256        = var.release_sha256
-    data_disk_device      = "factory-data"
-    worker_hosts          = local.worker_hosts
-    host_key_prefix       = "host-keys/"
-    worker_ssh_public_key = var.worker_ssh_public_key
+    version                         = 1
+    project_id                      = var.project_id
+    project_number                  = var.project_number
+    role                            = "coordinator"
+    coordinator_workflow            = var.coordinator_workflow
+    coordinator_secret_env          = var.coordinator_secret_env
+    coordinator_secret_versions     = { for env, key in var.coordinator_secret_env : env => var.optional_integration_secrets[key].version }
+    coordinator_secret_fingerprints = { for env, key in var.coordinator_secret_env : env => sha256("${env}\n${key}\n${google_secret_manager_secret.managed[key].id}\n${var.optional_integration_secrets[key].version}") }
+    enable_linear_webhook           = var.enable_linear_webhook
+    instance_name                   = "${var.name_prefix}-coordinator"
+    service_revision                = var.service_revision
+    archive_bucket                  = google_storage_bucket.archive.name
+    backup_bucket                   = google_storage_bucket.backups.name
+    release_bucket                  = google_storage_bucket.releases.name
+    release_object                  = var.release_object
+    release_sha256                  = var.release_sha256
+    data_disk_device                = "factory-data"
+    worker_hosts                    = local.worker_hosts
+    host_key_prefix                 = "host-keys/"
+    worker_ssh_public_key           = var.worker_ssh_public_key
     secret_ids = merge(
       { worker_ssh = google_secret_manager_secret.managed["worker_ssh"].id },
       { for name, secret in var.optional_integration_secrets : name => google_secret_manager_secret.managed[name].id },
@@ -200,6 +205,14 @@ resource "google_compute_instance_group" "coordinator" {
     name = "http"
     port = 8080
   }
+
+  dynamic "named_port" {
+    for_each = var.enable_linear_webhook ? [1] : []
+    content {
+      name = "linear-webhook"
+      port = 8081
+    }
+  }
 }
 
 resource "google_compute_health_check" "coordinator_http" {
@@ -264,6 +277,49 @@ resource "google_compute_url_map" "viewer" {
   project         = var.project_id
   name            = "${var.name_prefix}-viewer"
   default_service = google_compute_backend_service.coordinator_https[0].self_link
+
+  dynamic "host_rule" {
+    for_each = var.enable_linear_webhook ? [1] : []
+    content {
+      hosts        = [var.viewer_hostname]
+      path_matcher = "linear-webhook"
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = var.enable_linear_webhook ? [1] : []
+    content {
+      name            = "linear-webhook"
+      default_service = google_compute_backend_service.coordinator_https[0].self_link
+      path_rule {
+        paths   = ["/hooks/linear"]
+        service = google_compute_backend_service.linear_webhook[0].self_link
+      }
+    }
+  }
+}
+
+# The public backend reaches a separate listener which exposes only the signed
+# webhook. Dashboard and API traffic remain behind the IAP backend above.
+resource "google_compute_health_check" "linear_webhook" {
+  count   = local.ingress_enabled && var.enable_linear_webhook ? 1 : 0
+  project = var.project_id
+  name    = "${var.name_prefix}-linear-webhook-8081"
+  tcp_health_check { port = 8081 }
+}
+
+resource "google_compute_backend_service" "linear_webhook" {
+  count                 = local.ingress_enabled && var.enable_linear_webhook ? 1 : 0
+  project               = var.project_id
+  name                  = "${var.name_prefix}-linear-webhook"
+  protocol              = "HTTP"
+  port_name             = "linear-webhook"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  timeout_sec           = 10
+  health_checks         = [google_compute_health_check.linear_webhook[0].id]
+  enable_cdn            = false
+  backend { group = google_compute_instance_group.coordinator[0].self_link }
+  iap { enabled = false }
 }
 
 resource "google_compute_target_https_proxy" "viewer" {

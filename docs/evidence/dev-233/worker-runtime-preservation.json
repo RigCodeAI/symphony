@@ -1,0 +1,9 @@
+{
+  "id_unchanged": true,
+  "metadata_unchanged": true,
+  "disks_unchanged": true,
+  "networkInterfaces_unchanged": true,
+  "worker_private_ip": "10.42.0.2",
+  "worker_application_revision": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "control_revision": "cc85ca7871a27afb03bc2b6e86722a142ff93e7e"
+}

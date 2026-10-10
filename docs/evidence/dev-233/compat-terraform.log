@@ -1,0 +1,10 @@
+tests/pilot.tftest.hcl... in progress
+  run "private_instances_and_role_scoped_secrets"... pass
+  run "compute_disabled_plan_keeps_retained_resources"... pass
+  run "optional_https_ingress_requires_iap_allowlist"... pass
+  run "linear_webhook_has_only_an_exact_public_route_and_coordinator_credentials"... pass
+  run "webhook_cannot_enable_without_dashboard_identity_gate"... pass
+tests/pilot.tftest.hcl... tearing down
+tests/pilot.tftest.hcl... pass
+
+Success! 5 passed, 0 failed.

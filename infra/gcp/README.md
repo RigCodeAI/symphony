@@ -21,3 +21,15 @@ No secret values belong in `.tfvars`, backend files, release archives or state.
 Keep generated state/plans and private inputs outside Git. The example `.tfvars`
 contains safe project/capacity settings; required release, billing and budget
 inputs must be resolved before a real plan.
+
+DEV-233's opt-in `coordinator_workflow`, `coordinator_secret_env` and
+`enable_linear_webhook` wiring is described in [Linear deployment](../../docs/linear-delegation.md#gcp-coordinator-deployment).
+Default ingress remains off. The public webhook backend exposes a separate listener;
+the dashboard backend keeps IAP. Prepare a reviewed plan only after resolving the
+[remaining pilot decisions](../../docs/dev-233-morning-decision.md); no source test applies resources.
+
+Dashboard access supports managed domains through `iap_viewer_domains`, alongside
+the existing `iap_viewer_emails`. The selected pilot audience is `domain:rig.ai`
+(`iap_viewer_domains = ["rig.ai"]`), pending managed-domain and IAP organization
+eligibility verification. Grants stay on the dashboard backend with
+`roles/iap.httpsResourceAccessor`; operator access is configured separately.

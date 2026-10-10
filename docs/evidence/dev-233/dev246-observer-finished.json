@@ -1,0 +1,69 @@
+{
+  "unit_active": false,
+  "private_capture_bodies_removed": 7,
+  "retained_metadata_receipts": [
+    {
+      "delivery_id": "0f189e5a-652d-4b51-8a2c-f7e16225cf35",
+      "type": "Issue",
+      "action": "update",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791648922085,
+      "bytes": 6560
+    },
+    {
+      "delivery_id": "2a7aade8-4b52-49f0-82d2-f528a7d61868",
+      "type": "AgentSessionEvent",
+      "action": "created",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": "f95a51d9-cf38-417d-a738-bb237d4a907d",
+      "timestamp": 1791648922092,
+      "bytes": 5628
+    },
+    {
+      "delivery_id": "1a1a9b48-3f1a-469c-991b-c63df8bad869",
+      "type": "AppUserNotification",
+      "action": "issueSubscribed",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791648922185,
+      "bytes": 1350
+    },
+    {
+      "delivery_id": "24500586-058f-4a57-bb25-7d9243fbfdef",
+      "type": "AppUserNotification",
+      "action": "issueAssignedToYou",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791648922212,
+      "bytes": 1356
+    },
+    {
+      "delivery_id": "3dd35bd7-3c4f-41af-8c5d-c97e7496184e",
+      "type": "AppUserNotification",
+      "action": "issueUnassignedFromYou",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791648988972,
+      "bytes": 1364
+    },
+    {
+      "delivery_id": "bd3f2567-1ac2-4852-afe6-29a24040a952",
+      "type": "Issue",
+      "action": "update",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791648988812,
+      "bytes": 6287
+    },
+    {
+      "delivery_id": "450cdff9-6ccc-4da6-9db5-3150a9e12c8d",
+      "type": "Issue",
+      "action": "update",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "session_id": null,
+      "timestamp": 1791649023043,
+      "bytes": 8523
+    }
+  ]
+}

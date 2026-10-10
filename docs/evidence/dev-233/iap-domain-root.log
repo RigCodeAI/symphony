@@ -1,0 +1,9 @@
+tests/iap-domain.tftest.hcl... in progress
+  run "managed_domain_satisfies_root_viewer_gate"... pass
+  run "empty_viewers_block_ingress"... pass
+  run "unconfirmed_organization_blocks_domain_ingress"... pass
+  run "malformed_root_domain_rejected"... pass
+tests/iap-domain.tftest.hcl... tearing down
+tests/iap-domain.tftest.hcl... pass
+
+Success! 4 passed, 0 failed.

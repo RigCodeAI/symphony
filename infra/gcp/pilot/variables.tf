@@ -314,10 +314,40 @@ variable "enable_https_iap" {
     condition = !var.enable_https_iap || (
       var.viewer_hostname != null &&
       can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.viewer_hostname)) &&
-      length(var.iap_viewer_emails) > 0 &&
+      (length(var.iap_viewer_emails) + length(var.iap_viewer_domains)) > 0 &&
       var.iap_google_managed_oauth_confirmed
     )
-    error_message = "enable_https_iap requires a DNS hostname, at least one viewer email and confirmation that Google-managed OAuth is supported by the project organization."
+    error_message = "enable_https_iap requires a DNS hostname, at least one viewer email or managed domain and confirmation that Google-managed OAuth is supported by the project organization."
+  }
+}
+
+variable "coordinator_workflow" {
+  description = "pilot preserves the idle deployment; linear requires an operator-installed protected /etc/factory/workflows/<service_revision>.md."
+  type        = string
+  default     = "pilot"
+  validation {
+    condition     = contains(["pilot", "linear"], var.coordinator_workflow)
+    error_message = "coordinator_workflow must be pilot or linear."
+  }
+}
+
+variable "coordinator_secret_env" {
+  description = "Allowed coordinator credential environment names mapped to optional integration secret keys. Values are never in Terraform."
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for env, key in var.coordinator_secret_env : contains(["LINEAR_API_KEY", "LINEAR_API_TOKEN", "OAUTH_TOKEN"], env) && contains(keys(var.optional_integration_secrets), key)]) && length(distinct(values(var.coordinator_secret_env))) == length(var.coordinator_secret_env) && (var.coordinator_workflow == "linear" ? toset(keys(var.coordinator_secret_env)) == toset(["LINEAR_API_KEY", "LINEAR_API_TOKEN"]) : length(var.coordinator_secret_env) == 0)
+    error_message = "Map distinct optional integration secrets to allowed Linear credential environment names; linear requires LINEAR_API_KEY and LINEAR_API_TOKEN; pilot must have no credential mapping."
+  }
+}
+
+variable "enable_linear_webhook" {
+  description = "Opt-in signed webhook backend on port 8081, separate from dashboard IAP."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.enable_linear_webhook || (var.enable_https_iap && var.coordinator_workflow == "linear")
+    error_message = "The public webhook requires the HTTPS ingress and linear coordinator workflow."
   }
 }
 
@@ -336,6 +366,17 @@ variable "iap_viewer_emails" {
   validation {
     condition     = alltrue([for email in var.iap_viewer_emails : can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", email))])
     error_message = "iap_viewer_emails must contain valid email addresses."
+  }
+}
+
+variable "iap_viewer_domains" {
+  description = "Google Workspace or Cloud Identity managed domains allowed through dashboard IAP. Verify domain and project organization eligibility before deployment."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for domain in var.iap_viewer_domains : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", domain))])
+    error_message = "iap_viewer_domains must contain bare lowercase DNS domains, without wildcards, email addresses or principal prefixes."
   }
 }
 

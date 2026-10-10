@@ -6,8 +6,15 @@ defmodule SymphonyElixir.WorkstreamRun do
 
   @policy_digest :crypto.hash(:sha256, File.read!(__ENV__.file)) |> Base.encode16(case: :lower)
 
-  @external_resource Path.join(__DIR__, "workstream_runner.ex")
-  @executor_digest :crypto.hash(:sha256, File.read!(Path.join(__DIR__, "workstream_runner.ex"))) |> Base.encode16(case: :lower)
+  for source <- ~w(workstream_runner.ex worker_operation.ex workstream_cancellation.ex agent_runner.ex ssh.ex codex/app_server.ex) do
+    @external_resource Path.join(__DIR__, source)
+  end
+
+  @executor_digest ~w(workstream_runner.ex worker_operation.ex workstream_cancellation.ex agent_runner.ex ssh.ex codex/app_server.ex)
+                   |> Enum.map(&File.read!(Path.join(__DIR__, &1)))
+                   |> IO.iodata_to_binary()
+                   |> then(&:crypto.hash(:sha256, &1))
+                   |> Base.encode16(case: :lower)
 
   @external_resource Path.join(__DIR__, "validation.ex")
   @external_resource Path.join(__DIR__, "validation_policy.ex")
@@ -182,6 +189,52 @@ defmodule SymphonyElixir.WorkstreamRun do
     %{run | status: :reconciling, phase: :reconciling}
     |> put_in([:operations, run.current_attempt_id, :reconciliation], inspect(reason))
   end
+
+  @doc "Records a trusted termination for the stopped run's current operation."
+  @spec confirm_termination(map()) :: map()
+  def confirm_termination(%{status: :stopped, current_attempt_id: attempt_id} = run) when is_binary(attempt_id) do
+    case Map.get(run.operations, attempt_id) do
+      %{status: status} = operation when status in [:executing, :canceled] ->
+        attempts = Enum.map(run.attempts, &confirm_canceled_attempt(&1, attempt_id))
+
+        operation_cancellation =
+          operation
+          |> Map.get(:cancellation)
+          |> cancellation_map()
+          |> Map.put(:termination, :terminated)
+
+        operation =
+          operation
+          |> Map.put(:status, :canceled)
+          |> Map.delete(:reconciliation)
+          |> Map.put(:cancellation, operation_cancellation)
+
+        cancellation =
+          run
+          |> Map.get(:cancellation)
+          |> cancellation_map()
+          |> Map.put(:termination, :terminated)
+
+        run
+        |> Map.put(:attempts, attempts)
+        |> Map.put(:operations, Map.put(run.operations, attempt_id, operation))
+        |> Map.put(:cancellation, cancellation)
+
+      _ ->
+        run
+    end
+  end
+
+  def confirm_termination(run), do: run
+
+  defp confirm_canceled_attempt(%{id: id, status: status} = attempt, attempt_id)
+       when id == attempt_id and status in [:executing, :canceled],
+       do: Map.put(attempt, :status, :canceled)
+
+  defp confirm_canceled_attempt(attempt, _attempt_id), do: attempt
+
+  defp cancellation_map(value) when is_map(value), do: value
+  defp cancellation_map(_value), do: %{}
 
   @spec retry_transport(map()) :: map()
   def retry_transport(run) do

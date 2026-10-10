@@ -1,0 +1,12 @@
+{
+  "reason": "usage_paused",
+  "status": "blocked",
+  "reason_code": "usage_paused",
+  "candidate_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "probe_exit_code": 0,
+  "initialize_account_model_limits_read": true,
+  "agent_turn_started": false,
+  "thread_started": false,
+  "full_startup_qualification_passed": false,
+  "reason_source": "worker AppServer account/rateLimits/read readiness result"
+}

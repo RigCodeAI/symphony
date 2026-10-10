@@ -1,0 +1,17 @@
+{
+  "unknown_workspace": ":unknown_workstream_agent_or_workspace",
+  "worker_qualification": "ok",
+  "worker_control_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "worker_control_sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c",
+  "workstream_path": "/srv/factory/releases/a4c95481b898d05817d24cbcf76635d9c4b739c5/factory/workstreams/software-change.yaml",
+  "dev245_route": "ok",
+  "dev245_workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev245",
+  "dev246_route": "ok",
+  "dev246_workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev246",
+  "unknown_agent": ":unknown_workstream_agent_or_workspace",
+  "unknown_workstream": "{:definition_file_error, :workstream, \"/srv/factory/definitions/nonexistent-workstream.yaml\", :enoent}",
+  "definition_digest": "99e757299a34663b640412055c6a1a9a1f3177486e40180576aab33e1bfff1de",
+  "candidate_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "exit_code": 0,
+  "agent_inference_started": false
+}

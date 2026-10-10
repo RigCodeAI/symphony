@@ -1,0 +1,29 @@
+version: 1
+name: software-change
+inputs: [task]
+agents:
+  default-cloud: ../agents/default-cloud.yaml
+entry: implement
+stages:
+  - id: implement
+    type: agent
+    agent: default-cloud
+    inputs: [task]
+    outputs: [candidate]
+    prompt: Implement the delegated Rig task in this dedicated clone. Run focused development checks and commit the candidate locally. Report the candidate commit and checks. Do not push, publish a PR, or merge.
+    next: inspect-candidate
+  - id: inspect-candidate
+    type: check
+    inputs: [candidate]
+    outputs: [candidate-inspection]
+    gate:
+      command: [sh, -c, 'git rev-parse --verify HEAD >/dev/null && test -z "$(git status --porcelain)"']
+      timeout_ms: 10000
+      success: candidate-ready
+      failure: blocked
+  - id: candidate-ready
+    type: human_wait
+    inputs: [candidate, candidate-inspection]
+    outputs: [answer]
+    prompt: The local candidate is ready for inspection. Publication is disabled. Trusted final validation and publication require their configured service gates before any PR is opened.
+    next: complete

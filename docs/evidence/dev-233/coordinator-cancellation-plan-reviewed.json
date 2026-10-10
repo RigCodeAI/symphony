@@ -1,0 +1,36 @@
+{
+  "reviewed": true,
+  "changes": [
+    {
+      "address": "module.pilot.google_compute_instance.coordinator[\"main\"]",
+      "actions": [
+        "update"
+      ],
+      "changed_keys": [
+        "metadata"
+      ],
+      "release_config_delta": [
+        "release_object",
+        "release_sha256",
+        "service_revision"
+      ]
+    },
+    {
+      "address": "module.pilot.google_storage_bucket_iam_member.coordinator_release_reader",
+      "actions": [
+        "delete",
+        "create"
+      ],
+      "changed_keys": [
+        "bucket",
+        "condition",
+        "etag",
+        "id"
+      ],
+      "release_config_delta": null
+    }
+  ],
+  "worker_resources_changed": false,
+  "new_secret_grants": false,
+  "exact_candidate_and_rollback_archive_scope": true
+}

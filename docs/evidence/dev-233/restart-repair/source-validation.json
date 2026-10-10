@@ -1,0 +1,32 @@
+{
+  "archive_sha256": "a357c644f3665a9ea4bf1a36cd2847490e1e2e35d55d77afc6e2cd8bcf4f43a3",
+  "broad_ci_elixir_unchanged_in_final_source": true,
+  "broad_ci_source_revision": "9c026077f101fd1199fdde0b1dc49aef30b0639a",
+  "broad_tests": {
+    "excluded": 10,
+    "failures": 0,
+    "skipped": 6,
+    "total": 500
+  },
+  "final_archive_sha256": "67267e73e9c587f0b6115398d89cdac462b23dcb8749df34895a34b9d0a0af89",
+  "final_durable_tests": 16,
+  "final_python_tests": 43,
+  "final_source_revision": "064f892f95847ea2eed0eb684da36c6e1bb5fce6",
+  "final_transport_tests": 16,
+  "focused_elixir_tests": 59,
+  "python_tests": 41,
+  "remaining_live_acceptance": [],
+  "self_review": {
+    "canceled_attempt_pointer_retained_for_audit": true,
+    "completed_records_preserved": true,
+    "disconnect_preserves_pipe_owner": true,
+    "exact_identity_single_stream": true,
+    "full_close_releases_single_attachment": true,
+    "input_half_close_preserves_output": true,
+    "legacy_confirmed_stops_no_repeat_rpc": true,
+    "no_relaunch_or_new_turn_on_recovery": true,
+    "terminal_retention_bounded_by_trusted_proof": true,
+    "unknown_cancellation_reserves_capacity": true
+  },
+  "source_revision": "9c026077f101fd1199fdde0b1dc49aef30b0639a"
+}

@@ -182,7 +182,7 @@ run "optional_https_ingress_requires_iap_allowlist" {
   }
 
   assert {
-    condition     = google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].role == "roles/iap.httpsResourceAccessor"
+    condition     = google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].role == "roles/iap.httpsResourceAccessor" && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].member == "user:viewer@example.test" && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].web_backend_service == "rig-factory-coordinator-https"
     error_message = "Only the configured viewer allowlist may use the optional HTTPS endpoint."
   }
 
@@ -190,4 +190,103 @@ run "optional_https_ingress_requires_iap_allowlist" {
     condition     = toset(google_compute_firewall.https_healthcheck[0].source_ranges) == toset(["130.211.0.0/22", "35.191.0.0/16"])
     error_message = "The optional HTTP backend must accept traffic only from Google load-balancer probes and proxies."
   }
+}
+
+run "managed_domain_only_dashboard_access" {
+  command = plan
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_domains                 = ["rig.ai"]
+    iap_google_managed_oauth_confirmed = true
+  }
+  assert {
+    condition     = google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].member == "domain:rig.ai" && google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].role == "roles/iap.httpsResourceAccessor" && google_iap_web_backend_service_iam_member.https_domain_viewer["rig.ai"].web_backend_service == "rig-factory-coordinator-https" && length(google_iap_web_backend_service_iam_member.https_viewer) == 0 && google_compute_backend_service.coordinator_https[0].iap[0].enabled
+    error_message = "Managed-domain access must grant only the dashboard backend IAP role."
+  }
+  assert {
+    condition     = keys(google_iap_tunnel_instance_iam_member.iap_tunnel_operator) == ["operator@example.test"] && length(google_compute_instance_iam_member.os_login_operator) == 1
+    error_message = "Dashboard domains must not receive operator tunnel or OS Login access."
+  }
+}
+
+run "mixed_domain_and_email_dashboard_access" {
+  command = plan
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_domains                 = ["rig.ai"]
+    iap_viewer_emails                  = ["viewer@example.test"]
+    iap_google_managed_oauth_confirmed = true
+  }
+  assert {
+    condition     = length(google_iap_web_backend_service_iam_member.https_domain_viewer) == 1 && google_iap_web_backend_service_iam_member.https_viewer["viewer@example.test"].member == "user:viewer@example.test"
+    error_message = "Domain support must preserve existing email resource addresses and grants."
+  }
+}
+
+run "disabled_ingress_has_no_domain_access_grants" {
+  command = plan
+  variables {
+    iap_viewer_domains = ["rig.ai"]
+  }
+  assert {
+    condition     = length(google_iap_web_backend_service_iam_member.https_domain_viewer) == 0 && length(google_iap_web_backend_service_iam_member.https_viewer) == 0
+    error_message = "Disabled ingress must not create dashboard IAM grants."
+  }
+}
+
+run "invalid_domain_principals_rejected" {
+  command = plan
+  variables {
+    iap_viewer_domains = ["*.rig.ai", "user@rig.ai", "domain:rig.ai", "allUsers"]
+  }
+  expect_failures = [var.iap_viewer_domains]
+}
+
+run "linear_webhook_has_only_an_exact_public_route_and_coordinator_credentials" {
+  command = plan
+  override_resource {
+    target          = google_compute_backend_service.coordinator_https[0]
+    override_during = plan
+    values          = { self_link = "https://compute.googleapis.com/compute/v1/projects/test/global/backendServices/dashboard" }
+  }
+  override_resource {
+    target          = google_compute_backend_service.linear_webhook[0]
+    override_during = plan
+    values          = { self_link = "https://compute.googleapis.com/compute/v1/projects/test/global/backendServices/webhook" }
+  }
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_emails                  = ["viewer@example.test"]
+    iap_google_managed_oauth_confirmed = true
+    coordinator_workflow               = "linear"
+    enable_linear_webhook              = true
+    optional_integration_secrets = {
+      linear_api     = { secret_id = "linear-api", version = "7" }
+      linear_signing = { secret_id = "linear-signing", version = "2" }
+    }
+    coordinator_secret_env = { LINEAR_API_KEY = "linear_api", LINEAR_API_TOKEN = "linear_signing" }
+  }
+  assert {
+    condition     = google_compute_backend_service.coordinator_https[0].iap[0].enabled && !google_compute_backend_service.linear_webhook[0].iap[0].enabled && google_compute_backend_service.linear_webhook[0].port_name == "linear-webhook"
+    error_message = "The dashboard must retain IAP while the signed webhook uses its isolated listener."
+  }
+  assert {
+    condition     = google_compute_url_map.viewer[0].default_service == google_compute_backend_service.coordinator_https[0].self_link && google_compute_url_map.viewer[0].path_matcher[0].default_service == google_compute_backend_service.coordinator_https[0].self_link && toset(google_compute_url_map.viewer[0].path_matcher[0].path_rule[0].paths) == toset(["/hooks/linear"]) && google_compute_url_map.viewer[0].path_matcher[0].path_rule[0].service == google_compute_backend_service.linear_webhook[0].self_link
+    error_message = "Only the exact signed webhook path may bypass IAP."
+  }
+  assert {
+    condition     = local.coordinator_config.coordinator_secret_versions == { LINEAR_API_KEY = "7", LINEAR_API_TOKEN = "2" } && toset(keys(local.worker_config.secret_ids)) == toset(["model_auth", "git_read"]) && !contains(keys(local.worker_config), "coordinator_secret_env")
+    error_message = "Only the coordinator receives pinned integration credential references."
+  }
+}
+
+run "webhook_cannot_enable_without_dashboard_identity_gate" {
+  command = plan
+  variables {
+    enable_linear_webhook = true
+  }
+  expect_failures = [var.enable_linear_webhook]
 }

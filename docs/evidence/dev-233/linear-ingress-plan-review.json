@@ -1,0 +1,215 @@
+[
+  {
+    "actions": [
+      "create"
+    ],
+    "address": "module.pilot.google_compute_backend_service.linear_webhook[0]",
+    "after": {
+      "iap": [
+        {
+          "enabled": false,
+          "oauth2_client_id": null,
+          "oauth2_client_id_wo": null,
+          "oauth2_client_id_wo_version": null,
+          "oauth2_client_secret": null,
+          "oauth2_client_secret_wo": null,
+          "oauth2_client_secret_wo_version": null
+        }
+      ],
+      "port_name": "linear-webhook",
+      "protocol": "HTTP"
+    },
+    "changed_keys": [
+      "backend",
+      "circuit_breakers",
+      "connection_draining_timeout_sec",
+      "consistent_hash",
+      "custom_metrics",
+      "deletion_policy",
+      "enable_cdn",
+      "iap",
+      "load_balancing_scheme",
+      "locality_lb_policies",
+      "max_stream_duration",
+      "name",
+      "outlier_detection",
+      "params",
+      "port_name",
+      "project",
+      "protocol",
+      "security_settings",
+      "strong_session_affinity_cookie",
+      "timeout_sec",
+      "tls_settings"
+    ]
+  },
+  {
+    "actions": [
+      "update"
+    ],
+    "address": "module.pilot.google_compute_firewall.https_healthcheck[0]",
+    "after": {
+      "allow": [
+        {
+          "ports": [
+            "8080",
+            "8081"
+          ],
+          "protocol": "tcp"
+        }
+      ],
+      "source_ranges": [
+        "130.211.0.0/22",
+        "35.191.0.0/16"
+      ]
+    },
+    "changed_keys": [
+      "allow"
+    ]
+  },
+  {
+    "actions": [
+      "create"
+    ],
+    "address": "module.pilot.google_compute_health_check.linear_webhook[0]",
+    "changed_keys": [
+      "check_interval_sec",
+      "deletion_policy",
+      "grpc_health_check",
+      "grpc_tls_health_check",
+      "healthy_threshold",
+      "http2_health_check",
+      "http_health_check",
+      "https_health_check",
+      "name",
+      "project",
+      "ssl_health_check",
+      "tcp_health_check",
+      "timeout_sec",
+      "unhealthy_threshold"
+    ]
+  },
+  {
+    "actions": [
+      "update"
+    ],
+    "address": "module.pilot.google_compute_instance.coordinator[\"main\"]",
+    "changed_keys": [
+      "metadata"
+    ],
+    "metadata_keys_changed": [
+      "factory-cloud-io",
+      "factory-cloud-io-sha256",
+      "factory-config",
+      "startup-script"
+    ],
+    "pins": {
+      "new_release": "f663e7ad641fe8ab777a168398385bd0edaa565f",
+      "old_release": "541279aeb6a5366571e1ee8935e134c728d91c63",
+      "secret_env_refs": {
+        "LINEAR_API_KEY": "linear_client",
+        "LINEAR_API_TOKEN": "linear_signing"
+      },
+      "secret_versions": {
+        "linear_client": "1",
+        "linear_signing": "1",
+        "worker_ssh": "1"
+      },
+      "webhook_enabled": true,
+      "workflow": "linear"
+    }
+  },
+  {
+    "actions": [
+      "update"
+    ],
+    "address": "module.pilot.google_compute_instance_group.coordinator[0]",
+    "after": {
+      "instances": [
+        "https://www.googleapis.com/compute/v1/projects/factory-511117/zones/us-central1-a/instances/rig-factory-coordinator"
+      ],
+      "named_port": [
+        {
+          "name": "http",
+          "port": 8080
+        },
+        {
+          "name": "linear-webhook",
+          "port": 8081
+        }
+      ]
+    },
+    "changed_keys": [
+      "named_port"
+    ]
+  },
+  {
+    "actions": [
+      "update"
+    ],
+    "address": "module.pilot.google_compute_url_map.viewer[0]",
+    "after": {
+      "default_service": "https://www.googleapis.com/compute/v1/projects/factory-511117/global/backendServices/rig-factory-coordinator-https",
+      "host_rule": [
+        {
+          "description": "",
+          "hosts": [
+            "factory.rig.ai"
+          ],
+          "path_matcher": "linear-webhook"
+        }
+      ],
+      "path_matcher": [
+        {
+          "default_custom_error_response_policy": [],
+          "default_route_action": [],
+          "default_service": "https://www.googleapis.com/compute/v1/projects/factory-511117/global/backendServices/rig-factory-coordinator-https",
+          "default_url_redirect": [],
+          "description": null,
+          "header_action": [],
+          "name": "linear-webhook",
+          "path_rule": [
+            {
+              "custom_error_response_policy": [],
+              "paths": [
+                "/hooks/linear"
+              ],
+              "route_action": [],
+              "url_redirect": []
+            }
+          ],
+          "route_rules": []
+        }
+      ]
+    },
+    "changed_keys": [
+      "host_rule",
+      "path_matcher"
+    ]
+  },
+  {
+    "actions": [
+      "delete",
+      "create"
+    ],
+    "address": "module.pilot.google_storage_bucket_iam_member.coordinator_release_reader",
+    "after": {
+      "bucket": "factory-511117-rig-factory-releases",
+      "condition": [
+        {
+          "description": "The coordinator may read the candidate and retained rollback releases and pilot worker public host key.",
+          "expression": "resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/releases/f663e7ad641fe8ab777a168398385bd0edaa565f.tar.gz\" || resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/releases/541279aeb6a5366571e1ee8935e134c728d91c63.tar.gz\" || resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/host-keys/rig-factory-worker-01.pub\"",
+          "title": "pinned-release-and-worker-key-only"
+        }
+      ],
+      "member": "serviceAccount:rig-factory-coordinator@factory-511117.iam.gserviceaccount.com",
+      "role": "roles/storage.objectViewer"
+    },
+    "changed_keys": [
+      "bucket",
+      "condition",
+      "etag",
+      "id"
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "workspaces": [
+    {
+      "branch": "cycle/dev-245-disposable",
+      "fixture": "dev245",
+      "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+      "push_disabled": true,
+      "working_tree_clean": true,
+      "workspace_retained": true
+    },
+    {
+      "branch": "cycle/dev-246-disposable",
+      "fixture": "dev246",
+      "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+      "push_disabled": true,
+      "working_tree_clean": true,
+      "workspace_retained": true
+    },
+    {
+      "branch": "cycle/dev-247-disposable",
+      "fixture": "dev247",
+      "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+      "push_disabled": true,
+      "working_tree_clean": true,
+      "workspace_retained": true
+    },
+    {
+      "branch": "cycle/dev-248-disposable",
+      "fixture": "dev248",
+      "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+      "push_disabled": true,
+      "working_tree_clean": true,
+      "workspace_retained": true
+    }
+  ]
+}

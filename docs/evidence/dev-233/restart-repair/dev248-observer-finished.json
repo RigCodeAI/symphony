@@ -1,0 +1,69 @@
+{
+  "private_capture_bodies_removed": 7,
+  "retained_metadata_receipts": [
+    {
+      "action": "issueAssignedToYou",
+      "bytes": 1356,
+      "delivery_id": "0f2f2e07-e77c-4f46-afca-3effc93fb3ea",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658678058,
+      "type": "AppUserNotification"
+    },
+    {
+      "action": "update",
+      "bytes": 8099,
+      "delivery_id": "5d5e2e00-327f-44f0-b758-867c745fce9c",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658678051,
+      "type": "Issue"
+    },
+    {
+      "action": "issueSubscribed",
+      "bytes": 1350,
+      "delivery_id": "46574f6a-f12c-4b74-ae11-9c452a9ecc8f",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658678055,
+      "type": "AppUserNotification"
+    },
+    {
+      "action": "created",
+      "bytes": 6477,
+      "delivery_id": "3eaca32f-4dc6-4c73-a141-c9ba6940879c",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": "2a02d74d-35bd-42ca-abf5-ad77131f45f7",
+      "timestamp": 1791658678059,
+      "type": "AgentSessionEvent"
+    },
+    {
+      "action": "update",
+      "bytes": 7826,
+      "delivery_id": "5f25f951-aa33-48e8-affe-34376d38f40d",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658774044,
+      "type": "Issue"
+    },
+    {
+      "action": "issueUnassignedFromYou",
+      "bytes": 1364,
+      "delivery_id": "b3c619b3-454d-4ede-b667-e4750025fe34",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658774072,
+      "type": "AppUserNotification"
+    },
+    {
+      "action": "update",
+      "bytes": 10229,
+      "delivery_id": "a61d01a4-ca11-43a1-a946-fe0683defa66",
+      "issue_id": "b2227bf7-76b8-4c06-a968-021f6c34b665",
+      "session_id": null,
+      "timestamp": 1791658794015,
+      "type": "Issue"
+    }
+  ],
+  "unit_active": false
+}

@@ -1,0 +1,47 @@
+{
+  "active_release": "080c048448cc949cf796f10564f16c8cf83a60e8",
+  "dashboard": {
+    "status": 200
+  },
+  "snapshot": {
+    "blocked": [],
+    "running": [],
+    "retrying": [],
+    "codex_totals": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "seconds_running": 0
+    },
+    "rate_limits": null,
+    "linear": {
+      "enabled": true,
+      "tasks": [
+        {
+          "status": "stopped",
+          "phase": "stopped",
+          "session_id": "ba067e10-6e28-447b-acf3-f0cfe281b908",
+          "run_id": "run-d8d02683e2ce5992d098289c3edf4cc3",
+          "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+          "activity_id": "db1d26d0-abbb-42f5-a454-eeac8b38355c",
+          "agent_id": "default-cloud",
+          "current_attempt_id": null,
+          "cancellation": {
+            "termination": "terminated"
+          },
+          "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+          "stage_id": "blocked"
+        }
+      ]
+    },
+    "counts": {
+      "blocked": 0,
+      "running": 0,
+      "retrying": 0
+    },
+    "generated_at": "2026-10-10T15:07:49Z"
+  },
+  "webhook": {
+    "status": 404
+  }
+}

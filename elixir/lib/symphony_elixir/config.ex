@@ -42,6 +42,18 @@ defmodule SymphonyElixir.Config do
     end
   end
 
+  @spec linear_delegation() :: :disabled | {:ok, map()} | {:error, term()}
+  def linear_delegation do
+    with {:ok, settings} <- settings() do
+      if settings.linear_delegation == %{},
+        do: :disabled,
+        else: SymphonyElixir.Linear.Delegation.validate(settings.linear_delegation)
+    end
+  end
+
+  @spec linear_webhook_secret(map()) :: String.t() | nil
+  def linear_webhook_secret(config), do: System.get_env(config["webhook_secret_env"])
+
   @spec max_concurrent_agents_for_state(term()) :: pos_integer()
   def max_concurrent_agents_for_state(state_name) when is_binary(state_name) do
     config = settings!()

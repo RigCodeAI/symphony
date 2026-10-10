@@ -4,7 +4,7 @@ defmodule SymphonyElixir.SSH do
   @spec run(String.t(), String.t(), keyword()) :: {:ok, {String.t(), non_neg_integer()}} | {:error, term()}
   def run(host, command, opts \\ []) when is_binary(host) and is_binary(command) do
     with {:ok, executable} <- ssh_executable() do
-      {:ok, System.cmd(executable, ssh_args(host, command), opts)}
+      {:ok, System.cmd(executable, ssh_args(host, command, opts), Keyword.delete(opts, :raw_command))}
     end
   end
 
@@ -18,7 +18,7 @@ defmodule SymphonyElixir.SSH do
           :binary,
           :exit_status,
           :stderr_to_stdout,
-          args: Enum.map(ssh_args(host, command), &String.to_charlist/1)
+          args: Enum.map(ssh_args(host, command, opts), &String.to_charlist/1)
         ]
         |> maybe_put_line_option(line_bytes)
 
@@ -38,14 +38,14 @@ defmodule SymphonyElixir.SSH do
     end
   end
 
-  defp ssh_args(host, command) do
+  defp ssh_args(host, command, opts) do
     %{destination: destination, port: port} = parse_target(host)
 
     []
     |> maybe_put_config()
     |> Kernel.++(["-T"])
     |> maybe_put_port(port)
-    |> Kernel.++([destination, remote_shell_command(command)])
+    |> Kernel.++([destination, if(opts[:raw_command], do: command, else: remote_shell_command(command))])
   end
 
   defp maybe_put_line_option(port_opts, nil), do: port_opts

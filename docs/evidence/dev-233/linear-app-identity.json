@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-10-10T13:48:09.890734+00:00",
+  "client_id": "571c3dc755d9e63cfe74748787f6a533",
+  "discovery_token_revoked": true,
+  "expires_in": 2591999,
+  "identity": {
+    "organization": {
+      "id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+      "name": "Rig",
+      "urlKey": "rigai"
+    },
+    "teams": {
+      "nodes": [
+        {
+          "id": "41e1aa00-b853-44a9-930d-79e424259565",
+          "key": "DEV",
+          "name": "Dev"
+        }
+      ]
+    },
+    "viewer": {
+      "id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+      "name": "Rig Factory"
+    }
+  },
+  "scopes": "app:assignable read write",
+  "status": "passed"
+}

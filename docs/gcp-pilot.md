@@ -11,6 +11,14 @@ Deployment status and pilot evidence are tracked in
 [DEV-230](https://linear.app/rigai/issue/DEV-230/provision-and-actually-deploy-the-gcp-pilot-with-terraform).
 Configuration and local checks alone do not establish a working deployment.
 
+For DEV-233's proposed native Linear deployment, use the
+[coordinator procedure](linear-delegation.md#gcp-coordinator-deployment) and
+[morning decision card](dev-233-morning-decision.md). The default manual pilot remains idle.
+The new path requires a protected revision-specific workflow installed without clobbering,
+separate coordinator-only credential refs, real worker containment qualification and an
+explicit signed webhook ingress route. Integration pin changes require a distinct release.
+None of these DEV-233 deployment actions has been performed.
+
 ## Historical verification on source `445f251`
 
 The original live manual pilot checks passed on source
@@ -85,8 +93,10 @@ Release SHA-256: `40a3e683da0ce8a074de05ca335a5daf44ab0e974a2bed78acdf446abc1af2
 Both existing VMs activated this release without replacement or disk changes.
 
 Mix/build commands run as the service user with a cleared environment and role
-caches, set after mise selects the runtime. The coordinator launches its matching
-user-built escript. Root validates its source, runtime and protected tool trees
+caches, set after mise selects the runtime. The coordinator launches the CLI
+from its matching user-built Mix project so SQLite can load its physical native
+library. Startup does not compile or fetch dependencies. Root validates its
+source, runtime and protected tool trees
 before reuse; it never executes the legacy worker-owned tools. SSH/Codex home
 setup runs as the service user and rejects symlinks. The worker's executable Mix
 entrypoint preserves the external timeout.
@@ -328,6 +338,17 @@ Optional managed HTTPS/IAP infrastructure is gated by a verified hostname,
 organization support and an explicit Google identity allowlist. Proposed
 `factory.rig.ai` and `hooks.factory.rig.ai` are inputs, not configured DNS or live
 webhook endpoints. Do not publish the dashboard without the identity gate.
+
+The selected dashboard audience is the managed `rig.ai` domain. Set
+`iap_viewer_domains = ["rig.ai"]` to produce `domain:rig.ai`, scoped to the dashboard
+backend's `roles/iap.httpsResourceAccessor`. Existing `iap_viewer_emails` inputs retain
+their user grants and Terraform resource addresses; both inputs can be combined.
+These dashboard inputs grant no operator SSH or OS Login access. Confirm that `rig.ai`
+is a Google Workspace/Cloud Identity managed domain and its intended users are eligible
+for this project's Google-managed IAP OAuth before enabling ingress. That confirmation
+is pending; a matching email suffix alone is insufficient. See Google's
+[principal identifiers](https://docs.cloud.google.com/iam/docs/principal-identifiers)
+and [IAP authentication guidance](https://docs.cloud.google.com/iap/docs/authenticate-users-google-accounts).
 
 ## Smoke, definition rejection and retention
 

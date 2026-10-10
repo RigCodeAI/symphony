@@ -4,7 +4,7 @@ defmodule SymphonyElixir.Codex.AppServer do
   """
 
   require Logger
-  alias SymphonyElixir.{AgentReadiness, Codex.DynamicTool, Config, PathSafety, SSH}
+  alias SymphonyElixir.{AgentReadiness, Codex.DynamicTool, Config, PathSafety, SSH, WorkerOperation}
 
   @initialize_id 1
   @thread_start_id 2
@@ -30,6 +30,8 @@ defmodule SymphonyElixir.Codex.AppServer do
   ]
   @type session :: %{
           port: port(),
+          external_operation: map() | nil,
+          worker_control: map() | nil,
           metadata: map(),
           approval_policy: String.t() | map(),
           auto_approve_requests: boolean(),
@@ -57,24 +59,34 @@ defmodule SymphonyElixir.Codex.AppServer do
           turn_timeout_ms: pos_integer() | nil
         }
 
-  @spec run(Path.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  @spec run(Path.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()} | {:uncertain, term()}
   def run(workspace, prompt, issue, opts \\ []) do
     with {:ok, session} <- start_session(workspace, opts) do
-      try do
-        run_turn(session, prompt, issue, opts)
-      after
-        stop_session(session)
+      result =
+        try do
+          {:returned, run_turn(session, prompt, issue, opts)}
+        catch
+          kind, reason ->
+            {:raised, kind, reason, __STACKTRACE__}
+        end
+
+      case stop_session(session) do
+        :ok -> return_session_result(result)
+        {:error, :external_termination_unknown} -> {:uncertain, :external_termination_unknown}
       end
     end
   end
 
-  @spec start_session(Path.t(), keyword()) :: {:ok, session()} | {:error, term()}
+  defp return_session_result({:returned, result}), do: result
+  defp return_session_result({:raised, kind, reason, stacktrace}), do: :erlang.raise(kind, reason, stacktrace)
+
+  @spec start_session(Path.t(), keyword()) :: {:ok, session()} | {:error, term()} | {:uncertain, term()}
   def start_session(workspace, opts \\ []) do
     start_session_impl(workspace, opts, false)
   end
 
   defp start_session_impl(workspace, opts, qualification_probe) do
-    worker_host = Keyword.get(opts, :worker_host)
+    worker_host = if opts[:worker_control], do: opts[:worker_control]["host"], else: Keyword.get(opts, :worker_host)
     agent = Keyword.get(opts, :agent)
 
     with :ok <- dispatchable_agent(agent, qualification_probe),
@@ -89,7 +101,7 @@ defmodule SymphonyElixir.Codex.AppServer do
          {:ok, reasoning_effort} <- reasoning_effort(opts),
          {:ok, read_timeout_ms} <- timeout_setting(opts, :read_timeout_ms),
          {:ok, turn_timeout_ms} <- timeout_setting(opts, :turn_timeout_ms),
-         {:ok, port} <- start_port(expanded_workspace, worker_host, dynamic_tool_binding, command) do
+         {:ok, port, external_operation} <- start_operation_port(expanded_workspace, worker_host, dynamic_tool_binding, command, opts) do
       metadata = port_metadata(port, worker_host)
 
       invocation_settings =
@@ -97,17 +109,21 @@ defmodule SymphonyElixir.Codex.AppServer do
         |> Map.put(:agent, agent)
         |> Map.put(:authentication_reference, opts[:authentication_reference])
 
-      case do_start_session(
-             port,
-             expanded_workspace,
-             session_policies,
-             dynamic_tool_binding,
-             invocation_settings
-           ) do
+      case safe_session_start(fn ->
+             do_start_session(
+               port,
+               expanded_workspace,
+               session_policies,
+               dynamic_tool_binding,
+               invocation_settings
+             )
+           end) do
         {:ok, %{thread_id: thread_id, effective_model: effective_model} = started} ->
           {:ok,
            %{
              port: port,
+             external_operation: external_operation,
+             worker_control: opts[:worker_control],
              metadata: metadata,
              approval_policy: session_policies.approval_policy,
              auto_approve_requests: session_policies.approval_policy == "never",
@@ -131,9 +147,21 @@ defmodule SymphonyElixir.Codex.AppServer do
 
         {:error, reason} ->
           stop_port(port)
-          {:error, reason}
+
+          case stop_external_operation(opts[:worker_control], external_operation) do
+            :ok -> {:error, reason}
+            {:error, :external_termination_unknown} -> {:uncertain, :external_termination_unknown}
+          end
       end
     end
+  end
+
+  defp safe_session_start(start) do
+    start.()
+  rescue
+    _ -> {:error, :session_initialization_failed}
+  catch
+    _, _ -> {:error, :session_initialization_failed}
   end
 
   @spec run_turn(session(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -410,9 +438,19 @@ defmodule SymphonyElixir.Codex.AppServer do
     await_response(port, id, response_timeout(settings))
   end
 
-  @spec stop_session(session()) :: :ok
-  def stop_session(%{port: port}) when is_port(port) do
+  @spec stop_session(session()) :: :ok | {:error, :external_termination_unknown}
+  def stop_session(%{port: port} = session) when is_port(port) do
     stop_port(port)
+    stop_external_operation(Map.get(session, :worker_control), Map.get(session, :external_operation))
+  end
+
+  defp stop_external_operation(_control, nil), do: :ok
+
+  defp stop_external_operation(control, identity) do
+    case WorkerOperation.stop(control, identity) do
+      :terminated -> :ok
+      :unknown -> {:error, :external_termination_unknown}
+    end
   end
 
   defp resolve_command(opts) do
@@ -557,6 +595,19 @@ defmodule SymphonyElixir.Codex.AppServer do
 
       true ->
         {:ok, workspace}
+    end
+  end
+
+  defp start_operation_port(workspace, worker_host, binding, command, opts) do
+    case opts[:worker_control] do
+      nil ->
+        case start_port(workspace, worker_host, binding, command) do
+          {:ok, port} -> {:ok, port, nil}
+          error -> error
+        end
+
+      control ->
+        WorkerOperation.start(workspace, opts[:operation_id], control, opts[:on_process_start])
     end
   end
 

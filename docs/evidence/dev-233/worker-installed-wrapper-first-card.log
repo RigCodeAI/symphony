@@ -1,0 +1,31 @@
+{
+  "error_type": "RuntimeError",
+  "release_sha256": "13e98ad67fcc65d046a13aefd27281741211ad18062b0716e7169f2b787cae0f",
+  "service_revision": "2b093e97e420b41821b6cc2e6043324b14948404",
+  "stage": "systemd_qualification",
+  "status": "failed"
+}
+
+TEST_LOG_START
+Configuration installed. Service has not been enabled or started.
+Review root broker and control-account access before explicit activation.
+.F
+======================================================================
+FAIL: test_held_stop_natural_exit_and_durable_restart_proofs (__main__.SystemdContainmentTest.test_held_stop_natural_exit_and_durable_restart_proofs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/srv/factory/releases/2b093e97e420b41821b6cc2e6043324b14948404/factory/deploy/tests/test_worker_operation_systemd.py", line 358, in test_held_stop_natural_exit_and_durable_restart_proofs
+    self._reexec_manager(identity, "held")
+  File "/srv/factory/releases/2b093e97e420b41821b6cc2e6043324b14948404/factory/deploy/tests/test_worker_operation_systemd.py", line 327, in _reexec_manager
+    self.assertIsNotNone(recovered, "same systemd invocation did not recover")
+AssertionError: unexpectedly None : same systemd invocation did not recover
+
+----------------------------------------------------------------------
+Ran 2 tests in 10.359s
+
+FAILED (failures=1)
+Traceback (most recent call last):
+  File "<stdin>", line 68, in <module>
+  File "<stdin>", line 11, in run
+RuntimeError: command failed: /usr/bin/python3 exit=1
+

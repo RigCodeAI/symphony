@@ -9,7 +9,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
   """
 
   alias SymphonyElixir.Codex.AppServer
-  alias SymphonyElixir.{AgentReadiness, CandidateGit, PathSafety, Validation, ValidationPolicy, Workstream, WorkstreamCommand}
+  alias SymphonyElixir.{AgentReadiness, CandidateGit, PathSafety, Validation, ValidationPolicy, WorkerOperation, Workstream, WorkstreamCommand}
 
   @source_root Path.expand("../../..", __DIR__)
 
@@ -27,6 +27,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
     }
     |> maybe_pin_authentication_reference(opts[:authentication_reference])
     |> maybe_pin_secret_environment_names(opts[:secret_environment_names])
+    |> maybe_pin_worker_control(opts[:worker_control])
   end
 
   defp maybe_pin_authentication_reference(context, nil), do: context
@@ -34,6 +35,9 @@ defmodule SymphonyElixir.WorkstreamRunner do
 
   defp maybe_pin_secret_environment_names(context, nil), do: context
   defp maybe_pin_secret_environment_names(context, names), do: Map.put(context, :secret_environment_names, names)
+
+  defp maybe_pin_worker_control(context, nil), do: context
+  defp maybe_pin_worker_control(context, control), do: Map.put(context, :worker_control, control)
 
   @doc "Pins validation policy and storage roots for a prepared run."
   @spec pin_execution_context(keyword(), Path.t(), Workstream.loaded_workstream()) ::
@@ -97,7 +101,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
   Human waits are coordinated separately and return `:human_wait_requires_coordinator`.
   """
   @spec execute_stage(Workstream.loaded_stage() | String.t(), Workstream.loaded_workstream(), map(), keyword()) ::
-          {:ok, term()} | {:error, term()}
+          {:ok, term()} | {:error, term()} | {:uncertain, term()}
   def execute_stage(stage_id, definition, state, opts) when is_binary(stage_id) do
     case Map.fetch(definition.stages, stage_id) do
       {:ok, stage} -> execute_stage(stage, definition, state, opts)
@@ -116,12 +120,7 @@ defmodule SymphonyElixir.WorkstreamRunner do
       if stage.gate[:evaluator] == :candidate_validation do
         execute_candidate_validation(stage, state, workspace, opts)
       else
-        WorkstreamCommand.run(
-          stage.gate.command,
-          workspace,
-          stage.gate.timeout_ms,
-          Map.take(state.outputs, stage.inputs)
-        )
+        run_executable_check(stage, state, workspace, opts)
       end
     end
   end
@@ -131,6 +130,15 @@ defmodule SymphonyElixir.WorkstreamRunner do
 
   def execute_stage(_stage, _definition, _state, _opts),
     do: {:error, :invalid_workstream_stage}
+
+  defp run_executable_check(stage, state, workspace, opts) do
+    inputs = Map.take(state.outputs, stage.inputs)
+
+    case opts[:worker_control] do
+      nil -> WorkstreamCommand.run(stage.gate.command, workspace, stage.gate.timeout_ms, inputs)
+      control -> WorkerOperation.run_check(stage.gate.command, workspace, stage.gate.timeout_ms, state.current_attempt_id, control, opts[:on_process_start], inputs)
+    end
+  end
 
   @doc """
   Revalidates a pinned workspace before a stage executes and returns its canonical path.
@@ -596,6 +604,9 @@ defmodule SymphonyElixir.WorkstreamRunner do
       agent: agent,
       authentication_reference: opts[:authentication_reference],
       secret_environment_names: Keyword.get(opts, :secret_environment_names, []),
+      worker_control: opts[:worker_control],
+      operation_id: Map.get(state, :current_attempt_id),
+      on_process_start: opts[:on_process_start],
       model: agent.model,
       reasoning_effort: agent.reasoning_effort,
       dynamic_tools: false,
@@ -621,6 +632,9 @@ defmodule SymphonyElixir.WorkstreamRunner do
 
       {:error, _reason} ->
         {:error, :agent_execution_failed}
+
+      {:uncertain, _reason} = uncertain ->
+        uncertain
     end
   end
 

@@ -1,0 +1,15 @@
+{
+  "observed_at": "2026-10-10T07:47:54.144914+00:00",
+  "role": "coordinator",
+  "service_revision": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "coordinator_workflow": "legacy pilot",
+  "configured_secret_keys": [
+    "worker_ssh"
+  ],
+  "coordinator_secret_env_names": [],
+  "enable_ingress": false,
+  "enable_linear_webhook": false,
+  "active_release_path": "/srv/factory/releases/541279aeb6a5366571e1ee8935e134c728d91c63",
+  "coordinator_service_state": "active",
+  "root_runtime_directory_present": false
+}

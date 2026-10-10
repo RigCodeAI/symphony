@@ -1,0 +1,29 @@
+{
+  "changes": [
+    {
+      "actions": [
+        "update"
+      ],
+      "address": "module.pilot.google_compute_instance.coordinator[\"main\"]",
+      "changed_fields": [
+        "metadata"
+      ]
+    },
+    {
+      "actions": [
+        "delete",
+        "create"
+      ],
+      "address": "module.pilot.google_storage_bucket_iam_member.coordinator_release_reader",
+      "changed_fields": [
+        "condition",
+        "etag",
+        "bucket",
+        "id"
+      ]
+    }
+  ],
+  "resource_count": 2,
+  "status": "passed",
+  "worker_disk_network_secret_changes": false
+}

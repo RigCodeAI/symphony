@@ -1,0 +1,7 @@
+{
+  "capture_started": true,
+  "fixture_issue": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+  "max_seconds": 300,
+  "only_port": 8081,
+  "root_private_temporary": true
+}

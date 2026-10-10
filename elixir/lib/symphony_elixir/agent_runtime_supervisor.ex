@@ -7,8 +7,14 @@ defmodule SymphonyElixir.AgentRuntimeSupervisor do
 
   @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    Supervisor.start_link(__MODULE__, opts, name: name)
+    case configured_options(opts) do
+      {:ok, opts} ->
+        name = Keyword.get(opts, :name, __MODULE__)
+        Supervisor.start_link(__MODULE__, opts, name: name)
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   @impl true
@@ -32,4 +38,14 @@ defmodule SymphonyElixir.AgentRuntimeSupervisor do
     strategy = if Keyword.has_key?(opts, :workstream_store_path), do: :one_for_one, else: :one_for_all
     Supervisor.init(children, strategy: strategy)
   end
+
+  defp configured_options([]) do
+    case SymphonyElixir.Config.linear_delegation() do
+      :disabled -> {:ok, []}
+      {:ok, config} -> {:ok, [workstream_store_path: config["store_path"], linear_delegation: config]}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp configured_options(opts), do: {:ok, opts}
 end
