@@ -1,0 +1,15 @@
+{
+  "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev247",
+  "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+  "origin": "RigCodeAI/rig",
+  "push_disabled": true,
+  "bundle": "/srv/factory/tmp/dev233-rig-seed-dev247.bundle",
+  "preserved_leaf_entries": [
+    "natural-exit.txt",
+    "processes.json",
+    "rig-native-dev245",
+    "rig-native-dev246",
+    "transport-natural-exit.txt",
+    "transport-processes.json"
+  ]
+}

@@ -1,17 +1,18 @@
 # Native Linear delegation (DEV-233)
 
-The coordinator remains active on release `080c048448cc949cf796f10564f16c8cf83a60e8`, with
-durable SQLite and a healthy exact HTTPS `/hooks/linear` route. Worker-control revision
-`a4c95481b898d05817d24cbcf76635d9c4b739c5` is deployed and qualified; the worker app remains
-`541279aeb6a5366571e1ee8935e134c728d91c63`. Candidate coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5`
-is built and staged but not activated.
+The active coordinator is immutable release `3e81a8a418f585928bc9f4462f5187584a3bad38`,
+archive SHA-256 `fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. Its
+workstream and agent source bytes match the prior a4 release; protected configuration adds the
+DEV-247 fixture. Worker control remains deployed and qualified at
+`a4c95481b898d05817d24cbcf76635d9c4b739c5`; the worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`.
 
-The DEV-245 run remains failed/stopped before a thread or turn. A new no-turn AppServer check
-reached account, model and usage limits, then returned `usage_paused`. DEV-246 and its two
-clones are prepared but have never been delegated. Active-work cancellation and restart during
-in-flight work remain unverified; DEV-233 has no acceptance PR and is not complete. DEV-234
-owns human replies; ordinary prompt events currently deduplicate the existing task rather than
-supplying reply inputs. See the [current deployment checkpoint](evidence/dev-233/transport-deployment.md).
+Native active-work undelegation stopped DEV-247's live operation with exact root termination
+proof. DEV-246 active work did not survive coordinator restart: durable run/session/ack state
+remained and no replacement started, but the worker processes were gone after the SSH stream
+closed. DEV-233 remains unaccepted at that restart boundary. No acceptance PR or merge was
+attempted. DEV-234 owns human replies; ordinary prompt events currently deduplicate the
+existing task rather than supplying reply inputs. See the [native live acceptance record](evidence/dev-233/native-live-acceptance.md).
 
 ## Configuration
 
@@ -129,9 +130,12 @@ check root card, actual forced-SSH held/duplicate/stale/stop/stream/natural-exit
 actual Elixir `WorkerOperation.qualify/1` passed. The Elixir call resolved DEV-245 and DEV-246,
 rejected unknown workspace/agent/workstream references, and pinned definition digest
 `99e757299a34663b640412055c6a1a9a1f3177486e40180576aab33e1bfff1de`. The worker app remains
-`541279aeb6a5366571e1ee8935e134c728d91c63`. Agent execution is still unverified: the latest
-no-turn check returned `usage_paused` before a thread or turn. See the [deployment checkpoint](evidence/dev-233/transport-deployment.md)
-and [contained worker operations](contained-worker-operations.md). Controlled test callbacks
+`541279aeb6a5366571e1ee8935e134c728d91c63`. Later qualification passed App Server startup and
+subscription readiness on GPT-6 Luna, medium effort, Daybreak disabled. That probe created a
+session but no model turn and stopped its exact contained operation. The active coordinator
+now also resolves the DEV-247 fixture. See the [native live acceptance record](evidence/dev-233/native-live-acceptance.md),
+[deployment checkpoint](evidence/dev-233/transport-deployment.md) and
+[contained worker operations](contained-worker-operations.md). Controlled test callbacks
 cannot enable production control.
 
 From `elixir/`, start the configured workflow with:
@@ -191,9 +195,12 @@ bounded supervised cancellation verifies the exact worker invocation and its who
 Unknown execution reserves capacity through restart. Reconciliation frees the slot only
 after trusted termination proof; the stopped task cannot restart. A completed SSH stream
 without proof leaves the run reconciling. The deployed a4 worker-control transport passed
-forced-SSH termination and empty-cgroup proof checks. Native cancellation of active Linear
-work and restart during an in-flight operation remain unverified because the AppServer
-readiness probe stopped with `usage_paused` before a thread or turn began.
+forced-SSH termination and empty-cgroup proof checks. DEV-247 native undelegation also stopped
+a live foreground operation with exact empty-cgroup proof. DEV-246 run/session/acknowledgement
+survived coordinator restart without a replacement launch, but its worker processes were gone
+after the SSH stream closed, so active work did not survive restart. The DEV-246 and DEV-247
+attempt rows still report `executing` inside stopped runs; they are not live-process evidence.
+See the [native live acceptance record](evidence/dev-233/native-live-acceptance.md).
 
 The verifier bounds raw intake to 256 KiB, requires unique signature/delivery/event headers,
 checks HMAC-SHA256 over original bytes and checks the signed `webhookTimestamp` within
@@ -232,14 +239,15 @@ removing only that disposable output directory. It makes no Linear API call or a
 
 ## GCP coordinator deployment
 
-The source default remains the idle pilot. GCP is currently running the Linear workflow on
-coordinator release `080c048448cc949cf796f10564f16c8cf83a60e8`; its built Mix service owns the
-durable SQLite store. Candidate coordinator release
-`a4c95481b898d05817d24cbcf76635d9c4b739c5` is built and staged with protected configuration
-and rollback, but is not activated. Worker-control revision
-`a4c95481b898d05817d24cbcf76635d9c4b739c5` is deployed and qualified; the worker app remains
-`541279aeb6a5366571e1ee8935e134c728d91c63`. See the
-[transport deployment checkpoint](evidence/dev-233/transport-deployment.md).
+The source default remains the idle pilot. GCP is running the Linear workflow on immutable
+coordinator release `3e81a8a418f585928bc9f4462f5187584a3bad38`, archive SHA-256
+`fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. It retains the a4
+workstream and agent source bytes and adds the separately approved DEV-247 route in protected
+configuration. Coordinator metadata and the exact archive-read condition changed; worker
+resources and credentials did not. Worker-control revision
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` remains deployed and qualified; the worker app
+remains `541279aeb6a5366571e1ee8935e134c728d91c63`. See the
+[native live acceptance record](evidence/dev-233/native-live-acceptance.md).
 Map exactly `LINEAR_API_KEY` to the OAuth client secret and `LINEAR_API_TOKEN` to the
 separate signing secret using existing `optional_integration_secrets` keys and pinned
 numeric versions. Pilot mode accepts no credential mapping. No payload goes through Terraform.
@@ -281,35 +289,35 @@ observed run result and remaining acceptance work.
 
 ## Current live status and remaining acceptance
 
-The active coordinator remains on `080c048448cc949cf796f10564f16c8cf83a60e8`. Candidate
-coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5` is built and staged, not
-activated. The worker-control repair at the same revision is deployed and qualified; the
-worker application remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
+The active coordinator is immutable release `3e81a8a418f585928bc9f4462f5187584a3bad38`,
+archive SHA-256 `fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. It retains
+the a4 workstream and agent source bytes and adds the approved DEV-247 fixture in protected
+configuration. Worker control remains `a4c95481b898d05817d24cbcf76635d9c4b739c5`; the worker
+app remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
 
-DEV-245 remains Adam's failed/stopped evidence issue. Its run was acknowledged but failed
-before a thread or turn. Exact undelegation replay returned HTTP 200 as a duplicate; a
-zero-signature request returned 401. A captured replay of a description-only Issue update returned
-422 `unsupported_event`; the original response was not captured. Restart preserved one stopped
-run and its acknowledgement. The created-event replay was not captured. DEV-246 is separately
-provisioned with two push-disabled clones but has never been delegated.
+App Server startup and subscription readiness passed with GPT-6 Luna, medium effort and
+Daybreak disabled. The readiness probe created a session but no model turn; its exact contained
+operation was stopped. No reset was consumed by this agent. Earlier `usage_paused` and startup
+timeouts are historical and preceded successful reauthentication.
 
-With the repaired transport, a no-turn AppServer probe read account, model and limits, then
-returned `usage_paused` before a thread or turn. Its exact worker operation terminated with
-main PID 0 and an empty/released cgroup. The desktop account tool reported 100% weekly usage,
-ordinary usage disallowed and two reset credits. Explicit approval to consume one reset is
-pending; none has been used. See [app readiness](evidence/dev-233/transport-app-readiness.json)
-and [stop proof](evidence/dev-233/transport-app-stop-proof.json).
+DEV-246 active work did not survive coordinator restart. The run, session and acknowledgement
+remained durable and no replacement worker launched, but the worker processes were gone after
+the SSH stream closed; that closure appears to have ended the operation. The run remained in
+reconciliation until native undelegation stopped it. DEV-247 tested active cancellation without
+a restart: native undelegation stopped a live foreground operation, and root proof confirmed
+MainPID 0 with the exact cgroup empty and released. Created/stop event exact replays returned
+200 `duplicate`; zero-signature controls returned 401. The unrelated description-event replay
+returned 422 `unsupported_event` and its negative signature control returned 401.
 
-Native cancellation of active work and coordinator restart during an in-flight operation
-remain unverified. After usage is available, rerun full readiness, activate the staged
-coordinator, start the bounded observer before delegation, and confirm the operation is live.
-Restart the coordinator, verify the same operation remains active, then undelegate and prove
-termination with no replacement launch. Preserve DEV-245; use DEV-246 or another separately
-approved disposable fixture.
-If EOF has already ended the operation, that does not prove active cancellation. Do not publish,
-merge, open an acceptance PR or mark DEV-233 complete until the live checks pass. DEV-234 still
-owns human replies; prompted events do not yet supply reply input. See the
-[transport deployment checkpoint](evidence/dev-233/transport-deployment.md) for the full plan.
+The final audit found all three runs stopped and three exact worker termination proofs, with no
+worker processes after an idle restart. DEV-246 reconciliation remains `:unknown`; DEV-246 and
+DEV-247 stage-attempt rows still say `executing` inside stopped runs, so durable attempt metadata
+is not fully reconciled. Active-work restart survival failed, and DEV-233 remains unaccepted.
+Do not open an acceptance PR or mark it complete until restart survival and durable metadata
+reconciliation are resolved. Dashboard viewer access, token lifecycle accounting, Daybreak and
+scaled capacity remain unqualified. DEV-234 still owns human replies; prompted events do not yet
+supply reply inputs. See the [native live acceptance record](evidence/dev-233/native-live-acceptance.md)
+for receipt IDs and detailed evidence.
 
 ## Primary contracts
 

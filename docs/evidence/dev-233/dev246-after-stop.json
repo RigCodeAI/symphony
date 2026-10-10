@@ -1,0 +1,42 @@
+{
+  "observed_at": 1791649083.4947567,
+  "coordinator_release": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "linear_tasks": [
+    {
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "run_id": "run-ef2e798787754ccf02ef91637fc5eb7d",
+      "session_id": "f95a51d9-cf38-417d-a738-bb237d4a907d",
+      "activity_id": "5bf9b6f0-69b7-4da4-98f3-776320ed113c",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "status": "stopped",
+      "phase": "stopped",
+      "current_attempt_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+      "stage_id": "implement",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "error": null
+    },
+    {
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "run_id": "run-d8d02683e2ce5992d098289c3edf4cc3",
+      "session_id": "ba067e10-6e28-447b-acf3-f0cfe281b908",
+      "activity_id": "db1d26d0-abbb-42f5-a454-eeac8b38355c",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "status": "stopped",
+      "phase": "stopped",
+      "current_attempt_id": null,
+      "stage_id": "blocked",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "error": null
+    }
+  ],
+  "worker_processes": [],
+  "dashboard_counts": {
+    "blocked": 0,
+    "running": 0,
+    "retrying": 0
+  }
+}

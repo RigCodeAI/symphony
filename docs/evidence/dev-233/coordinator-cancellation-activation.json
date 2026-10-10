@@ -1,0 +1,24 @@
+[
+  {
+    "activation_log": "/srv/factory/dev233-rollbacks/3e81a8a418f585928bc9f4462f5187584a3bad38/activation-private.log",
+    "activation_output_saved_root_only": true,
+    "active_release": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+    "candidate": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+    "candidate_environment_ready": true,
+    "exit_code": 0,
+    "worker_application_update": "not performed",
+    "worker_control_pin": {
+      "revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+      "sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c"
+    },
+    "workflow_has_dev245_dev246_dev247": true
+  },
+  {
+    "activation_verified": true,
+    "active_release": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+    "candidate": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+    "protected_config_mode": "0o600",
+    "protected_config_owner": 0,
+    "secret_values_printed": false
+  }
+]

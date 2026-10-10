@@ -1,0 +1,17 @@
+[
+  {
+    "candidate": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "exit_code": 0,
+    "active_release": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "candidate_environment_ready": true,
+    "workflow_has_dev245_and_dev246": true
+  },
+  {
+    "candidate": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "activation_verified": true,
+    "active_release": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "protected_config_owner": 0,
+    "protected_config_mode": "0o600",
+    "secret_values_printed": false
+  }
+]

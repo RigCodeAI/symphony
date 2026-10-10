@@ -49,29 +49,24 @@ The first increments are:
    stages through the remaining tickets. Integrate Coverage Factory's separate contracts
    and qualify capacity after the pilot works.
 
-The Linear coordinator service remains active on release
-`080c048448cc949cf796f10564f16c8cf83a60e8`, with durable SQLite and a healthy exact HTTPS
-`/hooks/linear` route. Candidate coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5`
-is built and staged, not activated. Worker-control revision `a4c95481b898d05817d24cbcf76635d9c4b739c5`
-is deployed and qualified: 11/11 transport tests, the seven-check root card with manager
-re-execution, actual forced-SSH qualification, and Elixir `WorkerOperation.qualify/1` and
-route checks passed. The worker app remains `541279aeb6a5366571e1ee8935e134c728d91c63`; the
-existing VM, metadata, disks and network were preserved.
+The active coordinator is release `3e81a8a418f585928bc9f4462f5187584a3bad38`, archive
+SHA-256 `fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d`. Its workstream and
+agent definitions match a4; its protected configuration adds the DEV-247 fixture. Worker
+control remains `a4c95481b898d05817d24cbcf76635d9c4b739c5`, qualified on the existing systemd
+252 worker; the worker app remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
 
-DEV-245 remains the original failed/stopped evidence issue. A separate DEV-246 issue and two
-clones are prepared but have never been delegated. The new no-turn AppServer check reached
-account, model and limits, then stopped with `usage_paused` before a thread or turn. The desktop
-account tool reports 100% weekly usage, ordinary usage disallowed and two reset credits; user
-approval to consume one is pending, and none has been used. The created-event replay was not
-captured. Active-work cancellation and restart during in-flight work remain unverified.
-Dashboard HTTPS redirects to Google sign-in; signed-in access remains untested. DEV-233 is not
-complete and has no acceptance PR. See
-[transport deployment](docs/evidence/dev-233/transport-deployment.md),
-[current app readiness](docs/evidence/dev-233/transport-app-readiness.json),
-[transport evidence](docs/evidence/dev-233/transport-forced-ssh-qualification.json),
-[Elixir qualification](docs/evidence/dev-233/transport-elixir-qualification.json),
-[worker preservation](docs/evidence/dev-233/transport-worker-preservation.json),
-[Linear delegation](docs/linear-delegation.md) and the
+App Server startup and subscription readiness passed with GPT-6 Luna, medium effort and
+Daybreak disabled; this agent consumed no reset. DEV-246 active work did not survive coordinator
+restart: the run/session/acknowledgement persisted and no replacement started, but the worker
+processes were gone after the SSH stream closed; that closure appears to have ended the operation.
+On DEV-247, native undelegation stopped a
+foreground operation and exact root proof confirmed its cgroup was empty and released. The
+stopped-run audit found all three runs stopped with three exact worker termination proofs.
+DEV-246 reconciliation remains `:unknown`; DEV-246 and DEV-247 stage-attempt records still say
+`executing`. DEV-233 remains unaccepted because active work did not survive restart. Dashboard
+viewer access, token lifecycle accounting, Daybreak and scaled capacity remain unqualified.
+See the [native live acceptance evidence](docs/evidence/dev-233/native-live-acceptance.md),
+[Linear delegation](docs/linear-delegation.md) and
 [morning decision card](docs/dev-233-morning-decision.md).
 
 Coordinator-only client credentials mint app tokens in memory per delegated run; see

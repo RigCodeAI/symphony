@@ -1,0 +1,419 @@
+{
+  "active_release": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "counts": {
+    "events": 19,
+    "linear_events": 9,
+    "linear_tasks": 3,
+    "operations": 3,
+    "runs": 3,
+    "stage_attempts": 3
+  },
+  "linear_events": [
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+        "kind": "created",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": "ba067e10-6e28-447b-acf3-f0cfe281b908"
+      },
+      "status": "handled"
+    },
+    {
+      "event": {
+        "app_user_id": null,
+        "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+        "kind": "issue_updated",
+        "oauth_client_id": null,
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "ignored_after_stop"
+    },
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+        "kind": "stop",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "handled"
+    },
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+        "kind": "created",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": "f95a51d9-cf38-417d-a738-bb237d4a907d"
+      },
+      "status": "handled"
+    },
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+        "kind": "stop",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "handled"
+    },
+    {
+      "event": {
+        "app_user_id": null,
+        "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+        "kind": "issue_updated",
+        "oauth_client_id": null,
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "ignored_after_stop"
+    },
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+        "kind": "created",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": "b8423098-7b7d-470e-ad89-0a9e86eef22a"
+      },
+      "status": "handled"
+    },
+    {
+      "event": {
+        "app_user_id": null,
+        "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+        "kind": "issue_updated",
+        "oauth_client_id": null,
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "ignored_after_stop"
+    },
+    {
+      "event": {
+        "app_user_id": "ce9f2ad8-ef28-4253-bdc8-ae208f63a425",
+        "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+        "kind": "stop",
+        "oauth_client_id": "571c3dc755d9e63cfe74748787f6a533",
+        "organization_id": "9b259b98-cb6c-4256-88af-3a3f385c3fa7",
+        "session_id": null
+      },
+      "status": "handled"
+    }
+  ],
+  "runs": [
+    {
+      "attempts": [
+        {
+          "gate": null,
+          "id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+          "ordinal": 1,
+          "stage": "implement",
+          "status": "completed",
+          "type": "agent"
+        }
+      ],
+      "branch": "cycle/dev-245-disposable",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "current_attempt_id": null,
+      "definition_sha256": null,
+      "id": "run-d8d02683e2ce5992d098289c3edf4cc3",
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "operations": [
+        {
+          "external_process": {
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "control_group": "/system.slice/factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service",
+            "invocation_id": "924cb250248044f7af027b6e374061ac",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+            "request_sha256": "afd054672fa5e41eb5acd07f9a48ea6b78eec5d69441708f68764fc49fa7633c",
+            "unit": "factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service"
+          },
+          "id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+          "stage": "implement",
+          "status": "completed",
+          "type": "agent"
+        }
+      ],
+      "phase": "stopped",
+      "policy": {
+        "executor_sha256": "416364ee8ef2b4d02cdb3bd671579227e791e1c1077ab3033749536fa7c8774f",
+        "gate_policy": "exit-status-v1",
+        "lifecycle_sha256": "88e409d2625e557125d25f883c8d3098b864489ce38c5bc375b0ceb558bf58ee",
+        "validation_sha256": "35e062bd2db7fc88943c3e4440fe0770f0f5abfd388e27269dd25d8b57d62e5d",
+        "version": 1
+      },
+      "repairs": {},
+      "review_repair_rounds": 0,
+      "stage_id": "blocked",
+      "status": "stopped",
+      "task_id": "linear/8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "transport_retries": 0,
+      "validation_repair_rounds": 0
+    },
+    {
+      "attempts": [
+        {
+          "gate": null,
+          "id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+          "ordinal": 1,
+          "stage": "implement",
+          "status": "executing",
+          "type": "agent"
+        }
+      ],
+      "branch": "cycle/dev-246-disposable",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "current_attempt_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+      "definition_sha256": null,
+      "id": "run-ef2e798787754ccf02ef91637fc5eb7d",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "operations": [
+        {
+          "external_process": {
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "control_group": "/system.slice/factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service",
+            "invocation_id": "28e21d35a96e4dd196094ed0d00b5c2a",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+            "request_sha256": "4c1a0a0d1a0da2c323bb7f3b26a5d91914d3c12dddd31ef48bbb5f20ffae75d9",
+            "unit": "factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service"
+          },
+          "id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+          "reconciliation": ":unknown",
+          "stage": "implement",
+          "status": "canceled",
+          "type": "agent"
+        }
+      ],
+      "phase": "stopped",
+      "policy": {
+        "executor_sha256": "416364ee8ef2b4d02cdb3bd671579227e791e1c1077ab3033749536fa7c8774f",
+        "gate_policy": "exit-status-v1",
+        "lifecycle_sha256": "88e409d2625e557125d25f883c8d3098b864489ce38c5bc375b0ceb558bf58ee",
+        "validation_sha256": "35e062bd2db7fc88943c3e4440fe0770f0f5abfd388e27269dd25d8b57d62e5d",
+        "version": 1
+      },
+      "repairs": {},
+      "review_repair_rounds": 0,
+      "stage_id": "implement",
+      "status": "stopped",
+      "task_id": "linear/4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "transport_retries": 0,
+      "validation_repair_rounds": 0
+    },
+    {
+      "attempts": [
+        {
+          "gate": null,
+          "id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+          "ordinal": 1,
+          "stage": "implement",
+          "status": "executing",
+          "type": "agent"
+        }
+      ],
+      "branch": "cycle/dev-247-disposable",
+      "cancellation": {
+        "termination": "terminated"
+      },
+      "current_attempt_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+      "definition_sha256": null,
+      "id": "run-e65005caafe229f8a542d4b80b12c82f",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "operations": [
+        {
+          "external_process": {
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "control_group": "/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+            "invocation_id": "1910d27590774d09bf97247cf5403993",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+            "request_sha256": "24ff2f2b51f732076637756925ca63ef75b225aed131a935a845dd224d5a41db",
+            "unit": "factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service"
+          },
+          "id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+          "stage": "implement",
+          "status": "canceled",
+          "type": "agent"
+        }
+      ],
+      "phase": "stopped",
+      "policy": {
+        "executor_sha256": "416364ee8ef2b4d02cdb3bd671579227e791e1c1077ab3033749536fa7c8774f",
+        "gate_policy": "exit-status-v1",
+        "lifecycle_sha256": "88e409d2625e557125d25f883c8d3098b864489ce38c5bc375b0ceb558bf58ee",
+        "validation_sha256": "35e062bd2db7fc88943c3e4440fe0770f0f5abfd388e27269dd25d8b57d62e5d",
+        "version": 1
+      },
+      "repairs": {},
+      "review_repair_rounds": 0,
+      "stage_id": "implement",
+      "status": "stopped",
+      "task_id": "linear/20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "transport_retries": 0,
+      "validation_repair_rounds": 0
+    }
+  ],
+  "tasks": [
+    {
+      "activity_id": "db1d26d0-abbb-42f5-a454-eeac8b38355c",
+      "agent_id": "default-cloud",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "issue_id": "8c0f44a2-05a0-4fa8-b262-5b981e0e5244",
+      "run_id": "run-d8d02683e2ce5992d098289c3edf4cc3",
+      "session_id": "ba067e10-6e28-447b-acf3-f0cfe281b908",
+      "status": "stopped"
+    },
+    {
+      "activity_id": "5bf9b6f0-69b7-4da4-98f3-776320ed113c",
+      "agent_id": "default-cloud",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "issue_id": "4082e503-0c3c-40e4-a4a7-8680d4353b35",
+      "run_id": "run-ef2e798787754ccf02ef91637fc5eb7d",
+      "session_id": "f95a51d9-cf38-417d-a738-bb237d4a907d",
+      "status": "stopped"
+    },
+    {
+      "activity_id": "c79c7124-7dc4-48bb-a4c5-9ad6c45be8fe",
+      "agent_id": "default-cloud",
+      "assignee_id": "aec2db74-06bc-4e8b-bfef-3720c1a3fa53",
+      "issue_id": "20a39293-18fa-4272-b33e-c8ba12fe3bb0",
+      "run_id": "run-e65005caafe229f8a542d4b80b12c82f",
+      "session_id": "b8423098-7b7d-470e-ad89-0a9e86eef22a",
+      "status": "stopped"
+    }
+  ],
+  "worker_status_receipts": [
+    {
+      "exit_code": 0,
+      "operation_id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+      "status_receipt": {
+        "ok": {
+          "exit_code": "exited",
+          "exit_status": 0,
+          "identity": {
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "control_group": "/system.slice/factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service",
+            "invocation_id": "924cb250248044f7af027b6e374061ac",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+            "request_sha256": "afd054672fa5e41eb5acd07f9a48ea6b78eec5d69441708f68764fc49fa7633c",
+            "unit": "factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service"
+          },
+          "operation_id": "run-d8d02683e2ce5992d098289c3edf4cc3/implement/1",
+          "status": "terminated",
+          "termination_proof": {
+            "active_state": "active",
+            "boot_id": "4418dae454694f88ab9bbc4280b94547",
+            "cgroup_populated": 0,
+            "cgroup_state": "released",
+            "control_group": "/system.slice/factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service",
+            "exec_main_code": "exited",
+            "exec_main_status": 0,
+            "invocation_id": "924cb250248044f7af027b6e374061ac",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "main_pid": 0,
+            "observed_at": "2026-10-10T14:21:57.103383+00:00",
+            "sub_state": "exited",
+            "systemd_version": 252,
+            "unit": "factory-operation-40f4cbf7066de38fe95fe2605125494a18afea6bbc4c6e497ba310c8c2306683.service"
+          }
+        }
+      }
+    },
+    {
+      "exit_code": 0,
+      "operation_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+      "status_receipt": {
+        "ok": {
+          "exit_code": "exited",
+          "exit_status": 0,
+          "identity": {
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "control_group": "/system.slice/factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service",
+            "invocation_id": "28e21d35a96e4dd196094ed0d00b5c2a",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+            "request_sha256": "4c1a0a0d1a0da2c323bb7f3b26a5d91914d3c12dddd31ef48bbb5f20ffae75d9",
+            "unit": "factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service"
+          },
+          "operation_id": "run-ef2e798787754ccf02ef91637fc5eb7d/implement/1",
+          "status": "terminated",
+          "termination_proof": {
+            "active_state": "active",
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "cgroup_populated": 0,
+            "cgroup_state": "released",
+            "control_group": "/system.slice/factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service",
+            "exec_main_code": "exited",
+            "exec_main_status": 0,
+            "invocation_id": "28e21d35a96e4dd196094ed0d00b5c2a",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "main_pid": 0,
+            "observed_at": "2026-10-10T16:15:58.967096+00:00",
+            "sub_state": "exited",
+            "systemd_version": 252,
+            "unit": "factory-operation-2e4362bc0010b59aa67cc8bf1e1900911c440c7ba8d2a97a451983305b43cbea.service"
+          }
+        }
+      }
+    },
+    {
+      "exit_code": 0,
+      "operation_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+      "status_receipt": {
+        "ok": {
+          "exit_code": "exited",
+          "exit_status": 0,
+          "identity": {
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "control_group": "/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+            "invocation_id": "1910d27590774d09bf97247cf5403993",
+            "kind": "systemd-unit",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "operation_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+            "request_sha256": "24ff2f2b51f732076637756925ca63ef75b225aed131a935a845dd224d5a41db",
+            "unit": "factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service"
+          },
+          "operation_id": "run-e65005caafe229f8a542d4b80b12c82f/implement/1",
+          "status": "terminated",
+          "termination_proof": {
+            "active_state": "active",
+            "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+            "cgroup_populated": 0,
+            "cgroup_state": "released",
+            "control_group": "/system.slice/factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service",
+            "exec_main_code": "exited",
+            "exec_main_status": 0,
+            "invocation_id": "1910d27590774d09bf97247cf5403993",
+            "machine_id": "fe9b1ece921d40aeac95b10940000311",
+            "main_pid": 0,
+            "observed_at": "2026-10-10T16:29:35.322198+00:00",
+            "sub_state": "exited",
+            "systemd_version": 252,
+            "unit": "factory-operation-5a2457b186d5fd6a64d68c620ccbc7658552f3f29fd44dbad44c85d2d95600bc.service"
+          }
+        }
+      }
+    }
+  ]
+}

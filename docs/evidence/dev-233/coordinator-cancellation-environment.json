@@ -1,0 +1,20 @@
+{
+  "active_coordinator_release_unchanged": true,
+  "active_runtime_config_preserved": true,
+  "candidate": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "public_pending": "/etc/factory/public.pending.json",
+  "rollback_snapshot": "/srv/factory/dev233-rollbacks/3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "runtime_file": "/run/factory/coordinator/3e81a8a418f585928bc9f4462f5187584a3bad38.json",
+  "runtime_file_group": 1000,
+  "runtime_file_mode": "0o640",
+  "runtime_file_owner": 0,
+  "runtime_keys": [
+    "LINEAR_API_KEY",
+    "LINEAR_API_TOKEN"
+  ],
+  "secret_values_printed": false,
+  "secret_versions": {
+    "LINEAR_API_KEY": "1",
+    "LINEAR_API_TOKEN": "1"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "active_coordinator_release": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "active_still_previous_release": true,
+  "build_log": "/srv/factory/logs/dev233-coordinator-build-cancellation-candidate.log",
+  "build_log_bytes": 10170,
+  "build_log_root_only_regular_file": true,
+  "candidate_active": false,
+  "compile_file_counts": [
+    75
+  ],
+  "compiled_beam_count": 1216,
+  "expected_release_sha256": "fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d",
+  "generated_executable": true,
+  "generated_executable_bytes": 5899036,
+  "generated_marker_count": 2,
+  "raw_build_log_printed": false,
+  "release_marker_valid": true,
+  "status_exit_code": 0,
+  "unit": {
+    "ActiveState": "inactive",
+    "ExecMainStatus": "0",
+    "LoadState": "not-found",
+    "Result": "success",
+    "SubState": "dead"
+  }
+}

@@ -1,6 +1,19 @@
 # DEV-233 evidence checkpoints
 
-## Transport deployment checkpoint, 2026-10-10
+## Native live checkpoint, 2026-10-10
+
+The Google CLI reauthentication completed. The real subscription worker started a session;
+native DEV-246/DEV-247 delegation, authentic duplicate replay and invalid-signature rejection
+passed. DEV-247 undelegation stopped a visibly active foreground command with exact retained
+cgroup-empty proof. Three stopped runs and acknowledgements survived an idle restart.
+Coordinator `3e81a8a418f585928bc9f4462f5187584a3bad38` is active; worker control remains a4
+and the worker application remains 541. No reset was consumed by this agent.
+
+DEV-246 retained its identities across a coordinator restart, but its active worker operation
+ended. Active-work survival across restart did not pass, so DEV-233 remains unaccepted.
+See [live results, receipts and limits](native-live-acceptance.md).
+
+## Earlier transport deployment checkpoint, 2026-10-10
 
 Worker control `a4c95481b898d05817d24cbcf76635d9c4b739c5` is installed and qualified:
 11 transport tests, all seven systemd checks, forced SSH and actual Elixir qualification

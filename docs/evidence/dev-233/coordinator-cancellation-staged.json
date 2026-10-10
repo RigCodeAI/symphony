@@ -1,0 +1,31 @@
+{
+  "active_coordinator_release_unchanged": true,
+  "build_log": "/srv/factory/logs/dev233-coordinator-build-cancellation-candidate.log",
+  "build_unit": "dev233-coordinator-build-cancellation-candidate.service",
+  "candidate": "3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "definition_sources_match_worker_control_release": true,
+  "rollback": "/srv/factory/dev233-rollbacks/3e81a8a418f585928bc9f4462f5187584a3bad38",
+  "root_owned_snapshots": [
+    "runtime-coordinator.json",
+    "config.json",
+    "public.json",
+    "active.json",
+    "active-public.json",
+    "current.txt"
+  ],
+  "sha256": "fd1f4ae714539b331906ae5840c935e4dceed9e3a40d21c05aad780ea4a5cc3d",
+  "sqlite_preserved": true,
+  "ssh_config_preserved": true,
+  "staged": true,
+  "worker_application_update": "not performed",
+  "worker_control_pin": {
+    "revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c"
+  },
+  "workflow": "/etc/factory/workflows/3e81a8a418f585928bc9f4462f5187584a3bad38.md",
+  "workspace_mappings": {
+    "DEV-245": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev245",
+    "DEV-246": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev246",
+    "DEV-247": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev247"
+  }
+}
