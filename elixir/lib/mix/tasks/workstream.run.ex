@@ -20,6 +20,7 @@ defmodule Mix.Tasks.Workstream.Run do
           workspace: :string,
           workspace_root: :string,
           validate_only: :boolean,
+          authentication_reference: :string,
           codex_command: :string
         ]
       )

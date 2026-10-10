@@ -1,0 +1,476 @@
+{
+  "status": "blocked",
+  "version": 1,
+  "started_at": "2026-10-10T06:34:06.383705Z",
+  "worker": "rig-factory-worker-01",
+  "definitions": {
+    "/srv/factory/tmp/dev231/source/factory/agents/daybreak-cloud.yaml": "90fb13cf5140a6ca7b23637b5751ae65a47fac0e063ba8b0a4615a2f7b054817",
+    "/srv/factory/tmp/dev231/source/factory/instructions/cloud-implementation.md": "b75e205dfb751ccf100a9c3d92bbc7f7fadb42f0c778aca1af91b5718cf792c7",
+    "/srv/factory/tmp/dev231/source/factory/skills/factory-rig/SKILL.md": "7d634d5a9cede4c2eea4d11164e6e6b7897e80d0b04da9dc4a3c24873cc489ff"
+  },
+  "agent": "DaybreakCloud",
+  "blocker": "effective_daybreak_program_unobservable",
+  "authentication_reference": "projects/factory-511117/secrets/model-auth/versions/1",
+  "source_revision": "de571095e8fe8a87e5f5759512cc88db5aff2449",
+  "deployment_revision": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "requested": {
+    "authentication": {
+      "mode": "subscription",
+      "reference": "projects/factory-511117/secrets/model-auth/versions/1"
+    },
+    "daybreak": true,
+    "model": "gpt-6-sol",
+    "reasoning_effort": "high",
+    "cyber_access_program": "daybreakBlue"
+  },
+  "agent_revision": "90fb13cf5140a6ca7b23637b5751ae65a47fac0e063ba8b0a4615a2f7b054817",
+  "dispatch_ready": false,
+  "finished_at": "2026-10-10T06:34:09.833417Z",
+  "observation": {
+    "runtime": {
+      "server": {
+        "platformFamily": "unix",
+        "platformOs": "linux",
+        "userAgent": "symphony-orchestrator/0.159.2 (Debian 12.0.0; x86_64) unknown (symphony-orchestrator; 0.1.0)"
+      },
+      "authentication_reference": "projects/factory-511117/secrets/model-auth/versions/1",
+      "account": {
+        "type": "chatgpt",
+        "plan_type": "self_serve_business_prolite"
+      },
+      "models": [
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard"
+            ]
+          },
+          "id": "gpt-6.1-sol",
+          "model": "gpt-6.1-sol",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            },
+            {
+              "description": "Maximum reasoning with automatic task delegation",
+              "reasoningEffort": "ultra"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard"
+            ]
+          },
+          "id": "gpt-6-astra",
+          "model": "gpt-6-astra",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            },
+            {
+              "description": "Maximum reasoning with automatic task delegation",
+              "reasoningEffort": "ultra"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-6-sol",
+          "model": "gpt-6-sol",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            },
+            {
+              "description": "Maximum reasoning with automatic task delegation",
+              "reasoningEffort": "ultra"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-6-luna",
+          "model": "gpt-6-luna",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-reserve",
+          "model": "gpt-reserve",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-5.6-sol",
+          "model": "gpt-5.6-sol",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            },
+            {
+              "description": "Maximum reasoning with automatic task delegation",
+              "reasoningEffort": "ultra"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-5.6-terra",
+          "model": "gpt-5.6-terra",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            },
+            {
+              "description": "Maximum reasoning with automatic task delegation",
+              "reasoningEffort": "ultra"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-5.6-luna",
+          "model": "gpt-5.6-luna",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "gpt-5.5",
+          "model": "gpt-5.5",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            }
+          ]
+        },
+        {
+          "availableAccessPrograms": {
+            "cyber": [
+              "standard",
+              "daybreakBlue"
+            ]
+          },
+          "id": "codex-auto-review",
+          "model": "codex-auto-review",
+          "supportedReasoningEfforts": [
+            {
+              "description": "Fast responses with lighter reasoning",
+              "reasoningEffort": "low"
+            },
+            {
+              "description": "Balances speed and reasoning depth for everyday tasks",
+              "reasoningEffort": "medium"
+            },
+            {
+              "description": "Greater reasoning depth for complex problems",
+              "reasoningEffort": "high"
+            },
+            {
+              "description": "Extra high reasoning depth for complex problems",
+              "reasoningEffort": "xhigh"
+            },
+            {
+              "description": "Maximum reasoning depth for the hardest problems",
+              "reasoningEffort": "max"
+            }
+          ]
+        }
+      ],
+      "limits": {
+        "ordinaryUsageAllowed": true,
+        "rateLimits": {
+          "credits": {
+            "balance": null,
+            "hasCredits": true,
+            "unlimited": false
+          },
+          "individualLimit": null,
+          "limitId": "codex",
+          "limitName": null,
+          "normalModelSlug": null,
+          "planType": "self_serve_business_prolite",
+          "primary": {
+            "resetsAt": 1792206641,
+            "usedPercent": 69,
+            "windowDurationMins": 10080
+          },
+          "rateLimitReachedType": null,
+          "secondary": null,
+          "spendControlReached": false
+        },
+        "rateLimitsByLimitId": {
+          "codex": {
+            "credits": {
+              "balance": null,
+              "hasCredits": true,
+              "unlimited": false
+            },
+            "individualLimit": null,
+            "limitId": "codex",
+            "limitName": null,
+            "normalModelSlug": null,
+            "planType": "self_serve_business_prolite",
+            "primary": {
+              "resetsAt": 1792206641,
+              "usedPercent": 69,
+              "windowDurationMins": 10080
+            },
+            "rateLimitReachedType": null,
+            "secondary": null,
+            "spendControlReached": false
+          }
+        }
+      },
+      "configuration": {
+        "values": {
+          "forced_login_method": "chatgpt",
+          "model": null,
+          "model_provider": null,
+          "model_reasoning_effort": null
+        },
+        "layers": [
+          {
+            "name": {
+              "type": "sessionFlags"
+            },
+            "version": "sha256:5062fd2e44fe4109371f2bf4241689b35806117b323efa4e123f59f25c559e43"
+          },
+          {
+            "name": {
+              "file": "/srv/factory/homes/factory-worker/.codex/config.toml",
+              "profile": null,
+              "type": "user"
+            },
+            "version": "sha256:5a2847da34afa9f3867fc957eadfaa3644994dd5684ab5512f35984b8f8c5c94"
+          },
+          {
+            "name": {
+              "file": "/etc/codex/config.toml",
+              "type": "system"
+            },
+            "version": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+          }
+        ]
+      }
+    },
+    "observations": [
+      {
+        "assistant_output": "QUALIFIED DaybreakCloud: 42"
+      }
+    ],
+    "turn": {
+      "status": "completed",
+      "session_id": "01a12484-d34e-71b0-86fa-a9d27f42eb1a-01a12484-d372-71d3-8943-b49b8a017008",
+      "thread_id": "01a12484-d34e-71b0-86fa-a9d27f42eb1a",
+      "turn_id": "01a12484-d372-71d3-8943-b49b8a017008"
+    },
+    "configured": {
+      "daybreak": true,
+      "model": "gpt-6-sol",
+      "reasoning_effort": "high"
+    },
+    "effective": {
+      "model": null,
+      "reasoning_effort": null,
+      "cyber_access_program": null
+    }
+  }
+}

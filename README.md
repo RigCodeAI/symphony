@@ -91,6 +91,10 @@ runtime behavior. Existing workflow compatibility is preserved. DEV-229's local 
 `mix workstream.run`; see [Local workstreams](docs/local-workstreams.md) for
 versioned definitions, Linux bootstrap, passing/failing demos and exact commands.
 
+Named cloud/review definitions and a bounded subscription qualification command are
+available. See [worker qualification](docs/worker-qualification.md) for exact requested
+settings, readiness checks, receipts and the Daybreak verification boundary.
+
 ## Factory boundaries
 
 - Extend the existing coordinator; keep one writer per task and reconcile before retrying.

@@ -1,0 +1,12 @@
+version: 1
+name: HighEffortCloud
+model: gpt-6-luna
+reasoning_effort: high
+daybreak: false
+approval_policy: never
+sandbox: workspace-write
+authentication:
+  mode: subscription
+  reference: projects/factory-511117/secrets/model-auth/versions/1
+instructions: [../instructions/cloud-implementation.md]
+skills: [../skills/factory-rig/SKILL.md]

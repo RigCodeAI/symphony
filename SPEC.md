@@ -2396,3 +2396,36 @@ incompatible run. Existing command gates and WORKFLOW.md remain compatible.
 This increment provides local durable receipts and adapters, not GitHub publication
 or check enforcement, GCS archival, or Coverage Factory evaluators. See
 [trusted validation](docs/trusted-validation.md) for implemented limits and commands.
+
+
+## 21. Named factory agent qualification
+
+Named agent definitions own model, reasoning effort, boolean Daybreak, subscription
+authentication reference, permissions and instruction/skill references. Resolved agent
+and resource SHA-256 digests are pinned per attempt. No separate profile object is used.
+Legacy local definitions may inherit subscription authentication; explicit references
+MUST equal the service's resolved worker reference. A reference is an identifier, never
+credential bytes. This comparison does not attest the contents of an authentication file.
+
+Before a named session starts a thread, verify ChatGPT account type, exact advertised
+model, reasoning effort, access program and any explicit usage pause. Missing capabilities
+or unsupported settings MUST block without switching models, efforts or authentication.
+Set provider model fallback false; reject mismatched thread configuration and model reroutes.
+Legacy unnamed `WORKFLOW.md` sessions keep their protocol behavior.
+
+Normal named dispatch MUST reject Daybreak until effective execution is separately
+observable and verified. An operator-only qualification probe may request an advertised
+program, with one turn, 30-second RPC timeouts and a 90-second turn timeout. It has no
+dynamic tools, network access or factory publication authority. Subscription-backed ordinary
+success qualifies only the bounded task and verified thread configuration. Saved Daybreak
+configuration, catalog eligibility and a successful response MUST NOT be treated as proof
+of the effective access program. Unsupported or unobservable behavior yields an explicit
+blocker. Receipts distinguish requested settings, configured settings, per-turn telemetry
+(unknown fields stay null), limits and revision identities. They are investigation evidence,
+not trusted candidate-validation receipts or permission to expand worker capacity.
+
+Optional `secret_environment_names` supplied by the coordinator are additional validated
+variable names to remove from local or SSH Codex child environments. They MUST be unioned
+with existing exclusions, MUST NOT forward values, and MUST NOT weaken publisher/check
+credential isolation. Qualification receipts exclude raw server diagnostics, credential
+values, account IDs and reset-credit IDs; preserve bounded diagnostic codes instead.

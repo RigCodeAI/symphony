@@ -1,0 +1,12 @@
+version: 1
+name: DefaultReview
+model: gpt-6.1-sol
+reasoning_effort: high
+daybreak: false
+approval_policy: never
+sandbox: workspace-write
+authentication:
+  mode: subscription
+  reference: projects/factory-511117/secrets/model-auth/versions/1
+instructions: [../instructions/cloud-review.md]
+skills: [../skills/worker-qualification/SKILL.md]
