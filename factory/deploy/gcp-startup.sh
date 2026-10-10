@@ -11,6 +11,25 @@ trap 'factory_startup_exit=$?; printf "%s FACTORY_EVENT startup_failed exit=%s l
 if [[ -z "${HOME:-}" ]]; then
   exec runuser --user root -- bash "$0" "$@"
 fi
+
+ensure_sshd_runtime_dir() {
+  local runtime_dir=/run/sshd runtime_owner
+  if [[ -L "$runtime_dir" || ( -e "$runtime_dir" && ! -d "$runtime_dir" ) ]]; then
+    echo 'Unsafe sshd runtime directory' >&2
+    return 1
+  fi
+  if [[ -e "$runtime_dir" && ! -O "$runtime_dir" ]]; then
+    echo 'sshd runtime directory must be root-owned' >&2
+    return 1
+  fi
+  install -d -m 0755 -o root -g root "$runtime_dir"
+  runtime_owner="$(stat -c '%u:%g:%a' "$runtime_dir")"
+  [[ -d "$runtime_dir" && ! -L "$runtime_dir" && "$runtime_owner" = '0:0:755' ]] || {
+    echo 'sshd runtime directory has unsafe ownership or permissions' >&2
+    return 1
+  }
+}
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
@@ -110,6 +129,7 @@ EOF
   chown root:root "$ssh_mount_dropin_tmp"
   mv -f -- "$ssh_mount_dropin_tmp" "$ssh_mount_dropin"
   systemctl stop ssh.service >/dev/null 2>&1 || true
+  ensure_sshd_runtime_dir
 
   sshd_dropin_dir=/etc/ssh/sshd_config.d
   sshd_dropin="$sshd_dropin_dir/00-factory-worker-hostkey.conf"

@@ -245,6 +245,14 @@ only the scoped public pin object. Then compute recreation must be repeated and
 strict coordinator-to-worker SSH, retained data checks, and a fresh smoke must
 pass. This recovery has not yet been verified.
 
+The first retained-key rollout, `d6ee995`, completed on the coordinator at
+04:41:28 UTC but stopped on the worker before public-key publication: stopping
+the SSH unit removed `/run/sshd`, and `sshd -t` reported the missing privilege
+separation directory at 04:40:12 UTC. The follow-up change creates that validated
+root-owned runtime directory before checking the daemon. Its real Linux SSH
+fixture and live recovery must pass before acceptance. The public pin is still
+unchanged at this checkpoint.
+
 ## Remaining prerequisites and acceptance
 
 The user authorized subscription authentication and the read-only Rig token,

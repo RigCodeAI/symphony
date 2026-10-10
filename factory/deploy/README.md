@@ -21,6 +21,14 @@ secret ID/version changes. A root-owned source marker records that choice.
 Credential files are excluded from evidence and configuration object backups;
 protected disk snapshots require the same private access as the retained disk.
 
+The worker SSH host key also stays in root-only storage on the retained data
+disk. Worker SSH waits for that mount; startup creates its safe runtime
+directory and verifies that sshd offers only the retained Ed25519 key. Public
+pin publication remains immutable. An existing deployment with GCE-regenerated
+keys needs an operator to authenticate the new public key through the project
+serial console before rotating that one public pin; never accept a handshake
+fingerprint or disable strict checking as a recovery shortcut.
+
 ## Activate a release
 
 Run activation as root after verifying and extracting a release:
