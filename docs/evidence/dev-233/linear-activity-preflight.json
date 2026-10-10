@@ -1,0 +1,20 @@
+{
+  "checked_at": "2026-10-10T13:57:06.821964+00:00",
+  "client_id": "571c3dc755d9e63cfe74748787f6a533",
+  "discovery_token_revoked": true,
+  "expires_in": 2591999,
+  "graphql_errors": [
+    {
+      "extensions": {
+        "code": "INPUT_ERROR",
+        "type": "invalid input",
+        "userError": true
+      },
+      "message": "Entity not found: AgentActivity"
+    }
+  ],
+  "query_http_status": 200,
+  "query_result": null,
+  "scopes": "app:assignable read write",
+  "status": "passed"
+}

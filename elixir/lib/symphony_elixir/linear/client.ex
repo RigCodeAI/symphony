@@ -142,7 +142,9 @@ defmodule SymphonyElixir.Linear.Client do
       appUser {
         id
       }
-      issueId
+      issue {
+        id
+      }
       dismissedAt
     }
   }
@@ -152,7 +154,9 @@ defmodule SymphonyElixir.Linear.Client do
   query SymphonyLinearAgentActivity($id: String!) {
     agentActivity(id: $id) {
       id
-      agentSessionId
+      agentSession {
+        id
+      }
     }
   }
   """
@@ -273,9 +277,17 @@ defmodule SymphonyElixir.Linear.Client do
     case graphql(@agent_session_query, %{"id" => session_id}, opts) do
       {:ok, response} ->
         case response_object_or_nil(response, "agentSession") do
-          {:ok, %{} = session} -> {:ok, session}
-          {:ok, nil} -> {:error, :linear_agent_session_not_found}
-          {:error, reason} -> {:error, reason}
+          {:ok, %{} = session} ->
+            case normalize_agent_session(session) do
+              %{} = normalized -> {:ok, normalized}
+              nil -> {:error, :linear_unknown_payload}
+            end
+
+          {:ok, nil} ->
+            {:error, :linear_agent_session_not_found}
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, reason} ->
@@ -287,17 +299,35 @@ defmodule SymphonyElixir.Linear.Client do
           {:ok, map()} | {:error, term()}
   def acknowledge_agent_session(session_id, activity_id, body, opts \\ [])
       when is_binary(session_id) and is_binary(activity_id) and is_binary(body) and is_list(opts) do
-    with {:ok, response} <- graphql(@agent_activity_query, %{"id" => activity_id}, opts),
-         {:ok, existing_activity} <- response_object_or_nil(response, "agentActivity") do
-      case existing_activity do
-        nil ->
+    with {:ok, response} <- graphql(@agent_activity_query, %{"id" => activity_id}, opts) do
+      case response_object_or_nil(response, "agentActivity") do
+        {:ok, nil} ->
           create_agent_activity(session_id, activity_id, body, opts)
 
-        %{"id" => ^activity_id, "agentSessionId" => ^session_id} ->
-          {:ok, %{id: activity_id}}
+        {:ok, raw_activity} ->
+          case normalize_agent_activity(raw_activity) do
+            %{"id" => ^activity_id, "agentSessionId" => ^session_id} ->
+              {:ok, %{id: activity_id}}
 
-        %{} ->
-          {:error, {:linear_agent_activity_conflict, activity_id}}
+            %{"id" => ^activity_id} ->
+              {:error, {:linear_agent_activity_conflict, activity_id}}
+
+            %{} ->
+              {:error, :linear_unknown_payload}
+
+            nil ->
+              {:error, :linear_unknown_payload}
+          end
+
+        {:error, {:linear_graphql_errors, errors} = reason} ->
+          if missing_agent_activity?(errors) do
+            create_agent_activity(session_id, activity_id, body, opts)
+          else
+            {:error, reason}
+          end
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -366,6 +396,38 @@ defmodule SymphonyElixir.Linear.Client do
   end
 
   defp response_object_or_nil(_response, _field), do: {:error, :linear_unknown_payload}
+
+  defp normalize_agent_session(%{"issue" => %{"id" => issue_id}} = session)
+       when is_binary(issue_id) do
+    session
+    |> Map.delete("issue")
+    |> Map.put("issueId", issue_id)
+  end
+
+  defp normalize_agent_session(_session), do: nil
+
+  defp normalize_agent_activity(%{"agentSession" => %{"id" => session_id}} = activity)
+       when is_binary(session_id) do
+    activity
+    |> Map.delete("agentSession")
+    |> Map.put("agentSessionId", session_id)
+  end
+
+  defp normalize_agent_activity(_activity), do: nil
+
+  defp missing_agent_activity?([
+         %{
+           "message" => "Entity not found: AgentActivity",
+           "extensions" => %{
+             "code" => "INPUT_ERROR",
+             "type" => "invalid input",
+             "userError" => true
+           }
+         }
+       ]),
+       do: true
+
+  defp missing_agent_activity?(_errors), do: false
 
   @doc false
   @spec normalize_issue_for_test(map()) :: Issue.t() | nil

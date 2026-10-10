@@ -1,0 +1,7 @@
+{
+  "application_started": false,
+  "candidate": "f663e7ad641fe8ab777a168398385bd0edaa565f",
+  "exit_code": 0,
+  "output": "{\"prepare\":\"ok\",\"worker_qualification\":\"ok\",\"unknown_agent\":\":unknown_workstream_agent_or_workspace\",\"unknown_workstream\":\"{:definition_file_error, :workstream, \\\"/srv/factory/definitions/nonexistent-workstream.yaml\\\", :enoent}\",\"worker_control_revision\":\"cc85ca7871a27afb03bc2b6e86722a142ff93e7e\",\"definition_digest\":\"d9336848634c42f119397a1e6eb708603cca7975d2c9cd1c8ad70cbb1a940046\"}",
+  "stderr": ""
+}

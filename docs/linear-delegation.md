@@ -274,4 +274,10 @@ The integration follows Linear's [agent authentication/delegation](https://linea
 [stop signals](https://linear.app/developers/agent-signals) and
 [undelegation guidance](https://linear.app/developers/agent-best-practices).
 The GraphQL schema supports a caller-supplied activity UUID and lookup; it does not promise
-that repeated create mutations are idempotent. Reconciliation uses the stable lookup.
+that repeated create mutations are idempotent. Reconciliation uses the stable lookup. The
+live API exposes `AgentSession.issue { id }` and `AgentActivity.agentSession { id }`; the client
+normalizes these relations for the existing coordinator contract. A fresh activity lookup
+returns HTTP 200 with the specific `INPUT_ERROR` / `Entity not found: AgentActivity` error.
+Only that missing response (or a null activity) permits creation; permission, schema and
+other lookup errors remain blockers. These contracts were checked against the installed app
+on 2026-10-10 before native delegation.

@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-10-10T13:55:39.792766+00:00",
+  "client_id": "571c3dc755d9e63cfe74748787f6a533",
+  "discovery_token_revoked": true,
+  "expires_in": 2591999,
+  "graphql_errors": [
+    {
+      "extensions": {
+        "code": "GRAPHQL_VALIDATION_FAILED",
+        "type": "graphql error",
+        "userError": true
+      },
+      "message": "Cannot query field \"agentSessionId\" on type \"AgentActivity\". Did you mean \"agentSession\"?"
+    }
+  ],
+  "query_result": null,
+  "scopes": "app:assignable read write",
+  "status": "passed"
+}

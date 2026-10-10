@@ -77,7 +77,7 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
              "agentSession" => %{
                "id" => "session-1",
                "appUser" => %{"id" => "agent-1"},
-               "issueId" => "issue-1",
+               "issue" => %{"id" => "issue-1"},
                "dismissedAt" => nil
              }
            }
@@ -88,8 +88,11 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
     assert {:ok, session} = Client.fetch_agent_session("session-1", client_opts(request_fun))
     assert session["appUser"] == %{"id" => "agent-1"}
     assert session["issueId"] == "issue-1"
+    refute Map.has_key?(session, "issue")
     assert_receive {:graphql_request, %{"query" => query, "variables" => %{"id" => "session-1"}}}
     assert query =~ "agentSession(id: $id)"
+    assert query =~ ~r/issue\s*\{\s*id\s*\}/
+    refute query =~ "issueId"
 
     graphql_errors = [%{"message" => "session lookup denied"}]
 
@@ -102,7 +105,7 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
              )
   end
 
-  test "acknowledgement creates a thought only after a missing activity lookup" do
+  test "acknowledgement creates a thought only after the exact missing-activity GraphQL error" do
     request_fun = fn payload, _headers ->
       send(self(), {:graphql_request, payload})
 
@@ -120,7 +123,23 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
            }
          }}
       else
-        {:ok, %{status: 200, body: %{"data" => %{"agentActivity" => nil}}}}
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             "data" => nil,
+             "errors" => [
+               %{
+                 "message" => "Entity not found: AgentActivity",
+                 "extensions" => %{
+                   "code" => "INPUT_ERROR",
+                   "type" => "invalid input",
+                   "userError" => true
+                 }
+               }
+             ]
+           }
+         }}
       end
     end
 
@@ -134,6 +153,8 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
 
     assert_receive {:graphql_request, %{"query" => lookup_query, "variables" => %{"id" => "activity-1"}}}
     assert lookup_query =~ "agentActivity(id: $id)"
+    assert lookup_query =~ ~r/agentSession\s*\{\s*id\s*\}/
+    refute lookup_query =~ "agentSessionId"
 
     assert_receive {:graphql_request,
                     %{
@@ -159,7 +180,7 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
          status: 200,
          body: %{
            "data" => %{
-             "agentActivity" => %{"id" => "activity-1", "agentSessionId" => "session-1"}
+             "agentActivity" => %{"id" => "activity-1", "agentSession" => %{"id" => "session-1"}}
            }
          }
        }}
@@ -175,6 +196,7 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
 
     assert_receive {:graphql_request, %{"query" => query}}
     assert query =~ "agentActivity(id: $id)"
+    assert query =~ ~r/agentSession\s*\{\s*id\s*\}/
     refute_received {:graphql_request, %{"query" => _query}}
   end
 
@@ -187,13 +209,40 @@ defmodule SymphonyElixir.Linear.AgentClientTest do
          status: 200,
          body: %{
            "data" => %{
-             "agentActivity" => %{"id" => "activity-1", "agentSessionId" => "other-session"}
+             "agentActivity" => %{"id" => "activity-1", "agentSession" => %{"id" => "other-session"}}
            }
          }
        }}
     end
 
     assert {:error, {:linear_agent_activity_conflict, "activity-1"}} =
+             Client.acknowledge_agent_session(
+               "session-1",
+               "activity-1",
+               "Starting work",
+               client_opts(request_fun)
+             )
+
+    assert_receive {:graphql_request, %{"query" => query}}
+    assert query =~ "agentActivity(id: $id)"
+    refute_received {:graphql_request, %{"query" => _query}}
+  end
+
+  test "acknowledgement does not create an activity for unrelated lookup errors" do
+    graphql_errors = [
+      %{
+        "message" => "Linear is unavailable",
+        "extensions" => %{"code" => "INTERNAL_ERROR"}
+      }
+    ]
+
+    request_fun = fn payload, _headers ->
+      send(self(), {:graphql_request, payload})
+
+      {:ok, %{status: 200, body: %{"data" => nil, "errors" => graphql_errors}}}
+    end
+
+    assert {:error, {:linear_graphql_errors, ^graphql_errors}} =
              Client.acknowledge_agent_session(
                "session-1",
                "activity-1",

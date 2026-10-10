@@ -287,3 +287,9 @@ controlled unit was subsequently killed by card cleanup (observed exit signal 9)
 not the previous wrapper CLI failure. No receipt or service activation resulted.
 Preparation now waits for a live exact unit and populated cgroup. The fixed unit
 also starts in the canonical workspace, which the real card explicitly checks.
+
+## Installed Linear integration preflight — 2026-10-10
+
+[Native integration preflight](native-integration.md) records the authenticated app identity,
+restricted secret/ingress plans, matching fixture clones, real Elixir qualification and the
+live GraphQL contract corrections. It does not yet establish native delegation acceptance.

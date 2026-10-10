@@ -1,0 +1,11 @@
+{
+  "bundle": "/srv/factory/tmp/dev233-rig-seed.bundle",
+  "head": "39d6d5d998366bf13af19eb74ae47d598ecf92bd",
+  "origin": "RigCodeAI/rig",
+  "preserved_leaf_entries": [
+    "natural-exit.txt",
+    "processes.json"
+  ],
+  "push_disabled": true,
+  "workspace": "/srv/factory/contained-workspaces/dev233-control-qualification/rig-native-dev245"
+}

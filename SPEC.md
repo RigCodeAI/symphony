@@ -50,7 +50,10 @@ label, active DEV status and installed app delegate. Project membership and huma
 do not authorize dispatch. The current agent session must belong to the configured app and
 issue. The human assignee is preserved. A created session selects the explicit software-change
 entry and cloud agent, pins one run per issue, and acknowledges using a persisted activity UUID
-before any stage launches. Unknown routing, unavailable readiness or unsafe credentials block.
+before any stage launches. Session and activity ownership is read through GraphQL relations;
+only the provider's specific missing-activity response permits creating the saved activity UUID.
+Other lookup errors and conflicting session identities block acknowledgement. Unknown routing,
+unavailable readiness or unsafe credentials block.
 Production dispatch also requires the pinned SSH/systemd worker control path and a current
 root-owned containment qualification receipt. Missing or stale qualification blocks dispatch.
 Enqueue must match the resolved definition digest used for qualification; a source change in
