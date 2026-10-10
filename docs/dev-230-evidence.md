@@ -3,7 +3,7 @@
 Date: 2026-10-10. All times are UTC. The original live checks passed for the
 manual, single-worker pilot described here, but a later restart-privilege review
 found a flaw in source `445f251`. That source and its results are historical;
-replacement-source startup and smoke verification are pending. This evidence
+the repaired revision and its live verification are recorded below. This evidence
 does not claim production isolation, durable in-flight recovery, native Linear
 dispatch or capacity beyond one worker.
 
@@ -141,15 +141,69 @@ The pilot was applied in project `factory-511117` (number `292978199748`),
 used for the invalid-definition rehearsal and configuration backup, not the
 final smoke.
 
-## Restart-privilege repair status
+## Restart-privilege repair verification
 
-The repair is being implemented with builds run as the service user via `env -i`,
-in a per-revision project copy under `build/<revision>/project`. Mix and Cargo
-caches will be separated by role. Root bootstrap will use a protected
-`bootstrap-tools-v1` namespace and validate it before reuse. Replacement source
-and release SHA, repeated startup proving UID 1000 for the service-user build,
-and a fresh real worker smoke are pending. No production or arbitrary-code
-isolation claim is made.
+Repaired service source: `541279aeb6a5366571e1ee8935e134c728d91c63`.
+Release SHA-256: `40a3e683da0ce8a074de05ca335a5daf44ab0e974a2bed78acdf446abc1af242`.
+Both existing VMs activated this release without replacement or disk changes.
+The coordinator runs the user-built escript from the per-revision project copy.
+
+All Mix/build commands run as the service user through `runuser` and `env -i`.
+Mix and Cargo caches are writable by their role; source, runtime and bootstrap
+tools remain root-owned. Startup checks ownership, permissions and symlink targets
+before reusing root paths. It never executes the legacy worker-owned tools or
+adopts a service-owned tree back into root ownership. SSH/Codex home setup also
+runs as the service user and rejects symlinks.
+
+The first repair candidate `0862f645` failed safely before activation because
+real mise selected its protected runtime Mix cache. The deployed correction sets
+role-specific Mix cache paths after mise selects the runtime. Two actual Linux
+builds passed with that backend behavior simulated. The modified cached dependency
+ran as UID 1000; service entrypoint, activation, root-path guards and SSH/Codex
+symlink fixtures passed. All 17 shell syntax checks and diff checks passed.
+
+Source `2f16e48` activated successfully and its live restart probe recorded
+UID 1000 and the role Mix cache. The following pilot task stopped before starting
+an agent: external `timeout` could not launch the `factory_mix` shell function.
+Source `541279a` uses an executable entrypoint. Its focused Linux test verifies
+service identity, post-mise cache paths, argument handling and timeout exit 124.
+
+Repeated normal worker startup on source `541279a` evaluated the modified cached
+`jason` dependency as UID 1000 and used `/srv/factory/homes/factory-worker/.mix`.
+The dependency was restored exactly to its pre-test SHA-256,
+`08cb260f863fbc0411e37d7e0b08c597b42d5b0d8cd836b7d6760b52f2df76d9`.
+The first probe's unsynced backup was damaged by a hard reset; restoration used
+the recorded original hash. The final probe flushed its files before reset.
+
+The coordinator recorded `startup_ready` at 05:56:15 UTC, and the repeated
+worker startup recorded it at 05:58:36. Both retained their original VM IDs,
+private IPs and disks. Worker startup exited 0, its temporary Git credential was
+absent, and subscription login was preserved. Codex CLI `0.159.2`, Rust `1.91.1`,
+strict private SSH, the unchanged public host-key pin, denied metadata, no sudo,
+read-only seed and sandbox namespaces were checked again.
+
+| Final-source run | Started–finished | Agent / gate | Workstream / runner |
+| --- | --- | --- | --- |
+| `dev230-boundary-20261010b` | 06:00:19–06:01:00.318 | `gpt-6-luna`, medium; agent 33.209 s, gate exit 0 in 4.735 s | `complete`; exit 0 |
+| `dev230-boundary-fail-20261010b` | 06:01:45–06:02:08.645 | `gpt-6-luna`, medium; agent 17.206 s, expected gate exit 101 in 3.116 s | `blocked`; exit 1 |
+
+All six passing-run artifacts were independently downloaded and matched to their
+permanent manifest. Passing report SHA-256:
+`148b13dca018afb7b9d30bd949c38678f17ea800e1f6dbc43b2c7eb792cc4605`.
+All six negative-run artifacts also matched their permanent manifest. Its report
+SHA-256 is `ac86b3c57d848775de952f387107c10190edebe0f653f81376e40146aa56d39a`.
+Both pilot wrappers returned success and reached `POST_PILOT_BATCH_REACHED`.
+At 06:02:28 UTC the coordinator was healthy and idle, no worker execution remained,
+both active revisions were unchanged, and the archive service result was success.
+
+The final Terraform drift plan returned no changes with detailed exit code 0.
+Broad GitHub CI for source `541279a` reports the same existing Credo findings
+(46 refactoring and 37 readability); the other checks passed. No GitHub
+protection was bypassed and no merge was performed.
+
+Repair receipts:
+`gs://factory-511117-rig-factory-archive/deployments/dev230/build-boundary-20261010-541279a/`.
+This pilot does not claim production or arbitrary-code isolation.
 
 ## Historical local checks and scope
 

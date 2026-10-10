@@ -19,7 +19,7 @@ The original live manual pilot checks passed on source
 This source is now historical: a later review confirmed startup for both
 coordinator and worker ran Mix/build steps as root against each role's
 service-owned dependency/build tree, and root bootstrap could reuse legacy
-worker-owned tools. Replacement-source validation is pending; the
+worker-owned tools. The repaired revision and its live checks are recorded below; the
 historical smoke does not validate that repair.
 The reviewed compute-only teardown removed exactly two VMs and four dependent
 access/alert resources; recreation added exactly those six resources. Four
@@ -78,15 +78,36 @@ Historical `445f251` redacted receipt destination:
 `gs://factory-511117-rig-factory-archive/deployments/dev230/final-20261010-445f251/`.
 Its `manifest.json` records artifact digests.
 
-## Restart-privilege repair status
+## Restart-privilege repair verification
 
-The repair will run builds as the service user with a clean `env -i` environment,
-using a per-revision project copy under `build/<revision>/project` and role-specific
-Mix/Cargo caches. Root bootstrap will use the protected `bootstrap-tools-v1`
-namespace and validate it before reuse. Replacement source and release SHA,
-repeated startup proving UID 1000 for service-user builds, and a fresh real worker
-smoke are pending. This pilot does not claim production or arbitrary-code
-isolation.
+Current tested service source: `541279aeb6a5366571e1ee8935e134c728d91c63`.
+Release SHA-256: `40a3e683da0ce8a074de05ca335a5daf44ab0e974a2bed78acdf446abc1af242`.
+Both existing VMs activated this release without replacement or disk changes.
+
+Mix/build commands run as the service user with a cleared environment and role
+caches, set after mise selects the runtime. The coordinator launches its matching
+user-built escript. Root validates its source, runtime and protected tool trees
+before reuse; it never executes the legacy worker-owned tools. SSH/Codex home
+setup runs as the service user and rejects symlinks. The worker's executable Mix
+entrypoint preserves the external timeout.
+
+Two actual Linux builds and the root-path, symlink, activation, service-entrypoint
+and timeout fixtures passed. Repeated live startup on this exact source evaluated
+a modified cached dependency as UID 1000 with the intended Mix home; its original
+bytes were restored and checked against the pre-test hash. The coordinator and
+worker recorded `startup_ready` at 05:56:15 and 05:58:36 UTC.
+
+Fresh subscription runs `dev230-boundary-20261010b` and
+`dev230-boundary-fail-20261010b` verified complete/gate 0 and blocked/gate 101.
+Their twelve artifacts independently matched permanent manifests. At 06:02:28
+both machines were healthy and idle; archive maintenance succeeded and final
+Terraform drift returned no changes. The same Credo 46/37 baseline remains in
+broad CI; other checks passed. No merge was performed.
+
+See [the evidence receipt](dev-230-evidence.md) for exact hashes, intermediate
+failures, restoration details and verification limits. Repair receipts are in
+`gs://factory-511117-rig-factory-archive/deployments/dev230/build-boundary-20261010-541279a/`.
+This pilot does not claim production or arbitrary-code isolation.
 
 ## Proposed pilot and approved spending input
 
