@@ -74,9 +74,10 @@ It has not been applied. No VM has been created.
 ## Remaining prerequisites and acceptance
 
 The repository-only read credential must be loaded into `git-read` before worker
-bootstrap. The billing Credits page currently requires a separate browser
-passkey check; credit balance, expiry and eligibility are unverified. The
-approved budget is independent of assumed credit coverage. See the walkthrough
+bootstrap, and the user must confirm the upload before compute starts. On
+2026-10-09 the user waived the billing credit balance/expiry check; credits remain
+unverified and are no longer a deployment blocker. The approved budget is
+independent of assumed credit coverage. See the walkthrough
 for cost estimates; retained disks already incur charges while compute is off.
 
 Remaining: compute apply, real subscription worker pass/fail smoke, definition

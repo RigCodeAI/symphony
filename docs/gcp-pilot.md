@@ -28,8 +28,9 @@ bootstrap and compute-disabled pilot were applied; the staging drift plan is
 clean. The merged service compiled, its real Linux health endpoint responded,
 52 focused tests passed and the full suite passed 408 tests. The broad lint gate
 still reports existing style issues. See [the live staging receipt](dev-230-evidence.md).
-Compute remains off pending the read-only Rig credential and billing-credit
-verification. No real cloud worker run, cloud restart/recreation check or final
+Compute remains off pending confirmation that the read-only Rig credential is
+loaded. The user waived the credit balance/expiry check; credits remain
+unverified and do not block the approved pilot. No real cloud worker run, cloud restart/recreation check or final
 deployment completion is claimed.
 
 ## Proposed pilot and approved spending input
@@ -93,8 +94,9 @@ secrets before applying; import deliberate matching resources instead of
 overwriting existing ones.
 
 Open [the project's billing page](https://console.cloud.google.com/billing?project=factory-511117),
-follow its linked billing account, and inspect **Credits** for amount, expiry and
-eligible services. A linked billing account alone does not prove credit coverage.
+follow its linked billing account to inspect **Credits** if needed. The user
+waived the balance/expiry check on 2026-10-09; credit coverage remains unverified.
+A linked billing account alone does not prove credit coverage.
 Record the billing account ID without payment details. Confirm budget/monitoring
 notification recipients and IAP operator accounts; recommend `adam@rig.ai` for
 the initial pilot. Grant only scoped deployment/operator permissions if existing
