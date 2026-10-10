@@ -192,7 +192,7 @@ else
   python3 /usr/local/lib/factory/cloud_io.py secret worker_ssh /run/factory/id_ed25519
   chown "$service_user:$service_user" /run/factory/id_ed25519
   expected_public="$(jq -er '.worker_ssh_public_key' /etc/factory/config.json | awk '{print $1 " " $2}')"
-  [[ "$(ssh-keygen -y -f /run/factory/id_ed25519)" = "$expected_public" ]] || \
+  [[ "$(ssh-keygen -y -f /run/factory/id_ed25519 | awk '{print $1 " " $2}')" = "$expected_public" ]] || \
     { echo 'Worker SSH secret does not match the configured public key' >&2; exit 1; }
   for attempt in {1..60}; do
     if python3 /usr/local/lib/factory/cloud_io.py hostkeys; then break; fi
