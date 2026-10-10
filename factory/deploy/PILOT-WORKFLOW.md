@@ -10,6 +10,7 @@ codex:
   command: codex app-server
 server:
   host: 0.0.0.0
+  port: 8080
 ---
 
 The GCP pilot coordinator is intentionally idle. It uses the memory tracker and

@@ -36,7 +36,7 @@ defmodule SymphonyElixirWeb.LinearWebhookController do
 
   defp dispatch_event(conn, event) do
     try do
-      case Orchestrator.receive_linear_event(orchestrator(), event) do
+      case Orchestrator.receive_linear_event(conn.assigns[:linear_orchestrator] || orchestrator(), event) do
         :ok ->
           json(conn, %{status: "accepted"})
 

@@ -191,3 +191,50 @@ run "optional_https_ingress_requires_iap_allowlist" {
     error_message = "The optional HTTP backend must accept traffic only from Google load-balancer probes and proxies."
   }
 }
+
+run "linear_webhook_has_only_an_exact_public_route_and_coordinator_credentials" {
+  command = plan
+  override_resource {
+    target          = google_compute_backend_service.coordinator_https[0]
+    override_during = plan
+    values          = { self_link = "https://compute.googleapis.com/compute/v1/projects/test/global/backendServices/dashboard" }
+  }
+  override_resource {
+    target          = google_compute_backend_service.linear_webhook[0]
+    override_during = plan
+    values          = { self_link = "https://compute.googleapis.com/compute/v1/projects/test/global/backendServices/webhook" }
+  }
+  variables {
+    enable_https_iap                   = true
+    viewer_hostname                    = "factory.example.test"
+    iap_viewer_emails                  = ["viewer@example.test"]
+    iap_google_managed_oauth_confirmed = true
+    coordinator_workflow               = "linear"
+    enable_linear_webhook              = true
+    optional_integration_secrets = {
+      linear_api     = { secret_id = "linear-api", version = "7" }
+      linear_signing = { secret_id = "linear-signing", version = "2" }
+    }
+    coordinator_secret_env = { LINEAR_API_KEY = "linear_api", LINEAR_API_TOKEN = "linear_signing" }
+  }
+  assert {
+    condition     = google_compute_backend_service.coordinator_https[0].iap[0].enabled && !google_compute_backend_service.linear_webhook[0].iap[0].enabled && google_compute_backend_service.linear_webhook[0].port_name == "linear-webhook"
+    error_message = "The dashboard must retain IAP while the signed webhook uses its isolated listener."
+  }
+  assert {
+    condition     = google_compute_url_map.viewer[0].default_service == google_compute_backend_service.coordinator_https[0].self_link && google_compute_url_map.viewer[0].path_matcher[0].default_service == google_compute_backend_service.coordinator_https[0].self_link && toset(google_compute_url_map.viewer[0].path_matcher[0].path_rule[0].paths) == toset(["/hooks/linear"]) && google_compute_url_map.viewer[0].path_matcher[0].path_rule[0].service == google_compute_backend_service.linear_webhook[0].self_link
+    error_message = "Only the exact signed webhook path may bypass IAP."
+  }
+  assert {
+    condition     = local.coordinator_config.coordinator_secret_versions == { LINEAR_API_KEY = "7", LINEAR_API_TOKEN = "2" } && toset(keys(local.worker_config.secret_ids)) == toset(["model_auth", "git_read"]) && !contains(keys(local.worker_config), "coordinator_secret_env")
+    error_message = "Only the coordinator receives pinned integration credential references."
+  }
+}
+
+run "webhook_cannot_enable_without_dashboard_identity_gate" {
+  command = plan
+  variables {
+    enable_linear_webhook = true
+  }
+  expect_failures = [var.enable_linear_webhook]
+}

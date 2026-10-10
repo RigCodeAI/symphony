@@ -80,12 +80,20 @@ it finishes.
 
 ## Submit the worker smoke
 
-The coordinator's Symphony service uses `PILOT-WORKFLOW.md`, an idle memory
+By default the coordinator's Symphony service uses `PILOT-WORKFLOW.md`, an idle memory
 tracker with no hooks. It listens on port 8080 on the VM's private interfaces;
 the health check uses localhost, and GCP firewall rules restrict ingress to
 load-balancer health checks and proxies when optional HTTPS ingress is enabled.
 Pilot tasks start only when an operator invokes `factory-pilot` as the
 coordinator user. Submit separate pass and fail runs with unique IDs:
+
+DEV-233 adds an explicit Linear deployment mode, protected per-release credentials and
+`/etc/factory/workflows/<revision>.md`. Install workflows without overwriting an existing
+revision; changes to integration pins require a distinct committed release. The signed
+webhook uses a separate listener, while dashboard/API remain behind IAP.
+See [Linear deployment](../../docs/linear-delegation.md#gcp-coordinator-deployment) and
+the [pending morning card](../../docs/dev-233-morning-decision.md). These paths are locally
+tested and have not been applied to the pilot.
 
 ```bash
 sudo -u factory-coordinator -- \

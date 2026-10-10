@@ -397,6 +397,7 @@ class OperationControllerTests(unittest.TestCase):
         self.assertEqual(self.manager.kill_calls, [])
 
     def test_released_cgroup_proves_failed_terminal_unit(self):
+        self.manager.capabilities = lambda: {"systemd_version": 252, "released_cgroup_proof": True}
         identity = self.controller.prepare(self.request())
         self.manager.snapshot = UnitSnapshot(
             **{
@@ -415,6 +416,7 @@ class OperationControllerTests(unittest.TestCase):
         self.assertEqual(result["status"], "terminated")
         self.assertEqual(result["termination_proof"]["cgroup_state"], "released")
         self.assertEqual(result["termination_proof"]["active_state"], "failed")
+        self.assertEqual(result["termination_proof"]["systemd_version"], 252)
         self.assertEqual(self.manager.kill_calls, [])
 
     def test_released_or_mismatched_cgroup_without_exact_terminal_identity_is_unknown(self):
@@ -449,7 +451,7 @@ class OperationControllerTests(unittest.TestCase):
             }
         )
         self.manager.capabilities = lambda: {
-            "systemd_version": 253,
+            "systemd_version": 251,
             "released_cgroup_proof": False,
         }
 
@@ -572,6 +574,7 @@ class OperationControllerTests(unittest.TestCase):
 class SystemdManagerCommandTests(unittest.TestCase):
     def test_uses_systemd_pipe_wait_and_claims_raw_stream_once(self):
         manager = SystemdManager()
+        manager._capabilities = {"contained": True, "systemd_version": 254}
         fake_process = object()
         unit = "factory-operation-" + "a" * 64 + ".service"
         properties = {
@@ -607,6 +610,27 @@ class SystemdManagerCommandTests(unittest.TestCase):
         self.assertIs(manager.claim_stream(unit), fake_process)
         with self.assertRaises(OperationUnavailable):
             manager.claim_stream(unit)
+
+    def test_v252_uses_only_literal_trusted_wrapper_arguments(self):
+        manager = SystemdManager()
+        manager._capabilities = {"contained": True, "systemd_version": 252}
+        unit = "factory-operation-" + "a" * 64 + ".service"
+        with (
+            patch("factory.deploy.worker_operation.os.geteuid", return_value=0),
+            patch("factory.deploy.worker_operation._assert_trusted_executable"),
+            patch("factory.deploy.worker_operation.subprocess.Popen") as popen,
+        ):
+            for path in ("/trusted/$USER/wrapper", "/trusted/%n/wrapper"):
+                with self.assertRaises(OperationValidationError):
+                    manager.start(unit, path, "/var/lib/factory-operations/records/manifest.json", {})
+            for path in ("/records/$USER.json", "/records/%n.json"):
+                with self.assertRaises(OperationValidationError):
+                    manager.start(unit, "/trusted/wrapper", path, {})
+            popen.assert_not_called()
+            manager.start(unit, "/trusted/wrapper", "/var/lib/factory-operations/records/manifest.json", {})
+        command = popen.call_args.args[0]
+        self.assertNotIn("--expand-environment=no", command)
+        self.assertEqual(command[command.index("--") + 1:], ["/trusted/wrapper", "--manifest", "/var/lib/factory-operations/records/manifest.json"])
 
     def test_inspect_normalizes_systemd_waitid_codes(self):
         manager = SystemdManager()

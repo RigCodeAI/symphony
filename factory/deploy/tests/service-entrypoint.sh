@@ -32,7 +32,7 @@ chmod 0755 /opt/factory /srv/factory /srv/factory/releases /srv/factory/homes
 chmod 0755 /srv/factory/logs /srv/factory/build
 chmod 0750 /srv/factory/tmp /srv/factory/logs/coordinator
 
-cp "$source_root/lib.sh" "$source_root/service.sh" "$source_root/PILOT-WORKFLOW.md" \
+cp "$source_root/lib.sh" "$source_root/service.sh" "$source_root/coordinator_entrypoint.py" "$source_root/PILOT-WORKFLOW.md" \
   "$release/factory/deploy/"
 cp /workspace/elixir/bin/symphony "/srv/factory/build/$revision/project/bin/symphony"
 chmod 0755 "/srv/factory/build/$revision/project/bin/symphony"
@@ -111,5 +111,57 @@ done
   exit 1
 }
 
-printf 'PASS: readonly helper callers and coordinator service entrypoint on Elixir %s / OTP %s\n' \
+cleanup
+install -d -m 0755 /etc/factory /etc/factory/workflows
+install -d -m 0750 -o root -g factory-coordinator /run/factory /run/factory/coordinator
+cat >"/etc/factory/workflows/$revision.md" <<'EOF'
+---
+tracker:
+  kind: memory
+server:
+  host: 0.0.0.0
+  port: 8080
+  webhook_host: 0.0.0.0
+  webhook_port: 8081
+---
+Controlled deployment listener test; no delegate is configured.
+EOF
+chmod 0644 "/etc/factory/workflows/$revision.md"
+python3 - "$revision" <<'PY'
+import json
+from pathlib import Path
+import os
+import pwd
+import sys
+revision = sys.argv[1]
+mapping = {"LINEAR_API_KEY": "linear_api", "LINEAR_API_TOKEN": "linear_signing"}
+versions = {"LINEAR_API_KEY": "1", "LINEAR_API_TOKEN": "2"}
+fingerprints = {name: "a" * 64 for name in mapping}
+Path('/etc/factory/public.json').write_text(json.dumps({"service_revision": revision, "coordinator_workflow": "linear", "coordinator_secret_env": mapping, "coordinator_secret_versions": versions, "coordinator_secret_fingerprints": fingerprints, "enable_linear_webhook": True}))
+path = Path('/run/factory/coordinator') / (revision + '.json')
+path.write_text(json.dumps({"service_revision": revision, "workflow": "linear", "environment": {name: "controlled-value" for name in mapping}, "secret_versions": versions, "secret_fingerprints": fingerprints, "enable_linear_webhook": True}))
+os.chown(path, 0, pwd.getpwnam('factory-coordinator').pw_gid)
+path.chmod(0o640)
+PY
+chmod 0644 /etc/factory/public.json
+runuser --user factory-coordinator -- env PATH=/usr/bin:/bin \
+  /bin/bash "$release/factory/deploy/service.sh" >"$service_log" 2>&1 &
+service_pid=$!
+healthy=false
+for _ in {1..80}; do
+  if ! kill -0 "$service_pid" 2>/dev/null; then
+    cat "$service_log" >&2
+    exit 1
+  fi
+  if curl --fail --silent http://127.0.0.1:8080/api/v1/state >/dev/null && \
+     [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8081/api/v1/state)" == 404 ]]; then
+    healthy=true
+    break
+  fi
+  sleep 0.25
+done
+[[ "$healthy" == true ]] || { cat "$service_log" >&2; exit 1; }
+[[ "$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST http://127.0.0.1:8081/hooks/linear)" == 503 ]]
+
+printf 'PASS: protected pilot/linear selection and isolated webhook listener on Elixir %s / OTP %s\n' \
   "$elixir_version" "$otp_version"

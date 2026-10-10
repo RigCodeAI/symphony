@@ -60,7 +60,7 @@ defmodule SymphonyElixir.WorkerOperation do
          true <- payload["protocol_version"] == 1,
          true <- payload["contained"] == true,
          true <- payload["containment_qualified"] == true,
-         true <- is_integer(payload["systemd_version"]) and payload["systemd_version"] >= 254,
+         true <- is_integer(payload["systemd_version"]) and payload["systemd_version"] >= 252,
          true <- payload["machine_id"] == config["machine_id"],
          true <- payload["service_revision"] == config["service_revision"],
          true <- payload["release_sha256"] == config["release_sha256"] do
@@ -486,7 +486,7 @@ defmodule SymphonyElixir.WorkerOperation do
     is_map(proof) and Enum.sort(Map.keys(proof)) == Enum.sort(@proof_keys) and
       Enum.all?(~w(machine_id boot_id unit invocation_id control_group), fn key -> proof[key] == identity[key] end) and
       proof["cgroup_state"] in ["present", "released"] and proof["cgroup_populated"] == 0 and proof["main_pid"] == 0 and
-      is_integer(proof["systemd_version"]) and proof["systemd_version"] >= 254 and
+      is_integer(proof["systemd_version"]) and proof["systemd_version"] >= 252 and
       valid_terminal_state?(proof["active_state"], proof["sub_state"]) and
       proof["exec_main_code"] in @terminal_exec_codes and is_integer(proof["exec_main_status"]) and
       proof["exec_main_status"] >= 0 and proof["exec_main_status"] <= 255 and

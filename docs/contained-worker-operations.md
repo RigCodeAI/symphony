@@ -95,6 +95,7 @@ with the existing runtime and worker account, never an active factory worker:
 /opt/factory/releases/<revision>/factory/deploy/install-worker-operations.sh \
   /opt/factory/releases/<revision> /root/coordinator-public-key
 FACTORY_SYSTEMD_TEST_DISPOSABLE=1 \
+  FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1 \
   FACTORY_SYSTEMD_TEST_RECEIPT=/root/worker-operations-qualification.json \
   /usr/bin/python3 -I \
   /opt/factory/releases/<revision>/factory/deploy/tests/test_worker_operation_systemd.py
@@ -155,13 +156,18 @@ not prove real systemd containment.
 
 The [opt-in systemd card](../factory/deploy/tests/test_worker_operation_systemd.py)
 requires an explicitly supplied disposable Linux host with PID 1 systemd,
-cgroup v2, the qualified runtime/account and systemd 254 or newer. It launches
+cgroup v2, the qualified runtime/account and systemd 252 or newer. It launches
 real units with a `setsid` child that ignores TERM, verifies held launch and
 replay, rejects a stale identity, and requires proof that both processes stopped.
 It also checks natural exit through systemd's released-cgroup proof and durable
-controller recovery. It uses a private test socket and only test-created units.
+controller recovery. With the separate explicit `FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1`
+opt-in, it re-executes PID 1 while held and while a child is live, then verifies the same
+invocation/cgroup before stopping the whole tree. This is a host-wide manager operation;
+run it only on the idle disposable qualification worker. That check is required in the receipt.
+It uses a private test socket and only test-created units.
 It skips without that host; a skip is unverified acceptance. No suitable host has
-been supplied locally. Do not run this card on an active factory worker.
+been qualified. The existing pilot passed read-only preflight; installation and this privileged
+card remain pending. Do not run this card on an active factory worker.
 
 A root-owned mode-0600 qualification receipt at
 `/etc/factory/worker-operations-qualified.json` must match the tested machine, OS
@@ -171,9 +177,26 @@ The card can write a new root-private output receipt when
 `FACTORY_SYSTEMD_TEST_RECEIPT` is supplied; it writes only after every check and
 cleanup succeeds. Review that output before installing it at the fixed receipt
 path. Run the card from the configured immutable release with
-`FACTORY_SYSTEMD_TEST_DISPOSABLE=1`; its default skip cannot generate a receipt.
+`FACTORY_SYSTEMD_TEST_DISPOSABLE=1` and `FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1`;
+its default skip cannot generate a receipt.
 The installed app, public endpoint and actual native stop pilot must still pass
 [the live acceptance checklist](linear-delegation.md) before an acceptance PR.
+
+### Existing systemd 252 worker
+
+The adapter supports systemd 252 and newer. It adds `--expand-environment=no` on 254+
+and omits that unsupported flag on 252/253. Only the protected wrapper, literal
+`--manifest` and hashed descriptor path reach systemd-run; `$` and `%` in those fixed
+paths reject before launch. Task argv stays in the protected descriptor and is executed
+directly by the held wrapper after durable release. Isolation properties remain identical.
+
+This compatibility decision follows the [v252.39 CLI and argv construction](https://github.com/systemd/systemd-stable/blob/v252.39/src/run/run.c),
+[recursive-empty cgroup release](https://github.com/systemd/systemd-stable/blob/v252.39/src/core/cgroup.c),
+[ControlGroup reporting](https://github.com/systemd/systemd-stable/blob/v252.39/src/core/dbus-unit.c)
+and [cgroup serialization/restoration during manager re-execution](https://github.com/systemd/systemd-stable/blob/v252.39/src/core/unit-serialize.c).
+Terminal state, matching invocation/principal/request, and zero MainPID remain mandatory
+for released-cgroup proof. These source checks and local tests permit qualification on
+the existing host; they do not qualify it.
 
 The containment design follows systemd's
 [whole-cgroup kill behavior](https://github.com/systemd/systemd/blob/main/man/systemd.kill.xml)

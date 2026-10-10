@@ -54,6 +54,9 @@ See [Linear delegation](docs/linear-delegation.md) for configuration and the rem
 app, endpoint and worker requirements. No live delegation acceptance is claimed.
 The [contained worker control path](docs/contained-worker-operations.md) includes reviewable
 SSH/systemd installation files and remains disabled until worker qualification passes.
+The local deployment wiring supports the existing systemd 252 worker, selected coordinator
+credentials and a separate signed webhook listener. See the [morning decision card](docs/dev-233-morning-decision.md)
+for live prerequisites; no worker installation or public ingress is claimed.
 
 Use live ticket dependencies to schedule work. The local files
 `docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,

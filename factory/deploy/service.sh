@@ -18,8 +18,7 @@ runner_path="$MIX_BUILD_PATH/project/bin/symphony"
 
 mkdir -p -- "$data_root/logs/coordinator"
 cd -- "$release_dir/elixir"
-exec /usr/local/bin/mise exec -- "$runner_path" \
+exec /usr/bin/python3 -I "$release_dir/factory/deploy/coordinator_entrypoint.py" \
+  "$release_dir" /usr/local/bin/mise exec -- "$runner_path" \
   --i-understand-that-this-will-be-running-without-the-usual-guardrails \
-  --logs-root "$data_root/logs/coordinator" \
-  --port 8080 \
-  "$release_dir/factory/deploy/PILOT-WORKFLOW.md"
+  --logs-root "$data_root/logs/coordinator"

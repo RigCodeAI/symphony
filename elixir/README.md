@@ -440,6 +440,11 @@ then routes one pinned software-change run. Human assignees are preserved. Track
 is disabled in this mode. See [configuration, local tests and live acceptance](../docs/linear-delegation.md).
 Remote dispatch also needs `linear_delegation.worker_control`, a pinned machine/release and a
 current containment receipt. See [worker control installation and tests](../docs/contained-worker-operations.md).
+`server.webhook_port` and `server.webhook_host` optionally start a separate listener that
+exposes only exact `POST /hooks/linear`; its default bind is loopback. It uses the same signed
+intake and rejects every dashboard/API path. The GCP configuration uses `0.0.0.0:8081` for
+this listener and keeps the dashboard on port 8080 behind IAP. Both listeners require restart
+after configuration changes. See [coordinator deployment](../docs/linear-delegation.md#gcp-coordinator-deployment).
 
 Trusted candidate validation is available locally through the pinned-policy runner and
 inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

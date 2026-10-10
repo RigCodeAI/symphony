@@ -321,6 +321,36 @@ variable "enable_https_iap" {
   }
 }
 
+variable "coordinator_workflow" {
+  description = "pilot preserves the idle deployment; linear requires an operator-installed protected /etc/factory/workflows/<service_revision>.md."
+  type        = string
+  default     = "pilot"
+  validation {
+    condition     = contains(["pilot", "linear"], var.coordinator_workflow)
+    error_message = "coordinator_workflow must be pilot or linear."
+  }
+}
+
+variable "coordinator_secret_env" {
+  description = "Allowed coordinator credential environment names mapped to optional integration secret keys. Values are never in Terraform."
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for env, key in var.coordinator_secret_env : contains(["LINEAR_API_KEY", "LINEAR_API_TOKEN", "OAUTH_TOKEN"], env) && contains(keys(var.optional_integration_secrets), key)]) && length(distinct(values(var.coordinator_secret_env))) == length(var.coordinator_secret_env) && (var.coordinator_workflow == "linear" ? toset(keys(var.coordinator_secret_env)) == toset(["LINEAR_API_KEY", "LINEAR_API_TOKEN"]) : length(var.coordinator_secret_env) == 0)
+    error_message = "Map distinct optional integration secrets to allowed Linear credential environment names; linear requires LINEAR_API_KEY and LINEAR_API_TOKEN; pilot must have no credential mapping."
+  }
+}
+
+variable "enable_linear_webhook" {
+  description = "Opt-in signed webhook backend on port 8081, separate from dashboard IAP."
+  type        = bool
+  default     = false
+  validation {
+    condition     = !var.enable_linear_webhook || (var.enable_https_iap && var.coordinator_workflow == "linear")
+    error_message = "The public webhook requires the HTTPS ingress and linear coordinator workflow."
+  }
+}
+
 variable "viewer_hostname" {
   description = "DNS hostname for the optional HTTPS IAP ingress."
   type        = string

@@ -21,3 +21,9 @@ No secret values belong in `.tfvars`, backend files, release archives or state.
 Keep generated state/plans and private inputs outside Git. The example `.tfvars`
 contains safe project/capacity settings; required release, billing and budget
 inputs must be resolved before a real plan.
+
+DEV-233's opt-in `coordinator_workflow`, `coordinator_secret_env` and
+`enable_linear_webhook` wiring is described in [Linear deployment](../../docs/linear-delegation.md#gcp-coordinator-deployment).
+Default ingress remains off. The public webhook backend exposes a separate listener;
+the dashboard backend keeps IAP. Prepare a reviewed plan only after resolving the
+[remaining pilot decisions](../../docs/dev-233-morning-decision.md); no source test applies resources.

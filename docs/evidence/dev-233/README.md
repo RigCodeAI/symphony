@@ -1,5 +1,55 @@
 # DEV-233 local checkpoint
 
+## Existing-worker compatibility and deployment wiring, 2026-10-10
+
+Read-only IAP/SSH preflight found the existing worker idle, with systemd 252.39,
+cgroup v2 and the protected runtime. Both hosts still run `541279a…`; control
+installation, app/HTTPS setup and actual delegate/stop acceptance remain pending.
+See the [morning decision card](../../dev-233-morning-decision.md) and retained
+[worker](worker-preflight.json)/[coordinator](coordinator-preflight.json) observations.
+No secret payload, host configuration or cloud access grant was changed.
+
+Follow-up source permits v252 while retaining fixed held execution, exact proof and
+operator receipt requirements. A separate webhook listener excludes dashboard/API routes;
+coordinator credential bootstrap checks root permissions and immutable reference pins,
+restores prior pins for cold-boot rollback and rejects same-revision changes. The earlier
+reviewed code checkpoint `77f72fafbb0806fa6b724aed2403896c84bcaead` remains in history.
+These changed root/deployment assumptions received a targeted Luna/max source review.
+Source review and mocks do not qualify the host or authorize access changes.
+Final self-review checked fixed manager arguments, exact receipt identity, immutable
+credential pins, cold-boot rollback and the public listener's limited routing. The final
+Python and fresh-process service checks were repeated after the rollback changes.
+
+Focused checks used the existing `dev233-check` container (Elixir 1.19.5/OTP 28):
+
+- `mix compile`, `mix specs.check` and changed-file formatting passed; HTTP/worker-client/
+  credential exclusion tests passed **15 tests** ([output](compat-elixir.log)).
+- Python engine/transport/receipt/coordinator-runtime/cloud helpers ran **65 tests**:
+  **64 passed, one real systemd card skipped** ([output](compat-python.log)). Tests
+  cover v252 receipt/proof handling, substitution rejection, selected credential isolation,
+  stale references, same-revision rejection and cold-boot restoration.
+- Terraform mock plans passed **five tests**, including exact public webhook routing,
+  retained dashboard IAP and role-scoped refs ([output](compat-terraform.log)). They created
+  no cloud resources. Recursive format and shell syntax checks passed.
+- A fresh disposable Docker container ran the real compiled coordinator entrypoint in
+  pilot and Linear modes, proving both listeners and public API exclusion
+  ([output](compat-service.log)). This used controlled credentials and no agent/delegate.
+- The activation harness passed invalid-definition preservation, same-revision rejection
+  before restart, unbound webhook rollback, config promotion and worker activation
+  ([output](compat-activation.log)). Its service/cloud controls are stand-ins.
+
+Commands: `docker exec -w /workspace/elixir dev233-check mix test
+test/symphony_elixir/linear_http_test.exs test/symphony_elixir/worker_operation_test.exs
+test/symphony_elixir/app_server_options_test.exs`; `docker exec -w /workspace
+dev233-check python3 -m unittest factory.deploy.tests.test_worker_operation
+factory.deploy.tests.test_worker_operation_transport factory.deploy.tests.test_worker_operation_systemd
+factory.deploy.tests.test_coordinator_runtime factory.deploy.tests.test_cloud_io`;
+`terraform -chdir=infra/gcp/modules/pilot test`; and the documented
+`factory/deploy/tests/service-entrypoint.sh` / `activation.sh` disposable container cards.
+Broad CI was not repeated; the earlier 488-test result and known lint/coverage/Dialyzer
+limits below remain the broad-check boundary. Actual systemd qualification, subscription
+requalification, app installation and real HTTPS/Linear delivery remain unverified.
+
 ## Contained-operation integration, 2026-10-10
 
 The branch now includes merged DEV-231 revision

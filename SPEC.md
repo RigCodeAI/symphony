@@ -1550,6 +1550,11 @@ Extension config:
   - Enables the HTTP server extension.
   - `0` requests an ephemeral port for local development and tests.
   - CLI `--port` overrides `server.port` when both are present.
+- `server.webhook_port` (integer, OPTIONAL, 0–65535) starts a separate native Linear
+  listener. `server.webhook_host` defaults to `127.0.0.1`. It exposes only exact
+  `POST /hooks/linear`, with the same raw-byte signature, timestamp and durable-intake
+  checks; all other paths and methods return 404. It exposes no dashboard, API,
+  method override, session or LiveView surface. Listener changes require restart.
 
 Enablement (extension):
 

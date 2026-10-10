@@ -401,7 +401,7 @@ def containment_is_qualified(
     """Read the operator-installed, host-and-release-bound qualification receipt."""
     required_checks = {
         "held_launch", "duplicate_prepare", "stale_identity_rejected", "setsid_child_terminated",
-        "natural_exit", "restart_recovery",
+        "natural_exit", "restart_recovery", "manager_reexec",
     }
     try:
         receipt = _read_protected_json(
@@ -426,7 +426,7 @@ def containment_is_qualified(
             and receipt.get("service_revision") == service_revision
             and receipt.get("release_sha256") == release_sha256
             and type(systemd_version) is int
-            and systemd_version >= 254
+            and systemd_version >= 252
             and type(receipt.get("systemd_version")) is int
             and receipt["systemd_version"] == systemd_version
             and isinstance(checks, list)

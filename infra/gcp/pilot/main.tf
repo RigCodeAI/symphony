@@ -50,6 +50,9 @@ module "pilot" {
   secret_ids                         = var.secret_ids
   secret_versions                    = var.secret_versions
   optional_integration_secrets       = var.optional_integration_secrets
+  coordinator_workflow               = var.coordinator_workflow
+  coordinator_secret_env             = var.coordinator_secret_env
+  enable_linear_webhook              = var.enable_linear_webhook
   archive_bucket_name                = var.archive_bucket_name
   backup_bucket_name                 = var.backup_bucket_name
   release_bucket_name                = var.release_bucket_name

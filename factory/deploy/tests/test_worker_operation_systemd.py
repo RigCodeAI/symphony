@@ -2,6 +2,8 @@
 
 Ordinary test discovery skips this card. Set FACTORY_SYSTEMD_TEST_DISPOSABLE=1
 only when deliberately running it on a disposable, root-managed systemd worker.
+Also set FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1 to authorize PID 1 re-execution
+while the controlled held/live test unit exists; this is required for a receipt.
 It uses a private test socket path, never the installed broker socket. Set
 FACTORY_SYSTEMD_TEST_RECEIPT to a new root-owned output path to request a
 root-private qualification receipt after every check and cleanup succeeds.
@@ -42,6 +44,7 @@ REQUIRED_CHECKS = (
     "setsid_child_terminated",
     "natural_exit",
     "restart_recovery",
+    "manager_reexec",
 )
 _REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -206,7 +209,7 @@ class SystemdContainmentTest(unittest.TestCase):
         self.service_revision = revision
         self.release_sha256 = release_sha256
         self.systemd_version = _systemd_version()
-        self.assertGreaterEqual(self.systemd_version, 254)
+        self.assertGreaterEqual(self.systemd_version, 252)
 
         self.worker = pwd.getpwnam("factory-worker")
         self.root = Path(tempfile.mkdtemp(prefix="factory-systemd-test-", dir="/var/lib"))
@@ -299,6 +302,29 @@ class SystemdContainmentTest(unittest.TestCase):
             boot_id_path=str(self.config["boot_id_path"]),
         )
 
+    def _reexec_manager(self, identity, expected_status):
+        if os.environ.get("FACTORY_SYSTEMD_TEST_MANAGER_REEXEC") != "1":
+            self.fail("manager re-execution needs explicit FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1 on the disposable worker")
+        reply = subprocess.run(
+            ["/usr/bin/systemctl", "daemon-reexec"], stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False,
+        )
+        self.assertEqual(reply.returncode, 0, "system manager re-execution failed")
+        deadline = time.monotonic() + 10
+        recovered = None
+        while time.monotonic() < deadline:
+            try:
+                snapshot = self.controller.manager.inspect(identity["unit"])
+                if snapshot and snapshot.invocation_id == identity["invocation_id"] and snapshot.control_group == identity["control_group"]:
+                    recovered = self.controller.status(identity)
+                    if recovered["status"] == expected_status:
+                        break
+            except engine.OperationError:
+                pass
+            time.sleep(0.05)
+        self.assertIsNotNone(recovered, "same systemd invocation did not recover")
+        self.assertEqual(recovered["status"], expected_status)
+
     def test_held_stop_natural_exit_and_durable_restart_proofs(self) -> None:
         effect = self.workspace / "processes.json"
         child_code = "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(60)"
@@ -327,6 +353,8 @@ time.sleep(60)
         self.assertEqual(self.controller.stop(stale)["status"], "unknown")
         self.assertFalse(effect.exists(), "stale identity must not act on the held unit")
         self.checks.add("stale_identity_rejected")
+        self._reexec_manager(identity, "held")
+        self.assertFalse(effect.exists(), "manager re-execution must not release a held operation")
 
         # Reconstruct the controller as a broker restart while the unit remains
         # held, then ensure status and the same reservation recover in place.
@@ -345,6 +373,11 @@ time.sleep(60)
         self.assertEqual(_process_cgroup(parent_pid), identity["control_group"])
         self.assertEqual(_process_cgroup(child_pid), identity["control_group"])
         self.assertTrue(process_live(child_pid))
+        self._reexec_manager(identity, "running")
+        self.assertTrue(process_live(parent_pid))
+        self.assertTrue(process_live(child_pid))
+        self.assertEqual(_process_cgroup(child_pid), identity["control_group"])
+        self.checks.add("manager_reexec")
 
         stopped = self.controller.stop(identity)
         self.assertEqual(stopped["status"], "terminated")

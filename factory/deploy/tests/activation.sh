@@ -102,9 +102,45 @@ grep -q "$good" /srv/factory/active-public.json
 source /workspace/factory/deploy/lib.sh
 [[ "$(factory_active_release /opt/factory)" = "/srv/factory/releases/$good" ]]
 
+pending "$good"
+python3 - <<'PY'
+import json
+from pathlib import Path
+path = Path('/etc/factory/public.pending.json')
+value = json.loads(path.read_text())
+value['enable_linear_webhook'] = True
+path.write_text(json.dumps(value))
+PY
+chmod 0644 /etc/factory/public.pending.json
+before="$(wc -l </tmp/service-calls)"
+if bash "/srv/factory/releases/$good/factory/deploy/activate.sh" "/opt/factory/releases/$good" >/tmp/same-revision.log 2>&1; then
+  echo 'Same-revision changed integration configuration unexpectedly activated' >&2; exit 1
+fi
+grep -q 'distinct service revision' /tmp/same-revision.log
+[[ "$(wc -l </tmp/service-calls)" -eq "$before" ]]
+
+# A healthy dashboard alone cannot activate an enabled but missing public
+# webhook listener. Its failure restores the previous release and config.
+missing_listener="$(candidate f)"
+pending "$missing_listener"
+python3 - <<'PY'
+import json
+from pathlib import Path
+path = Path('/etc/factory/public.pending.json')
+value = json.loads(path.read_text())
+value['enable_linear_webhook'] = True
+path.write_text(json.dumps(value))
+PY
+chmod 0644 /etc/factory/public.pending.json
+if bash "/srv/factory/releases/$missing_listener/factory/deploy/activate.sh" "/opt/factory/releases/$missing_listener" >/tmp/missing-listener.log 2>&1; then
+  echo 'Missing public webhook listener unexpectedly activated' >&2; exit 1
+fi
+[[ "$(readlink -f /opt/factory/current)" = "/srv/factory/releases/$good" ]]
+grep -q "$good" /etc/factory/public.json
+
 pending "$worker" worker
 before="$(wc -l </tmp/service-calls)"
 bash "/srv/factory/releases/$worker/factory/deploy/activate.sh" "/opt/factory/releases/$worker"
 [[ "$(wc -l </tmp/service-calls)" -eq "$before" ]]
 grep -q "$worker" /etc/factory/public.json
-printf 'PASS: invalid definition preservation, health rollback, config promotion, canonical release lookup, worker activation\n'
+printf 'PASS: invalid definition preservation, dashboard/webhook health rollback, config promotion, canonical release lookup, worker activation\n'

@@ -39,10 +39,13 @@ defmodule SymphonyElixir.WorkerOperationTest do
     assert {:error, :worker_not_qualified} =
              WorkerOperation.qualify(@config, rpc_fun: fn _config, _request -> {:ok, wrong_release} end)
 
-    old_systemd = Map.put(capabilities(), "systemd_version", 253)
+    old_systemd = Map.put(capabilities(), "systemd_version", 251)
 
     assert {:error, :worker_not_qualified} =
              WorkerOperation.qualify(@config, rpc_fun: fn _config, _request -> {:ok, old_systemd} end)
+
+    compatible_systemd = Map.put(capabilities(), "systemd_version", 252)
+    assert :ok = WorkerOperation.qualify(@config, rpc_fun: fn _config, _request -> {:ok, compatible_systemd} end)
   end
 
   test "registers the prepared identity before stream setup and release" do

@@ -195,11 +195,11 @@ def _read_source_marker(marker_path, root_uid):
     return marker
 
 
-def _atomic_private_write(path, payload, owner_uid, owner_gid):
+def _atomic_private_write(path, payload, owner_uid, owner_gid, mode=0o600):
     fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
     temporary = Path(temporary)
     try:
-        os.fchmod(fd, 0o600)
+        os.fchmod(fd, mode)
         os.fchown(fd, owner_uid, owner_gid)
         with os.fdopen(fd, "wb") as handle:
             handle.write(payload)
@@ -653,6 +653,93 @@ def backup(cloud):
         cloud.put(bucket, f"backups/{stamp}/manifest.json", json.dumps(manifest, sort_keys=True).encode())
 
 
+def prepare_coordinator_environment(cloud, directory=Path("/run/factory/coordinator"), public_path=PUBLIC_CONFIG):
+    """Fetch selected integrations as root into a per-release, coordinator-only file."""
+    config = cloud.config
+    revision = config.get("service_revision", "")
+    workflow = config.get("coordinator_workflow", "pilot")
+    mapping = config.get("coordinator_secret_env", {})
+    allowed = {"LINEAR_API_KEY", "LINEAR_API_TOKEN", "OAUTH_TOKEN"}
+    if (config.get("role") != "coordinator" or not re.fullmatch(r"[0-9a-f]{40}", revision)
+            or workflow not in {"pilot", "linear"} or not isinstance(mapping, dict)
+            or not set(mapping).issubset(allowed)
+            or any(not isinstance(key, str) or key in {"worker_ssh", "model_auth", "git_read"}
+                   or key not in config.get("secret_ids", {}) for key in mapping.values())
+            or len(set(mapping.values())) != len(mapping)
+            or (workflow == "linear" and set(mapping) != {"LINEAR_API_KEY", "LINEAR_API_TOKEN"})
+            or (workflow == "pilot" and mapping)):
+        raise ValueError("invalid coordinator integration configuration")
+    account = pwd.getpwnam("factory-coordinator")
+    _assert_no_symlink_components(directory.parent)
+    _check_directory(directory.parent, 0)
+    directory.mkdir(mode=0o750, exist_ok=True)
+    _check_directory(directory, 0)
+    os.chown(directory, 0, account.pw_gid)
+    os.chmod(directory, 0o750)
+    environment = {}
+    versions = {}
+    fingerprints = {}
+    for name, key in mapping.items():
+        version = str(config.get("secret_versions", {}).get(key, ""))
+        if not re.fullmatch(r"[1-9][0-9]*", version):
+            raise ValueError("coordinator credential version must be pinned")
+        versions[name] = version
+        fingerprints[name] = hashlib.sha256(f"{name}\n{key}\n{config['secret_ids'][key]}\n{version}".encode()).hexdigest()
+    expected_pins = {"workflow": workflow, "secret_versions": versions, "secret_fingerprints": fingerprints,
+                     "enable_linear_webhook": config.get("enable_linear_webhook", False)}
+    # Keep the old runtime available for rollback. This alpha deployment binds
+    # coordinator configuration changes to a distinct committed release.
+    if public_path.exists():
+        active = json.loads(_read_regular_file(public_path, expected_uid=0, expected_mode=0o644, limit=65536))
+        active_pins = {"workflow": active.get("coordinator_workflow", "pilot"),
+                       "secret_versions": active.get("coordinator_secret_versions", {}),
+                       "secret_fingerprints": active.get("coordinator_secret_fingerprints", {}),
+                       "enable_linear_webhook": active.get("enable_linear_webhook", False)}
+        if active.get("service_revision") == revision and active_pins != expected_pins:
+            raise ValueError("changed coordinator configuration requires a distinct service revision")
+    destination = directory / (revision + ".json")
+    if destination.exists() or destination.is_symlink():
+        existing = json.loads(_read_regular_file(destination, expected_uid=0, expected_mode=0o640, limit=65536))
+        if any(existing.get(key) != value for key, value in expected_pins.items()):
+            raise ValueError("changed coordinator configuration requires a distinct service revision")
+    for name, key in mapping.items():
+        try:
+            value = cloud.secret(key).decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("invalid coordinator credential encoding") from None
+        if not value or len(value.encode()) > 16384 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("invalid coordinator credential value")
+        environment[name] = value
+    payload = json.dumps({"service_revision": revision, "workflow": workflow, "environment": environment, "secret_versions": versions, "secret_fingerprints": fingerprints, "enable_linear_webhook": config.get("enable_linear_webhook", False)}).encode()
+    _atomic_private_write(destination, payload, 0, account.pw_gid, mode=0o640)
+
+
+def prepare_coordinator_environments(cloud, directory=Path("/run/factory/coordinator"),
+                                     public_path=PUBLIC_CONFIG, snapshots=Path("/srv/factory/coordinator-config")):
+    """Retain nonsecret reference pins so cold-boot rollback can reload old credentials."""
+    _assert_no_symlink_components(snapshots.parent)
+    _check_directory(snapshots.parent, 0)
+    snapshots.mkdir(mode=0o700, exist_ok=True)
+    _check_directory(snapshots, 0, private=True)
+    if public_path.exists():
+        active = json.loads(_read_regular_file(public_path, expected_uid=0, expected_mode=0o644, limit=65536))
+        revision = active.get("service_revision", "")
+        if active.get("coordinator_workflow") == "linear":
+            if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
+                raise ValueError("invalid rollback coordinator revision")
+            previous = json.loads(_read_regular_file(snapshots / (revision + ".json"), expected_uid=0, expected_mode=0o600, limit=65536))
+            if previous.get("service_revision") != revision:
+                raise ValueError("rollback coordinator reference pins differ")
+            prepare_coordinator_environment(Cloud(previous), directory, public_path)
+    prepare_coordinator_environment(cloud, directory, public_path)
+    # References and deployment settings only; never the fetched payloads.
+    keys = ("project_id", "role", "service_revision", "coordinator_workflow", "coordinator_secret_env",
+            "secret_ids", "secret_versions", "enable_linear_webhook")
+    snapshot = {key: cloud.config[key] for key in keys if key in cloud.config}
+    _atomic_private_write(snapshots / (cloud.config["service_revision"] + ".json"),
+                          json.dumps(snapshot).encode(), 0, 0)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -665,6 +752,7 @@ def main():
     p.add_argument("key")
     p.add_argument("destination")
     sub.add_parser("model-auth")
+    sub.add_parser("coordinator-env")
     sub.add_parser("ensure-hostkey")
     sub.add_parser("publish-hostkey")
     sub.add_parser("hostkeys")
@@ -697,6 +785,8 @@ def main():
     elif args.command == "model-auth":
         status = ensure_model_auth(cloud)
         print(f"worker model auth ready ({status})")
+    elif args.command == "coordinator-env":
+        prepare_coordinator_environments(cloud)
     elif args.command == "ensure-hostkey":
         if cloud.config.get("role") != "worker":
             raise ValueError("durable host key is available only on a worker")

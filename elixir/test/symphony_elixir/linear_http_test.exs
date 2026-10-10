@@ -37,6 +37,9 @@ defmodule SymphonyElixir.LinearHttpTest do
 
     start_supervised!({HttpServer, [port: 0, orchestrator: __MODULE__.Coordinator]})
     url = "http://127.0.0.1:#{HttpServer.bound_port()}/hooks/linear"
+    public_server = start_supervised!({SymphonyElixir.LinearWebhookServer, [port: 0, orchestrator: __MODULE__.Coordinator]})
+    {:ok, {_ip, public_port}} = ThousandIsland.listener_info(public_server)
+    public_url = "http://127.0.0.1:#{public_port}"
 
     on_exit(fn ->
       restore_env("LINEAR_API_TOKEN", old_secret)
@@ -59,6 +62,16 @@ defmodule SymphonyElixir.LinearHttpTest do
     signature = :crypto.mac(:hmac, :sha256, secret, raw) |> Base.encode16(case: :lower)
     headers = [{"content-type", "application/json"}, {"linear-event", "AppUserNotification"}, {"linear-delivery", "a8b4a528-6ac9-459d-835d-a591f9ac56e5"}, {"linear-signature", signature}]
     assert %{status: 200, body: %{"status" => "accepted"}} = Req.post!(url, body: raw, headers: headers, retry: false)
+    assert %{status: 200, body: %{"status" => "duplicate"}} = Req.post!(public_url <> "/hooks/linear", body: raw, headers: headers, retry: false)
+    assert %{status: 401} = Req.post!(public_url <> "/hooks/linear", body: raw <> " ", headers: headers, retry: false)
+
+    for path <- ["/", "/api/v1/state", "/api/v1/refresh", "/dashboard.css", "/hooks/linear/", "/live/websocket"] do
+      assert %{status: 404} = Req.get!(public_url <> path, retry: false)
+      assert %{status: 404} = Req.post!(public_url <> path, body: raw, headers: headers, retry: false)
+    end
+
+    assert %{status: 404} = Req.get!(public_url <> "/hooks/linear", retry: false)
+    assert %{status: 413} = Req.post!(public_url <> "/hooks/linear", body: String.duplicate("x", 262_145), headers: headers, retry: false)
     assert %{status: 200, body: %{"status" => "duplicate"}} = Req.post!(url, body: raw, headers: headers, retry: false)
     assert [%{issue_id: "pilot", status: :stopped}] = Orchestrator.snapshot(__MODULE__.Coordinator, 1_000).linear.tasks
     assert %{status: 401} = Req.post!(url, body: raw <> " ", headers: headers, retry: false)

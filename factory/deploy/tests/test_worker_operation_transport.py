@@ -250,7 +250,7 @@ class WorkerOperationTransportTests(unittest.TestCase):
                 "systemd_version": 256,
                 "checks": [
                     "held_launch", "duplicate_prepare", "stale_identity_rejected",
-                    "setsid_child_terminated", "natural_exit", "restart_recovery",
+                    "setsid_child_terminated", "natural_exit", "restart_recovery", "manager_reexec",
                 ],
             }
             receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
@@ -266,6 +266,12 @@ class WorkerOperationTransportTests(unittest.TestCase):
             }
             self.assertTrue(transport.containment_is_qualified(**kwargs))
             self.assertFalse(transport.containment_is_qualified(**{**kwargs, "systemd_version": 255}))
+            receipt["systemd_version"] = 252
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertTrue(transport.containment_is_qualified(**{**kwargs, "systemd_version": 252}))
+            receipt["checks"].remove("manager_reexec")
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertFalse(transport.containment_is_qualified(**{**kwargs, "systemd_version": 252}))
 
     def test_held_stream_is_claimed_once_and_release_rpc_runs_while_it_is_open(self):
         with tempfile.TemporaryDirectory() as temporary:

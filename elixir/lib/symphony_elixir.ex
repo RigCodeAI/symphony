@@ -40,6 +40,7 @@ defmodule SymphonyElixir.Application do
       SymphonyElixir.WorkflowStore,
       SymphonyElixir.AgentRuntimeSupervisor,
       SymphonyElixir.HttpServer,
+      SymphonyElixir.LinearWebhookServer,
       SymphonyElixir.StatusDashboard
     ]
 

@@ -102,9 +102,10 @@ class UnitSnapshot:
 class SystemdManager:
     """A bounded, argument-vector-only adapter for the system systemd manager."""
 
-    # --expand-environment=no, required for passing untrusted argv literally,
-    # first appeared in systemd 254.
-    _SYSTEMD_MIN_VERSION = 254
+    # v252 supports the fixed isolation properties and invocation/cgroup proof.
+    # Task argv is read by the held wrapper, never passed to systemd-run. The
+    # optional expansion switch only exists in v254 and later.
+    _SYSTEMD_MIN_VERSION = 252
 
     def __init__(
         self,
@@ -243,6 +244,11 @@ class SystemdManager:
             raise OperationValidationError("invalid transient unit name")
         if not os.path.isabs(wrapper_path) or not os.path.isabs(descriptor_path):
             raise OperationValidationError("wrapper and descriptor paths must be absolute")
+        if any(char in path for path in (wrapper_path, descriptor_path) for char in ("$", "%")):
+            raise OperationValidationError("wrapper and descriptor paths cannot contain systemd substitutions")
+        facts = self.capabilities()
+        if not facts.get("contained"):
+            raise OperationUnavailable("system manager containment is unavailable")
         with self._lock:
             if unit in self._processes:
                 raise OperationConflict("unit already has a retained systemd-run handle")
@@ -251,9 +257,10 @@ class SystemdManager:
                 "--quiet",
                 "--pipe",
                 "--wait",
-                "--expand-environment=no",
                 f"--unit={unit}",
             ]
+            if facts["systemd_version"] >= 254:
+                command.append("--expand-environment=no")
             for name, value in properties.items():
                 if isinstance(value, str):
                     encoded = value

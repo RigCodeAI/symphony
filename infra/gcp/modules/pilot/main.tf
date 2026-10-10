@@ -140,11 +140,11 @@ resource "google_compute_firewall" "https_healthcheck" {
   source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
   target_tags   = ["${var.name_prefix}-coordinator"]
   priority      = 1000
-  description   = "Google load-balancer health checks and proxy traffic to the coordinator on port 8080."
+  description   = "Google load-balancer health checks and proxies to the coordinator listeners."
 
   allow {
     protocol = "tcp"
-    ports    = ["8080"]
+    ports    = var.enable_linear_webhook ? ["8080", "8081"] : ["8080"]
   }
 }
 

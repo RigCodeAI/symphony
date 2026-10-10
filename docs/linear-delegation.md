@@ -143,6 +143,52 @@ only a loopback ephemeral HTTP port, sends a controlled undelegation receipt and
 duplicate/invalid-signature behavior across coordinator restart. Inspect its report before
 removing only that disposable output directory. It makes no Linear API call or agent turn.
 
+## GCP coordinator deployment
+
+The idle pilot remains the default. The local Terraform interface adds finite
+`coordinator_workflow = "linear"`, `coordinator_secret_env` and opt-in
+`enable_linear_webhook`. These source changes have not been applied to GCP.
+Map exactly `LINEAR_API_KEY` to the app OAuth secret and `LINEAR_API_TOKEN` to the
+separate signing secret using existing `optional_integration_secrets` keys and pinned
+numeric versions. Pilot mode accepts no credential mapping. No payload goes through Terraform.
+
+Startup fetches selected values as root into per-release files under
+`/run/factory/coordinator`, root-owned mode 0640 with only the coordinator group allowed
+to read. The unprivileged entrypoint checks ownership/mode, release, finite workflow,
+environment allowlist, version and reference fingerprints before exec. Inherited credential
+variables are discarded. Worker environments continue to strip these names and the root
+broker uses its fixed credential-free runtime environment.
+
+Install the dedicated workflow as root at
+`/etc/factory/workflows/<service_revision>.md`, root-owned mode 0644 under root-owned
+0755 directories. Use a new release revision and do not overwrite an existing workflow.
+The workflow must set dashboard `server.host: 0.0.0.0`, `server.port: 8080`,
+`server.webhook_host: 0.0.0.0` and `server.webhook_port: 8081`, plus the real IDs,
+dedicated workspace and pinned worker-control configuration described above.
+The entrypoint uses the matching protected pending config during candidate startup;
+rollback uses the prior revision's active config and workflow. Configuration/credential
+pin changes at the same release revision reject before any secret fetch. Make a distinct
+committed release for those changes.
+
+Root-private snapshots in `/srv/factory/coordinator-config` retain only reference/version
+and deployment settings, never fetched payloads. On cold boot, startup reloads the prior
+active Linear release's pinned credentials before preparing a different candidate, so
+health rollback can start the previous release. Preserve its secret containers/access and
+workflow until the new release is healthy. Missing snapshots or unavailable prior secrets
+block preparation rather than silently losing rollback. Do not include credential files
+in evidence or copy them to workers.
+
+With explicit HTTPS/IAP opt-in, the URL map keeps the IAP dashboard backend as default.
+Only exact `/hooks/linear` on the configured viewer hostname reaches the separate no-IAP
+backend on port 8081. That listener accepts only signed POST intake and returns 404 for
+dashboard/API/other paths and methods. Firewall access remains limited to Google load
+balancer proxy/health ranges. Candidate activation requires a coordinator-owned
+`0.0.0.0:8081` listener and a 404 response for its API path when enabled; dashboard health
+alone cannot activate it. This is local wiring, not a provisioned public endpoint.
+
+See the [morning decision card](dev-233-morning-decision.md) for the checked host facts,
+remaining app/hostname decisions and exact staged commands.
+
 ## Live acceptance checklist (pending)
 
 1. Confirm the public webhook hostname and admin access; install one assignable Linear app

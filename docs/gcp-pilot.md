@@ -11,6 +11,14 @@ Deployment status and pilot evidence are tracked in
 [DEV-230](https://linear.app/rigai/issue/DEV-230/provision-and-actually-deploy-the-gcp-pilot-with-terraform).
 Configuration and local checks alone do not establish a working deployment.
 
+For DEV-233's proposed native Linear deployment, use the
+[coordinator procedure](linear-delegation.md#gcp-coordinator-deployment) and
+[morning decision card](dev-233-morning-decision.md). The default manual pilot remains idle.
+The new path requires a protected revision-specific workflow installed without clobbering,
+separate coordinator-only credential refs, real worker containment qualification and an
+explicit signed webhook ingress route. Integration pin changes require a distinct release.
+None of these DEV-233 deployment actions has been performed.
+
 ## Historical verification on source `445f251`
 
 The original live manual pilot checks passed on source
