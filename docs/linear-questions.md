@@ -26,6 +26,12 @@ handled; restart replays that commit safely. Replies arriving during a turn rema
 until the safe boundary. Before a resumed stage dispatches, delegation and session ownership
 are checked again. Stopped tasks retain their tombstone and cannot be restarted by replies.
 
+On load, runs saved before this feature receive empty `questions`, `inbox` and
+`activity_ids` fields and a nil `continuation` only where those fields are missing.
+The store preserves all existing values, identities, pinned definitions and policy,
+attempts, operations, artifacts and waits. It does not recreate a run or reset its
+policy pin. A saved policy that differs from the service still blocks execution.
+
 ## Continuation and native input
 
 A wait closes the old app-server connection. Its pending JSON-RPC request ID is never reused

@@ -25,6 +25,10 @@ process is not proof that its external process or side effect ended. Only a trus
 may reconcile an existing outcome or prove termination/non-application before retry.
 Transport retries preserve the side-effect identity and do not reset repair counters.
 Transactional migrations fail startup clearly and preserve previously committed data.
+Loading a run saved before question/reply support adds only missing empty question,
+inbox and activity-deduplication state plus a nil continuation. Existing run/attempt/
+operation identities, pinned definitions, policy, artifacts and waits are preserved.
+This additive normalization does not authorize an incompatible saved service policy.
 
 This is a controlled local alpha. Durable mode does not poll a tracker, publish PRs, merge,
 or implement general remote-worker scheduling. The existing tracker-mode workflow, supervision and

@@ -147,6 +147,65 @@ fully green:
   its affected test passed, and the final full `mix test` run passed as recorded
   above. Coverage was not rerun or claimed passing.
 
+## Upgrade review correction
+
+Review of PR #7 at `340b50053b146aa17c103f72731899a4a912529a` found that
+pre-DEV-234 run snapshots lack `questions`, `inbox`, `activity_ids` and
+`continuation`. The original decoder returned these maps unchanged, so ready
+agent dispatch and active completion/retry could access missing fields. The four
+stopped historical pilot runs never exercised those paths; their restart did not
+qualify active-run upgrade behavior.
+
+`WorkstreamStore.decode_run/1` now adds only absent defaults on both bulk startup
+loads and individual fetches. It preserves every saved value, including IDs,
+definitions, execution context, policy pins, artifacts, waits, counters and
+operation identities. Existing question/reply state takes precedence over the
+defaults. This is additive in-memory normalization, persisted by the next normal
+transition; it does not recreate a run, rewrite its policy or bypass policy
+compatibility. Historical policy mismatches still block execution.
+
+The new controlled restart fixtures persist a current run with only these four
+fields removed before closing/reopening storage. They exercise the old snapshot
+shape under a matching pinned policy, rather than silently upgrading a historical
+policy. These checks are separate from the earlier live pilot. The live
+coordinator remains at `4ea729c6bb1b44e379161ea3543e68086cdbd1e6`; this correction
+has not been deployed to it.
+
+Before the fix, a close/reopen store test failed because the loaded run lacked
+the four fields. A separate temporary OTP reproduction invoked
+`Orchestrator.step_workstreams/1` on a reopened ready run and exited with
+`{:badkey, :inbox, legacy_run}` in `WorkstreamRun.start_stage/1`. After copying the
+fixed decoder into the same isolated container, that dispatch returned `:ok`.
+The temporary crash-asserting reproduction was removed; permanent regression
+tests cover successful behavior instead.
+
+Correction checks used the existing isolated `dev234-check` container
+(Elixir 1.19.5 / OTP 28), with no live agent or deployment:
+
+- `mix compile --warnings-as-errors` and `mix specs.check`: passed.
+- `mix test test/symphony_elixir/durable_workstream_test.exs
+  test/symphony_elixir/workstream_store_test.exs
+  test/symphony_elixir/workstream_run_test.exs
+  test/symphony_elixir/linear_delegation_test.exs`: 68 tests, zero failures.
+- `mix test test/symphony_elixir/linear_store_test.exs`: five tests, zero
+  failures. Its migration-rollback fixture now asserts every original saved
+  field survives plus the four absent defaults.
+- `mix format --check-formatted`: passed after the test correction.
+- Final `mix test`: 526 tests, zero failures, six skipped and ten excluded.
+- `make all`: build, formatting and spec checks passed, then Credo failed;
+  coverage and Dialyzer were not reached in this rerun. The alpha exception
+  treats broad CI as non-blocking; GitHub protections remain in force.
+
+The focused checks cover old-shape ready dispatch, human-wait reply followed by
+agent dispatch, completed-operation recovery without replay, terminated retry
+with the same side-effect ID, and incompatible historical-policy blocking. Store
+checks cover both load paths, preserving nonempty reply state and persisting the
+normalized snapshot without duplicating attempts or operations.
+Correction output is in [upgrade-checks.log](upgrade-checks.log) and
+[upgrade-all.log](upgrade-all.log), with trailing spaces trimmed from the lint
+display. The first full run exposed the outdated
+migration-rollback assertion; the final result above follows its correction.
+
 ## Self-review and remaining verification
 
 The review checked session/activity identity, reply commit/replay ordering,
@@ -155,6 +214,9 @@ clarification/approval separation. Regression tests cover two data-loss risks
 found during implementation: a second question after same-stage continuation,
 and saved input lost before a successful transport retry. No mandatory general
 independent review was added under the alpha guidance.
+The upgrade correction was also checked for saved-value precedence and coverage
+of both startup load and individual fetch. It changes no policy pin, dispatch
+authorization, side-effect identity or credential boundary.
 
 A fresh signed live duplicate-delivery test still requires explicit approval for
 the replay payload and destination. The disposable candidate-commit boundary is
