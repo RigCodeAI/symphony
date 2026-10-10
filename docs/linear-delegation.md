@@ -1,9 +1,17 @@
 # Native Linear delegation (DEV-233)
 
-The local implementation adds authenticated native Linear events to the existing durable
-coordinator. It does not establish an installed app, public endpoint or qualified cloud run.
-Publication remains disabled for the pilot candidate. DEV-234 owns human replies; ordinary
-prompt events currently deduplicate the existing task rather than supplying reply inputs.
+The coordinator remains active on release `080c048448cc949cf796f10564f16c8cf83a60e8`, with
+durable SQLite and a healthy exact HTTPS `/hooks/linear` route. Worker-control revision
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is deployed and qualified; the worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. Candidate coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5`
+is built and staged but not activated.
+
+The DEV-245 run remains failed/stopped before a thread or turn. A new no-turn AppServer check
+reached account, model and usage limits, then returned `usage_paused`. DEV-246 and its two
+clones are prepared but have never been delegated. Active-work cancellation and restart during
+in-flight work remain unverified; DEV-233 has no acceptance PR and is not complete. DEV-234
+owns human replies; ordinary prompt events currently deduplicate the existing task rather than
+supplying reply inputs. See the [current deployment checkpoint](evidence/dev-233/transport-deployment.md).
 
 ## Configuration
 
@@ -67,6 +75,11 @@ scaling, add that lifecycle and verify it against the installed app; do not infe
 recovery from local cache pruning or restart. Operator secret rotation invalidates existing
 client-credentials tokens and requires a new pinned secret version/release.
 
+During preflight, revoking the last client-credentials token made the app user inactive. For
+the observed delegation, the coordinator retained a bootstrap token in bounded RAM for up to
+180 seconds through routing, then revoked it after acquiring the per-run token. This observed
+startup path is not a proven long-term token-quota or app-availability solution.
+
 ## Linear app setup
 
 Create a private OAuth app named **Default Cloud Agent** and enable client-credentials
@@ -88,11 +101,12 @@ URL `https://factory.rig.ai/hooks/linear`. The redirect is an unused dashboard l
 URL for the client-credentials grant; this service implements no interactive OAuth
 callback or authorization-code exchange. Do not start an interactive authorization flow
 with it. The dashboard HTTPS load balancer is installed with IAP for `domain:rig.ai`;
-certificate issuance and signed-in access are verified separately in the
-[ingress evidence](evidence/dev-233/https-ingress.md). The public webhook route is still
-disabled until the app identity, distinct pinned secrets and protected Linear workflow
-are deployed. A saved app URL alone does not establish webhook delivery. A workspace
-admin must complete app setup. See [Linear agent setup](https://linear.app/developers/agents),
+certificate issuance and the exact webhook route are healthy. Signed-in dashboard access
+remains untested; see the [ingress evidence](evidence/dev-233/https-ingress.md). The installed
+app has client ID `571c3dc755d9e63cfe74748787f6a533`, app-user ID
+`ce9f2ad8-ef28-4253-bdc8-ae208f63a425`, and `read,write,app:assignable` scopes. The app token
+is limited to the Rig organization and DEV team. A workspace admin completed app setup. See
+[Linear agent setup](https://linear.app/developers/agents),
 [app authentication](https://linear.app/developers/oauth-actor-authorization) and
 [interaction best practices](https://linear.app/developers/agent-best-practices).
 
@@ -108,10 +122,17 @@ inspection does not qualify arbitrary Rig candidates using the
 demo validation policy or publish them. DEV-231 supplies the shared agent/readiness implementation; the intended worker must
 remain qualified before production dispatch.
 Production qualification also requires `worker_control` with an exact machine and verified
-release, plus a current root-owned containment receipt. Its absence returns
-`worker_execution_control_unavailable` before acknowledgement or launch. See
-[contained worker operations](contained-worker-operations.md) for configuration and the
-reviewable installation change. Controlled test callbacks cannot enable production control.
+release, plus a current root-owned containment receipt. Worker-control revision
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is deployed and qualified on the pinned worker
+machine and boot under systemd 252. The worker transport suite passed 11/11 tests; the seven-
+check root card, actual forced-SSH held/duplicate/stale/stop/stream/natural-exit checks, and
+actual Elixir `WorkerOperation.qualify/1` passed. The Elixir call resolved DEV-245 and DEV-246,
+rejected unknown workspace/agent/workstream references, and pinned definition digest
+`99e757299a34663b640412055c6a1a9a1f3177486e40180576aab33e1bfff1de`. The worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. Agent execution is still unverified: the latest
+no-turn check returned `usage_paused` before a thread or turn. See the [deployment checkpoint](evidence/dev-233/transport-deployment.md)
+and [contained worker operations](contained-worker-operations.md). Controlled test callbacks
+cannot enable production control.
 
 From `elixir/`, start the configured workflow with:
 
@@ -169,8 +190,10 @@ Elixir task or SSH client cannot prove remote termination. Stop commits immediat
 bounded supervised cancellation verifies the exact worker invocation and its whole cgroup.
 Unknown execution reserves capacity through restart. Reconciliation frees the slot only
 after trusted termination proof; the stopped task cannot restart. A completed SSH stream
-without proof leaves the run reconciling. The chosen SSH/root-broker/systemd transport is
-implemented locally; deployment and real containment qualification remain pending.
+without proof leaves the run reconciling. The deployed a4 worker-control transport passed
+forced-SSH termination and empty-cgroup proof checks. Native cancellation of active Linear
+work and restart during an in-flight operation remain unverified because the AppServer
+readiness probe stopped with `usage_paused` before a thread or turn began.
 
 The verifier bounds raw intake to 256 KiB, requires unique signature/delivery/event headers,
 checks HMAC-SHA256 over original bytes and checks the signed `webhookTimestamp` within
@@ -209,9 +232,14 @@ removing only that disposable output directory. It makes no Linear API call or a
 
 ## GCP coordinator deployment
 
-The idle pilot remains the default. The local Terraform interface adds finite
-`coordinator_workflow = "linear"`, `coordinator_secret_env` and opt-in
-`enable_linear_webhook`. These source changes have not been applied to GCP.
+The source default remains the idle pilot. GCP is currently running the Linear workflow on
+coordinator release `080c048448cc949cf796f10564f16c8cf83a60e8`; its built Mix service owns the
+durable SQLite store. Candidate coordinator release
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is built and staged with protected configuration
+and rollback, but is not activated. Worker-control revision
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is deployed and qualified; the worker app remains
+`541279aeb6a5366571e1ee8935e134c728d91c63`. See the
+[transport deployment checkpoint](evidence/dev-233/transport-deployment.md).
 Map exactly `LINEAR_API_KEY` to the OAuth client secret and `LINEAR_API_TOKEN` to the
 separate signing secret using existing `optional_integration_secrets` keys and pinned
 numeric versions. Pilot mode accepts no credential mapping. No payload goes through Terraform.
@@ -242,36 +270,46 @@ workflow until the new release is healthy. Missing snapshots or unavailable prio
 block preparation rather than silently losing rollback. Do not include credential files
 in evidence or copy them to workers.
 
-With explicit HTTPS/IAP opt-in, the URL map keeps the IAP dashboard backend as default.
-Only exact `/hooks/linear` on the configured viewer hostname reaches the separate no-IAP
-backend on port 8081. That listener accepts only signed POST intake and returns 404 for
-dashboard/API/other paths and methods. Firewall access remains limited to Google load
-balancer proxy/health ranges. Candidate activation requires a coordinator-owned
-`0.0.0.0:8081` listener and a 404 response for its API path when enabled; dashboard health
-alone cannot activate it. This is local wiring, not a provisioned public endpoint.
+The deployed HTTPS URL map keeps the IAP dashboard backend as default. The exact
+`https://factory.rig.ai/hooks/linear` route reaches the separate no-IAP backend on port 8081
+and is healthy. Dashboard and all other paths retain IAP. The webhook listener accepts only
+signed POST intake and returns 404 for dashboard/API/other paths and methods. Firewall access
+is limited to Google load-balancer proxy and health ranges.
 
-See the [morning decision card](dev-233-morning-decision.md) for the checked host facts,
-remaining app/hostname decisions and exact staged commands.
+See the [morning decision card](dev-233-morning-decision.md) for the deployment revisions,
+observed run result and remaining acceptance work.
 
-## Live acceptance checklist (pending)
+## Current live status and remaining acceptance
 
-1. Confirm the public webhook hostname and admin access; install one assignable Linear app
-   using app authentication. Record organization/app/OAuth identity IDs, without secret values.
-2. Provision the signing secret and OAuth token to the coordinator only. Register the HTTPS
-   `/hooks/linear` endpoint and the required native session, app notification and Issue updates.
-3. Qualify Default Cloud readiness on the intended worker; install the explicit software-change
-   definition and dedicated Rig clone. Review the control account/root broker installation,
-   run the disposable systemd card, and install its reviewed current containment receipt.
-   Prove natural completion, replay/recovery and external whole-tree cancellation work.
-4. Delegate one disposable eligible DEV/Rig issue with its human assignee intact. Record the
-   acknowledged activity UUID, run/stage IDs, selected agent and pinned definition digests.
-5. Replay the same signed delivery within its freshness window and restart the coordinator;
-   verify one run and no repeated side effect. Test invalid signature and invalid routing.
-6. Stop/undelegate during active work; verify remote process termination and no later stage
-   or restart after queued events. Keep the candidate local with no push/PR/merge.
+The active coordinator remains on `080c048448cc949cf796f10564f16c8cf83a60e8`. Candidate
+coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5` is built and staged, not
+activated. The worker-control repair at the same revision is deployed and qualified; the
+worker application remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
 
-Do not mark DEV-233 complete or open its acceptance PR until these live steps pass. Retain
-the local branch and evidence if app access, hostname or worker qualification is unavailable.
+DEV-245 remains Adam's failed/stopped evidence issue. Its run was acknowledged but failed
+before a thread or turn. Exact undelegation replay returned HTTP 200 as a duplicate; a
+zero-signature request returned 401. A captured replay of a description-only Issue update returned
+422 `unsupported_event`; the original response was not captured. Restart preserved one stopped
+run and its acknowledgement. The created-event replay was not captured. DEV-246 is separately
+provisioned with two push-disabled clones but has never been delegated.
+
+With the repaired transport, a no-turn AppServer probe read account, model and limits, then
+returned `usage_paused` before a thread or turn. Its exact worker operation terminated with
+main PID 0 and an empty/released cgroup. The desktop account tool reported 100% weekly usage,
+ordinary usage disallowed and two reset credits. Explicit approval to consume one reset is
+pending; none has been used. See [app readiness](evidence/dev-233/transport-app-readiness.json)
+and [stop proof](evidence/dev-233/transport-app-stop-proof.json).
+
+Native cancellation of active work and coordinator restart during an in-flight operation
+remain unverified. After usage is available, rerun full readiness, activate the staged
+coordinator, start the bounded observer before delegation, and confirm the operation is live.
+Restart the coordinator, verify the same operation remains active, then undelegate and prove
+termination with no replacement launch. Preserve DEV-245; use DEV-246 or another separately
+approved disposable fixture.
+If EOF has already ended the operation, that does not prove active cancellation. Do not publish,
+merge, open an acceptance PR or mark DEV-233 complete until the live checks pass. DEV-234 still
+owns human replies; prompted events do not yet supply reply input. See the
+[transport deployment checkpoint](evidence/dev-233/transport-deployment.md) for the full plan.
 
 ## Primary contracts
 

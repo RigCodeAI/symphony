@@ -1,0 +1,37 @@
+{
+  "active_app_release": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "boot_id": "5734c5bd-0a86-4f4f-ae49-e6a088bbf2e4",
+  "completed_manager_helpers": [
+    {
+      "empty": true,
+      "pid": 1654,
+      "process_state": "zombie"
+    },
+    {
+      "empty": true,
+      "pid": 1880,
+      "process_state": "zombie"
+    },
+    {
+      "empty": true,
+      "pid": 1991,
+      "process_state": "zombie"
+    }
+  ],
+  "no_live_work": true,
+  "operations": [],
+  "potential_work_processes": [
+    {
+      "pid": 1654,
+      "program": "systemd-run"
+    },
+    {
+      "pid": 1880,
+      "program": "systemd-run"
+    },
+    {
+      "pid": 1991,
+      "program": "systemd-run"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "candidate_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+  "worker_application_retained": "541279aeb6a5366571e1ee8935e134c728d91c63",
+  "attempts": [
+    {
+      "attempt": 1,
+      "status": "preflight_failed",
+      "finding": "health probe newline delimiter error",
+      "installed": false
+    },
+    {
+      "attempt": 2,
+      "status": "preflight_failed",
+      "finding": "pinned 6419672-byte manifest exceeded 1 MiB reader limit",
+      "installed": false
+    },
+    {
+      "attempt": 3,
+      "status": "archive_guard_failed",
+      "finding": "umask caused candidate cache mode 0700 instead of 0750",
+      "installed": false,
+      "rollback": "old receipt refreshed but socket readiness race left broker stopped"
+    },
+    {
+      "attempt": 4,
+      "status": "backup_guard_failed",
+      "finding": "reused snapshot differed after intentional old-receipt refresh",
+      "installed": false,
+      "rollback": "old receipt refreshed but socket readiness race left broker stopped"
+    },
+    {
+      "attempt": 5,
+      "status": "transport_unit_gate_failed",
+      "finding": "transport test gate failed; detailed assertion output was not captured; account, source directory and fixture umask corrected for next attempt",
+      "installed": true,
+      "rollback": "passed; old pin requalified and forced SSH capabilities verified"
+    },
+    {
+      "attempt": 6,
+      "status": "passed",
+      "finding": "corrected test harness; 11/11 passed through worker account from source with normal umask",
+      "transport_tests": "11/11",
+      "systemd_card": "all seven; manager reexec enabled"
+    }
+  ],
+  "credentials_grants_changed": false,
+  "metadata_restored_attempts": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "final_metadata_disks_network_instance_preserved": true
+}

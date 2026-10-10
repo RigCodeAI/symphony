@@ -49,18 +49,31 @@ The first increments are:
    stages through the remaining tickets. Integrate Coverage Factory's separate contracts
    and qualify capacity after the pilot works.
 
-Native Linear webhook intake and durable routing are available for controlled local tests.
-See [Linear delegation](docs/linear-delegation.md) for configuration and the remaining live
-app, endpoint and worker requirements. No live delegation acceptance is claimed.
-The [contained worker control path](docs/contained-worker-operations.md) is installed on the
-existing systemd 252 worker. Its root containment card and the coordinator's forced-SSH
-operation checks passed. The live Elixir qualification call and native Linear acceptance
-remain pending. Deployment wiring supports the selected coordinator credentials and a
-separate signed webhook listener. Dashboard HTTPS ingress is installed with IAP for
-`domain:rig.ai`; the certificate is active and verified HTTPS redirects to Google
-sign-in. Actual signed-in access remains untested. See the [ingress evidence](docs/evidence/dev-233/https-ingress.md). The public webhook route
-remains disabled. See the [morning decision card](docs/dev-233-morning-decision.md)
-for the current boundary.
+The Linear coordinator service remains active on release
+`080c048448cc949cf796f10564f16c8cf83a60e8`, with durable SQLite and a healthy exact HTTPS
+`/hooks/linear` route. Candidate coordinator release `a4c95481b898d05817d24cbcf76635d9c4b739c5`
+is built and staged, not activated. Worker-control revision `a4c95481b898d05817d24cbcf76635d9c4b739c5`
+is deployed and qualified: 11/11 transport tests, the seven-check root card with manager
+re-execution, actual forced-SSH qualification, and Elixir `WorkerOperation.qualify/1` and
+route checks passed. The worker app remains `541279aeb6a5366571e1ee8935e134c728d91c63`; the
+existing VM, metadata, disks and network were preserved.
+
+DEV-245 remains the original failed/stopped evidence issue. A separate DEV-246 issue and two
+clones are prepared but have never been delegated. The new no-turn AppServer check reached
+account, model and limits, then stopped with `usage_paused` before a thread or turn. The desktop
+account tool reports 100% weekly usage, ordinary usage disallowed and two reset credits; user
+approval to consume one is pending, and none has been used. The created-event replay was not
+captured. Active-work cancellation and restart during in-flight work remain unverified.
+Dashboard HTTPS redirects to Google sign-in; signed-in access remains untested. DEV-233 is not
+complete and has no acceptance PR. See
+[transport deployment](docs/evidence/dev-233/transport-deployment.md),
+[current app readiness](docs/evidence/dev-233/transport-app-readiness.json),
+[transport evidence](docs/evidence/dev-233/transport-forced-ssh-qualification.json),
+[Elixir qualification](docs/evidence/dev-233/transport-elixir-qualification.json),
+[worker preservation](docs/evidence/dev-233/transport-worker-preservation.json),
+[Linear delegation](docs/linear-delegation.md) and the
+[morning decision card](docs/dev-233-morning-decision.md).
+
 Coordinator-only client credentials mint app tokens in memory per delegated run; see
 [Linear app setup](docs/linear-delegation.md#linear-app-setup) for scopes, events and secret references.
 

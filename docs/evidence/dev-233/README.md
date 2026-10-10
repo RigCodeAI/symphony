@@ -1,4 +1,31 @@
-# DEV-233 local checkpoint
+# DEV-233 evidence checkpoints
+
+## Transport deployment checkpoint, 2026-10-10
+
+Worker control `a4c95481b898d05817d24cbcf76635d9c4b739c5` is installed and qualified:
+11 transport tests, all seven systemd checks, forced SSH and actual Elixir qualification
+passed. The repaired stream reached initialize/account/model/usage reads. Subscription
+readiness returned `usage_paused` before a thread or turn; no reset credit was consumed.
+The coordinator remains healthy on `080c048448cc949cf796f10564f16c8cf83a60e8`, with the
+candidate staged. DEV-246 has never been delegated. DEV-233 remains unaccepted.
+See [deployment evidence and remaining checks](transport-deployment.md).
+
+The following checkpoints preserve earlier observations. Their pending or unchanged-pin
+statements describe those checkpoints only.
+
+## Earlier native integration checkpoint, 2026-10-10
+
+Coordinator `080c048448cc949cf796f10564f16c8cf83a60e8` is active with durable SQLite,
+actual Elixir worker qualification and the exact signed HTTPS webhook route. DEV-245
+preserved its human assignee and generated one acknowledged run. Startup failed before
+initialize completed; native undelegation replay, bad signatures, unrelated-event replay
+and recovery of the stopped run were checked. Active-work cancellation remains unverified.
+See the [earlier native attempt evidence](native-integration.md),
+[durable partial receipt](native-live-partial.json),
+[startup diagnostic](app-startup-diagnostic.json) and
+[tested transport repair](transport-repair-verification.json).
+The [repair plan](transport-repair-plan.md) preserves rollback and data. Earlier sections
+below retain their point-in-time statuses and do not describe the current deployment.
 
 ## Dashboard HTTPS ingress, 2026-10-10
 

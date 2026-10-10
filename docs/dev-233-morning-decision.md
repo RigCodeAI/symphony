@@ -1,11 +1,18 @@
 # DEV-233 morning decision card
 
-The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC. It preceded
-worker maintenance and the DNS change recorded below. The live worker control path is now
-installed and qualified. Dashboard HTTPS ingress has been applied with IAP for `domain:rig.ai`;
-certificate and domain status are ACTIVE, and verified HTTPS redirects to Google
-sign-in. An actual signed-in viewer session remains untested. The public webhook
-route, native Linear acceptance, push and PR remain pending.
+The initial read-only snapshot was taken on 2026-10-10, 07:37–07:48 UTC and preceded the
+maintenance, DNS and integration work recorded below. Worker-control revision
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is now deployed and qualified. The coordinator
+remains on `080c048448cc949cf796f10564f16c8cf83a60e8`; candidate coordinator release
+`a4c95481b898d05817d24cbcf76635d9c4b739c5` is staged but not active. The exact HTTPS
+`/hooks/linear` backend is healthy, and dashboard/all other paths remain behind IAP.
+
+DEV-245 retains one acknowledged run/session that failed before a thread, turn or sleep began.
+Undelegation replay and recovery after that stopped run passed. A newer no-turn readiness check
+reached account, model and usage limits, then stopped with `usage_paused`; it did not start a
+thread or turn. DEV-246 and two push-disabled clones are prepared but have never been delegated.
+Active-work cancellation, restart during in-flight work, push and PR remain unverified. DEV-233
+is not complete.
 
 ## Confirmed facts
 
@@ -14,21 +21,25 @@ route, native Linear acceptance, push and PR remain pending.
 | Existing project/region/zone | `factory-511117`, `us-central1`, `us-central1-a` |
 | Worker | `rig-factory-worker-01`, running, private IP `10.42.0.2` |
 | Coordinator | `rig-factory-coordinator`, running, private IP `10.42.0.3`, service active |
-| Active release on both | `541279aeb6a5366571e1ee8935e134c728d91c63` |
+| Active coordinator release | `080c048448cc949cf796f10564f16c8cf83a60e8`; built Mix project, durable SQLite service active |
+| Worker app release | `541279aeb6a5366571e1ee8935e134c728d91c63`, unchanged |
 | Worker platform | Debian systemd `252.39-1~deb12u2`, PID 1 systemd, cgroup v2 |
 | Worker identity | `factory-worker`, UID 1000, only `factory-worker` group |
 | Worker machine pin | `fe9b1ece921d40aeac95b10940000311` |
+| Worker boot | `5734c5bd0a864f4fae49e6a088bbf2e4` |
 | Runtime | Root-owned executable Node `v24.19.0`, Codex `0.159.2`, Rust binary present; this does not requalify model/authentication |
 | Subscription auth | File metadata only: worker-owned mode 0600; contents were not read |
-| Workload | No visible Codex/Node/Cargo/Rust or operation units; about 61 GiB memory available and 461 GiB data disk free |
-| Control installation | Installed and active; root containment receipt passed on systemd 252. The actual coordinator forced-SSH path also passed. See the current outcome below. |
+| Workload | No agent operation is active; the readiness probe ended with main PID 0 and an empty/released cgroup |
+| Worker control | `a4c95481b898d05817d24cbcf76635d9c4b739c5`, deployed; archive SHA-256 `e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c` |
+| Candidate coordinator | `a4c95481b898d05817d24cbcf76635d9c4b739c5`, built and staged, not activated |
 | Existing SSH route | Local pinned OS Login/IAP key → coordinator → existing private worker key/host pin; no key was added |
-| Coordinator integrations | Legacy idle pilot; only `worker_ssh` secret ref, no integration environment names. The current HTTPS plan has no Linear webhook route. |
-| HTTPS inventory | Initial inventory had no forwarding rules or SSL certificates. A dashboard-only plan has since been reviewed; apply is pending separately. |
+| Coordinator integrations | Linear workflow active with coordinator-only client/signing secrets; no secret values are recorded here |
+| HTTPS ingress | `https://factory.rig.ai/hooks/linear` is healthy on its separate backend; dashboard and every other path retain IAP |
 | DNS | `factory.rig.ai` resolves to A `8.232.241.86` with DNS-only proxying; no AAAA record. Cloud DNS API is disabled, so DNS is externally managed. |
 | Linear workspace | Rig, organization `9b259b98-cb6c-4256-88af-3a3f385c3fa7`; DEV team `41e1aa00-b853-44a9-930d-79e424259565` |
-| Linear setup still unknown | Connector search found no `Default Cloud` user or `factory:rig` label; app admin settings/installation were not available through that search |
-| Secret containers | Name-only search for `linear` returned no containers; no values or versions were accessed |
+| Linear app | Client ID `571c3dc755d9e63cfe74748787f6a533`; app-user ID `ce9f2ad8-ef28-4253-bdc8-ae208f63a425`; scopes `read,write,app:assignable`; access limited to Rig/DEV |
+| Pilot issues | DEV-245 retains Adam as human assignee and has `factory:rig`; its one run/session is stopped. DEV-246 is provisioned with two push-disabled clones and has never been delegated. |
+| Secret containers | `linear-client-secret` and `linear-webhook-signing` are provisioned for the coordinator; values are not included |
 
 See [worker preflight](evidence/dev-233/worker-preflight.json),
 [coordinator preflight](evidence/dev-233/coordinator-preflight.json) and
@@ -36,28 +47,58 @@ See [worker preflight](evidence/dev-233/worker-preflight.json),
 The original preflight files remain point-in-time observations; current containment
 evidence is recorded separately below.
 
-## Current outcome after worker qualification
+## Current live outcome
 
-The root card passed on control source `cc85ca7871a27afb03bc2b6e86722a142ff93e7e`,
-archive SHA-256 `59a9c8668cc258ce19fc50d9d339d3c6fa1920b70b8b14c531bdbfeb6124cb01`,
-systemd 252, machine `fe9b1ece921d40aeac95b10940000311` and boot
-`4418dae454694f88ab9bbc4280b94547`. The broker service is active. The card passed held
-launch, duplicate prepare, stale identity rejection, `setsid` child termination, natural
-exit, restart recovery and manager re-execution. The coordinator's real forced-SSH checks
-also passed RPC/stream, stop proof and replay, natural-exit proof and replay; arbitrary
-commands were rejected.
+Worker-control revision `a4c95481b898d05817d24cbcf76635d9c4b739c5`, archive SHA-256
+`e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c`, is deployed on machine
+`fe9b1ece921d40aeac95b10940000311`, boot `5734c5bd0a864f4fae49e6a088bbf2e4`, under systemd
+252. The worker transport tests passed 11/11 as `factory-worker` from the source directory with
+the normal fixture umask; the root systemd card passed all seven checks, including manager
+re-execution. Actual forced-SSH held, duplicate, stale, setsid stop/stream, natural-exit and
+empty-cgroup checks passed. The built Elixir
+`WorkerOperation.qualify/1` resolved DEV-245 and DEV-246 and rejected invalid workspace, agent
+and workstream references. The pinned definition digest is
+`99e757299a34663b640412055c6a1a9a1f3177486e40180576aab33e1bfff1de`.
 
-The maintenance retained the same VM instance, restored metadata exactly, and preserved
-disks and network configuration. The active application release remains
-`541279aeb6a5366571e1ee8935e134c728d91c63`. The active coordinator lacks the Elixir
-`WorkerOperation` source/compiled client; a newer coordinator release is required
-before `WorkerOperation.qualify/1` can run. The installed Linear app and native
-delegate/replay/restart/stop pilot remain unverified. HTTPS now redirects to Google
-sign-in with verified TLS; actual signed-in access remains untested. The card log records Python
-`ResourceWarning`s for helper `Popen` handles; both task processes and the operation cgroup
-were independently observed dead/empty after stop. A later read-only process check found
-both warned helper PIDs absent; it does not establish that Python closed every helper handle.
-See the [evidence index](evidence/dev-233/README.md#live-contained-worker-qualification-2026-10-10).
+The maintenance retained the same VM, restored the exact original metadata and preserved
+disks, network configuration, worker app configuration and pinned auth/data baseline. No
+worker privilege, key, OS Login or worker IAM grant was added. Coordinator metadata and the
+exact archive-read permission were updated for startup; see the [coordinator plan
+review](evidence/dev-233/transport-coordinator-plan-review.json). The
+worker app remains `541279aeb6a5366571e1ee8935e134c728d91c63`. The active coordinator remains
+`080c048448cc949cf796f10564f16c8cf83a60e8`, with its built Mix project and durable SQLite
+service. Candidate coordinator `a4c95481b898d05817d24cbcf76635d9c4b739c5` is staged with
+protected configuration and rollback, not activated. See the [transport deployment
+checkpoint](evidence/dev-233/transport-deployment.md), [worker preservation
+evidence](evidence/dev-233/transport-worker-preservation.json), [forced-SSH
+qualification](evidence/dev-233/transport-forced-ssh-qualification.json) and [Elixir
+qualification](evidence/dev-233/transport-elixir-qualification.json).
+
+HTTPS redirects to Google sign-in with verified TLS; actual signed-in access remains untested.
+The existing coordinator's exact `/hooks/linear` route is healthy, while dashboard and other
+paths remain behind IAP. The installed Linear app delivered one delegation for DEV-245. Adam
+remained the issue assignee, and the coordinator persisted and acknowledged one run/session.
+The run failed with `agent_execution_failed` before a thread, turn or sleep began. The exact
+signed undelegation delivery replay returned HTTP 200 as a duplicate; a zero-signature request
+returned 401. A captured replay of a description-only Issue update returned 422
+`unsupported_event`; the original response was not captured. After coordinator restart, the
+same single run and acknowledgement remained stopped and no worker process was present. The
+created-event replay was not captured.
+
+The first contained AppServer attempt and earlier no-turn diagnostics failed before a thread,
+turn or sleep began. Those historical startup failures are recorded in the [native integration
+evidence](evidence/dev-233/native-integration.md). The transport repair is now deployed and
+qualified. The latest no-turn check completed account, model and limits reads through the
+repaired stream, then returned `usage_paused` before creating a thread or turn. Exact operation
+cleanup was verified with main PID 0 and an empty/released cgroup. The desktop account tool
+reports 100% weekly usage, ordinary usage disallowed and two reset credits; approval to consume
+one is pending, and none has been used. See [app readiness](evidence/dev-233/transport-app-readiness.json)
+and [stop proof](evidence/dev-233/transport-app-stop-proof.json).
+
+Revoking the last preflight client-credentials token made the app user inactive. During the
+observed delegation, the coordinator retained a bootstrap token in bounded RAM for up to 180
+seconds, through routing, and revoked it after acquiring the run token. This confirms only
+that observed startup path; it is not a long-term token lifecycle or quota-recovery solution.
 
 Dashboard viewer selection is resolved: the user chose everyone in the managed
 `rig.ai` domain, represented by the IAP principal `domain:rig.ai`. This means Google
@@ -69,126 +110,54 @@ unverified until its separate browser check. Google documents
 and [IAP domain access](https://docs.cloud.google.com/iap/docs/authenticate-users-google-accounts).
 This selection does not grant worker maintenance or SSH access.
 
-## Locally prepared changes
+## Deployment and staged coordinator
 
-The reviewed checkpoint `77f72fafbb0806fa6b724aed2403896c84bcaead` remains in history.
-The follow-up source supports systemd 252 with the same isolation/proof requirements;
-only the unsupported expansion flag is omitted, and fixed manager paths reject `$`/`%`.
-The root-owned passing receipt is still mandatory. The privileged card adds explicit
-manager re-execution coverage alongside held launch, replay, escaped child termination,
-natural exit and recovery. No OS upgrade is proposed for this pilot.
+Worker-control repair and qualification are complete for the pinned worker under systemd 252;
+the exact transport and preservation records are in the [evidence index](evidence/dev-233/README.md).
+The maintenance steps and intermediate failures are recorded in [maintenance
+attempts](evidence/dev-233/transport-maintenance-attempts.json); worker privilege and access
+changes, plus the coordinator-only archive-read permission, are scoped above.
 
-Coordinator wiring now selects `pilot|linear`, loads only two pinned coordinator
-credentials, checks reference/version/release consistency, and preserves active pins for
-restart/rollback. Integration changes require a distinct committed release. The public
-webhook has its own POST-only listener on 8081 and exact HTTPS route; dashboard/API keep IAP.
-All ingress remains default-off. Local test results are in the [evidence index](evidence/dev-233/README.md).
+Coordinator wiring selects `pilot|linear`, loads only two pinned coordinator credentials,
+checks reference/version/release consistency, and preserves active pins for restart/rollback.
+The existing release explicitly enables the POST-only listener on 8081 and exact HTTPS route;
+dashboard and all other paths keep IAP. Candidate coordinator a4c9548 is built and staged with
+protected configuration and rollback, but not activated. Activation is a separate pending
+step after the usage blocker clears. See the [ingress receipt](evidence/dev-233/https-ingress.md)
+and [prior coordinator activation record (historical)](evidence/dev-233/coordinator-runtime-activation.json).
 
-The root review assumptions changed for the v252 CLI/proof floor, credential bootstrap and
-the separate public listener. Targeted review checked those changes; it is source review,
-not permission to install, grant access, expose ingress or claim host qualification.
+## Decisions and current status
 
-## Decisions and remaining deployment work
+1. **Worker control:** deployed and qualified on the pinned machine/boot under systemd 252.
+   The 11 transport tests, seven-check root card, forced-SSH operations and actual Elixir
+   qualification passed. The worker app remains on release
+   `541279aeb6a5366571e1ee8935e134c728d91c63`. **Coordinator candidate:** built and staged,
+   not activated; the active coordinator remains on `080c048448cc949cf796f10564f16c8cf83a60e8`.
+2. **Hostname and ingress:** `factory.rig.ai` and managed-domain dashboard access
+   `domain:rig.ai` are selected. The HTTPS `/hooks/linear` backend is active and healthy;
+   dashboard and all other paths retain IAP. Actual signed-in dashboard access is still
+   untested. See the [ingress receipt](evidence/dev-233/https-ingress.md).
+3. **Linear app and issue routing:** the installed app has
+   client ID `571c3dc755d9e63cfe74748787f6a533`, app-user ID
+   `ce9f2ad8-ef28-4253-bdc8-ae208f63a425`, and `read,write,app:assignable` scopes. Its token
+   sees the Rig organization and DEV team. DEV-245 retains Adam as assignee, has
+   `factory:rig`, and produced one acknowledged run/session that stopped before a thread or
+   turn. DEV-246 is a separately provisioned fixture and has never been delegated.
 
-1. **Existing idle worker:** completed. The control service and root qualification receipt
-   are installed, and the live forced-SSH operation path passed. The existing app release
-   remains unchanged. The Elixir `WorkerOperation.qualify/1` call is still required before
-   native dispatch; see the [access check](evidence/dev-233/worker-maintenance-access.json)
-   for the earlier route investigation. No new VM is proposed.
-2. **Hostname and eligibility:** selected `factory.rig.ai` and managed-domain access for
-   `domain:rig.ai`. DNS resolves to `8.232.241.86` and has no AAAA record. The live GCP
-   organization is `655940658710` with `rig.ai` active; the project belongs to that
-   organization. Signed-in viewer access remains a separate check. Dashboard viewers need no individual email list. The applied
-   dashboard HTTPS configuration has no `/hooks/linear` route. See
-   [the ingress receipt](evidence/dev-233/https-ingress.md) before adding public webhook
-   ingress or credential IAM changes.
-3. **Assignable Linear app:** identify/install one app using app authentication and record
-   its app-user ID and exact OAuth Client ID. Enable client-credentials tokens with
-   `read,write,app:assignable`, and provision separate client/signing secrets privately to
-   pinned Secret Manager versions; do not paste values into chat/YAML/evidence. Confirm or
-   create the `factory:rig` label and choose one disposable DEV issue with its human owner
-   intact. No app identity is inferred from project/team membership.
+## Remaining acceptance work
 
-## Remaining deployment steps
-
-These are preparation instructions, not evidence that ingress or the Linear app is live.
-Use the committed, tested source head and release checksum from `cloud_io.py pack`. Read
-the [release deployment walkthrough](gcp-pilot.md) before any plan.
-
-```bash
-python3 factory/deploy/cloud_io.py pack "$PWD" /private/tmp/dev233-release
-# Inspect the emitted revision, checksum and archive before uploading with --no-clobber.
-# Update only the existing private pilot inputs and review the complete plan.
-terraform -chdir=infra/gcp/pilot plan \
-  -var-file=/absolute/private/pilot.tfvars -out=/private/tmp/dev233-pilot.plan
-terraform -chdir=infra/gcp/pilot show /private/tmp/dev233-pilot.plan
-```
-
-The private inputs keep the existing project/region/zone/key route and add:
-
-```hcl
-coordinator_workflow = "linear"
-coordinator_secret_env = {
-  LINEAR_API_KEY   = "linear_client"
-  LINEAR_API_TOKEN = "linear_signing"
-}
-optional_integration_secrets = {
-  linear_client  = { secret_id = "linear-client-secret", version = "<numeric-version>" }
-  linear_signing = { secret_id = "linear-webhook-signing", version = "<numeric-version>" }
-}
-enable_https_iap = true
-enable_linear_webhook = true
-viewer_hostname = "factory.rig.ai"
-iap_viewer_domains = ["rig.ai"] # Emits domain:rig.ai on the dashboard backend only.
-iap_viewer_emails = [] # Existing email inputs remain supported when needed.
-iap_google_managed_oauth_confirmed = true # Only after confirming organization/domain eligibility.
-```
-
-Keep existing optional refs rather than replacing unrelated entries. The dashboard HTTPS
-plan applied 10 additions, 0 updates and 0 deletions with an explicit temporary
-metadata-ignore overlay. It is dashboard-only; it has no Linear webhook route. The
-post-apply scoped plan reports no drift, and both VM metadata maps are unchanged.
-Certificate/TLS and signed-in checks are tracked in the ingress evidence.
-Protect the source/workspace boundary: never launch a factory agent in this checkout.
-
-On the coordinator, install a fully filled dedicated workflow as root without clobbering:
-
-```bash
-install -d -o root -g root -m 0755 /etc/factory/workflows
-test ! -e /etc/factory/workflows/<candidate-revision>.md
-install -o root -g root -m 0644 /root/dev233-WORKFLOW.md \
-  /etc/factory/workflows/<candidate-revision>.md
-```
-
-Use the [complete workflow configuration](linear-delegation.md#configuration), with
-`server.host: 0.0.0.0`, `server.port: 8080`, `server.webhook_host: 0.0.0.0` and
-`server.webhook_port: 8081`. Pin the actual release, worker machine, control command,
-definition path and disposable dedicated Rig workspace on both hosts. Requalify Default
-Cloud on this revision; the file/binary preflight is not model or subscription proof.
-
-The following root installation/card commands were run on the idle worker and produced the
-passing receipts linked above. They are retained for audit; do not repeat the manager
-re-execution card unless deliberately requalifying the idle worker:
-
-```bash
-/opt/factory/releases/<candidate-revision>/factory/deploy/install-worker-operations.sh \
-  /opt/factory/releases/<candidate-revision> /root/coordinator-public-key
-FACTORY_SYSTEMD_TEST_DISPOSABLE=1 FACTORY_SYSTEMD_TEST_MANAGER_REEXEC=1 \
-  FACTORY_SYSTEMD_TEST_RECEIPT=/root/worker-operations-qualification.json \
-  /usr/bin/python3 -I \
-  /opt/factory/releases/<candidate-revision>/factory/deploy/tests/test_worker_operation_systemd.py
-# Inspect every check and cleanup outcome before installing the receipt:
-install -o root -g root -m 0600 /root/worker-operations-qualification.json \
-  /etc/factory/worker-operations-qualified.json
-systemctl daemon-reload
-systemctl enable --now factory-worker-operations.service
-systemctl is-active factory-worker-operations.service
-```
-
-The forced-command SSH path has since passed from the coordinator. Still run the live Elixir
-`WorkerOperation.qualify/1` call against the exact configured release, requalify Default
-Cloud on that revision, then run the
-[live delegate/replay/restart/stop card](linear-delegation.md#live-acceptance-checklist-pending)
-after HTTPS and app setup. Keep publisher/merge credentials outside these environments. No
-acceptance PR or DEV-233 completion claim until the real app, HTTPS delivery, one-run recovery
-and whole-tree stop pass.
+The transport repair is deployed, but the no-turn readiness check is blocked by `usage_paused`.
+The desktop account reports 100% weekly usage and two reset credits. Approval to consume one
+reset is pending; no reset was consumed. The created-event replay was not captured. Preserve
+DEV-245 as the failed/stopped evidence issue; use DEV-246 or another separately approved
+disposable fixture for active-work acceptance. After usage is available, rerun full startup
+readiness with a fresh operation identity, activate the staged coordinator, start the bounded
+observer before native delegation, capture/replay the actual created delivery, and verify the
+operation is still live. Restart the coordinator, verify the same operation remains active,
+then undelegate and confirm termination with no replacement launch. If EOF already ended the
+operation, that is not proof of active cancellation. Do not
+push, publish, open an acceptance PR or mark DEV-233 complete until these live checks pass. See
+the [transport deployment checkpoint](evidence/dev-233/transport-deployment.md) and [current
+Linear delegation status](linear-delegation.md#current-live-status-and-remaining-acceptance).
+The bounded bootstrap-token observation does not establish a long-term token lifecycle or
+quota-recovery solution for sustained use.

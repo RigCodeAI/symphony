@@ -1,0 +1,32 @@
+[
+  {
+    "address": "module.pilot.google_compute_instance.coordinator[\"main\"]",
+    "actions": [
+      "update"
+    ],
+    "changed_keys": [
+      "metadata"
+    ],
+    "release": "080c048448cc949cf796f10564f16c8cf83a60e8"
+  },
+  {
+    "address": "module.pilot.google_storage_bucket_iam_member.coordinator_release_reader",
+    "actions": [
+      "delete",
+      "create"
+    ],
+    "changed_keys": [
+      "bucket",
+      "condition",
+      "etag",
+      "id"
+    ],
+    "condition": [
+      {
+        "description": "The coordinator may read the candidate and retained rollback releases and pilot worker public host key.",
+        "expression": "resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/releases/080c048448cc949cf796f10564f16c8cf83a60e8.tar.gz\" || resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/releases/541279aeb6a5366571e1ee8935e134c728d91c63.tar.gz\" || resource.name == \"projects/_/buckets/factory-511117-rig-factory-releases/objects/host-keys/rig-factory-worker-01.pub\"",
+        "title": "pinned-release-and-worker-key-only"
+      }
+    ]
+  }
+]

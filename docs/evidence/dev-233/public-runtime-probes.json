@@ -1,0 +1,45 @@
+{
+  "checked_at": "2026-10-10T14:18:08.884591+00:00",
+  "results": [
+    {
+      "path": "/",
+      "method": "GET",
+      "status": 302,
+      "redirect_host": "accounts.google.com",
+      "redirect_path": "/o/oauth2/v2/auth",
+      "tls_verified": true
+    },
+    {
+      "path": "/api/v1/state",
+      "method": "GET",
+      "status": 302,
+      "redirect_host": "accounts.google.com",
+      "redirect_path": "/o/oauth2/v2/auth",
+      "tls_verified": true
+    },
+    {
+      "path": "/hooks/linear",
+      "method": "POST",
+      "status": 400,
+      "redirect_host": null,
+      "redirect_path": "",
+      "tls_verified": true
+    },
+    {
+      "path": "/hooks/linear",
+      "method": "GET",
+      "status": 404,
+      "redirect_host": null,
+      "redirect_path": "",
+      "tls_verified": true
+    },
+    {
+      "path": "/hooks/linear/api/v1/state",
+      "method": "GET",
+      "status": 302,
+      "redirect_host": "accounts.google.com",
+      "redirect_path": "/o/oauth2/v2/auth",
+      "tls_verified": true
+    }
+  ]
+}

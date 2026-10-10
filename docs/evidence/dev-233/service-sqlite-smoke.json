@@ -3,7 +3,7 @@
     "elixir": "1.19.5",
     "otp": "28"
   },
-  "command": "docker run --name dev233-service-smoke-debug dev230-checked bash /source/factory/deploy/tests/service-entrypoint.sh (source mounted read-only)",
+  "command": "docker run --name dev233-service-smoke-debug --mount type=bind,src=/Users/patarino/.codex/worktrees/f55b/symphony,dst=/source,readonly -e FACTORY_TEST_SOURCE=/source/factory/deploy --entrypoint /bin/bash dev230-checked:latest -x /source/factory/deploy/tests/service-entrypoint.sh",
   "result": "passed",
   "database_header": "SQLite format 3",
   "database_bytes": 53248,

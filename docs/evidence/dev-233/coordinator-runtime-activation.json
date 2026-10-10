@@ -1,0 +1,7 @@
+{
+  "candidate": "080c048448cc949cf796f10564f16c8cf83a60e8",
+  "exit_code": 0,
+  "activation_output": "Validating the pass definition...\nCompiling 75 files (.ex)\nGenerated symphony_elixir app\n{\n  \"name\": \"local-rig\",\n  \"status\": \"valid\"\n}\nValidating the fail definition...\n{\n  \"name\": \"local-rig\",\n  \"status\": \"valid\"\n}\nActivated and verified revision 080c048448cc949cf796f10564f16c8cf83a60e8.\n",
+  "activation_stderr": "",
+  "active_release": "080c048448cc949cf796f10564f16c8cf83a60e8"
+}

@@ -1,0 +1,156 @@
+{
+  "arbitrary_command_rejection": {
+    "exit_code": 1,
+    "stderr": "",
+    "stdout": "{\"error\":\"invalid_command\"}\n"
+  },
+  "capabilities": {
+    "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+    "cgroup_v2": true,
+    "contained": true,
+    "containment_qualified": true,
+    "machine_id": "fe9b1ece921d40aeac95b10940000311",
+    "protocol_version": 1,
+    "release_sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c",
+    "released_cgroup_proof": true,
+    "required_isolation": true,
+    "service_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5",
+    "system_manager": true,
+    "systemd_version": 252,
+    "worker_account_isolated": true
+  },
+  "checks": [
+    "forced_ssh_qualification",
+    "forced_ssh_arbitrary_command_rejected",
+    "held_and_duplicate_prepare",
+    "stale_identity_rejected",
+    "setsid_child_observed_and_terminated",
+    "stop_proof_and_replay",
+    "forced_ssh_stream",
+    "natural_exit_proof_and_replay"
+  ],
+  "natural_exit": {
+    "exit_code": "exited",
+    "exit_status": 0,
+    "identity": {
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "control_group": "/system.slice/factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service",
+      "invocation_id": "b42eb98752434cfbb5b5a6d437db3dda",
+      "kind": "systemd-unit",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "operation_id": "ssh-natural/8d4984e291c444c4a7f0e33acfba15f9",
+      "request_sha256": "42f1c79d6f41e8f360f690c8e7523c9bd348da1abefbcfb65cd4abf63907fc4b",
+      "unit": "factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service"
+    },
+    "operation_id": "ssh-natural/8d4984e291c444c4a7f0e33acfba15f9",
+    "status": "terminated",
+    "termination_proof": {
+      "active_state": "active",
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "cgroup_populated": 0,
+      "cgroup_state": "released",
+      "control_group": "/system.slice/factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service",
+      "exec_main_code": "exited",
+      "exec_main_status": 0,
+      "invocation_id": "b42eb98752434cfbb5b5a6d437db3dda",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "main_pid": 0,
+      "observed_at": "2026-10-10T15:06:15.564961+00:00",
+      "sub_state": "exited",
+      "systemd_version": 252,
+      "unit": "factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service"
+    }
+  },
+  "operations": [
+    {
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "control_group": "/system.slice/factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service",
+      "invocation_id": "eb2c5d4ff85446f8a8ee66496125fbcf",
+      "kind": "systemd-unit",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "operation_id": "ssh-qualification/53db558ddeb44171a1ad0b6cde77395b",
+      "request_sha256": "abc8357323e45d772dad3d5caaaa656ced2dd05ca2c82e4488ea3eff17375f09",
+      "unit": "factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service"
+    },
+    {
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "control_group": "/system.slice/factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service",
+      "invocation_id": "b42eb98752434cfbb5b5a6d437db3dda",
+      "kind": "systemd-unit",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "operation_id": "ssh-natural/8d4984e291c444c4a7f0e33acfba15f9",
+      "request_sha256": "42f1c79d6f41e8f360f690c8e7523c9bd348da1abefbcfb65cd4abf63907fc4b",
+      "unit": "factory-operation-7319839b00600e3a30c25fa10fa909771849e9b95390f8def8bccca284f1b9f1.service"
+    }
+  ],
+  "processes_after_stop": [
+    {
+      "cgroup": null,
+      "live": false,
+      "pgrp": null,
+      "pid": 1656
+    },
+    {
+      "cgroup": null,
+      "live": false,
+      "pgrp": null,
+      "pid": 1753
+    }
+  ],
+  "processes_before_stop": [
+    {
+      "cgroup": "0::/system.slice/factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service\n",
+      "live": true,
+      "pgrp": 1656,
+      "pid": 1656
+    },
+    {
+      "cgroup": "0::/system.slice/factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service\n",
+      "live": true,
+      "pgrp": 1753,
+      "pid": 1753
+    }
+  ],
+  "release": {
+    "release_sha256": "e805385f93cf360d79ddb3d5537d02f4cff5a544d2e33aa2cd960f05fdc7802c",
+    "service_revision": "a4c95481b898d05817d24cbcf76635d9c4b739c5"
+  },
+  "status": "passed",
+  "stop": {
+    "exit_code": "killed",
+    "exit_status": 15,
+    "identity": {
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "control_group": "/system.slice/factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service",
+      "invocation_id": "eb2c5d4ff85446f8a8ee66496125fbcf",
+      "kind": "systemd-unit",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "operation_id": "ssh-qualification/53db558ddeb44171a1ad0b6cde77395b",
+      "request_sha256": "abc8357323e45d772dad3d5caaaa656ced2dd05ca2c82e4488ea3eff17375f09",
+      "unit": "factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service"
+    },
+    "operation_id": "ssh-qualification/53db558ddeb44171a1ad0b6cde77395b",
+    "status": "terminated",
+    "termination_proof": {
+      "active_state": "active",
+      "boot_id": "5734c5bd0a864f4fae49e6a088bbf2e4",
+      "cgroup_populated": 0,
+      "cgroup_state": "present",
+      "control_group": "/system.slice/factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service",
+      "exec_main_code": "killed",
+      "exec_main_status": 15,
+      "invocation_id": "eb2c5d4ff85446f8a8ee66496125fbcf",
+      "machine_id": "fe9b1ece921d40aeac95b10940000311",
+      "main_pid": 0,
+      "observed_at": "2026-10-10T15:06:12.633773+00:00",
+      "sub_state": "exited",
+      "systemd_version": 252,
+      "unit": "factory-operation-5684014fad8acc5488478e1c5bb178fd5137a72351dc76208347f1ff25289b95.service"
+    }
+  },
+  "stream": {
+    "exit_code": 0,
+    "output": "{\"ok\":\"stream_ready\"}\ndev233-stream-once\n",
+    "stderr": ""
+  }
+}
