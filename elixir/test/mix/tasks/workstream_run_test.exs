@@ -28,14 +28,15 @@ defmodule Mix.Tasks.Workstream.RunTest do
 
     File.write!(fake, """
     #!/bin/sh
-    count=0
     while IFS= read -r line; do
-      count=$((count + 1))
-      case "$count" in
-        1) printf '%s\\n' '{"id":1,"result":{}}' ;;
-        2) ;;
-        3) printf '%s\\n' '{"id":2,"result":{"thread":{"id":"local-thread"},"model":"test-model"}}' ;;
-        4)
+      case "$line" in
+        *'"method":"initialize"'*) printf '%s\\n' '{"id":1,"result":{}}' ;;
+        *'"method":"account/read"'*) printf '%s\\n' '{"id":101,"result":{"account":{"type":"chatgpt"}}}' ;;
+        *'"method":"model/list"'*) printf '%s\\n' '{"id":102,"result":{"data":[{"id":"test-model","supportedReasoningEfforts":[{"reasoningEffort":"medium"}],"availableAccessPrograms":{"cyber":["standard"]}}],"nextCursor":null}}' ;;
+        *'"method":"account/rateLimits/read"'*) printf '%s\\n' '{"id":103,"result":{"ordinaryUsageAllowed":true}}' ;;
+        *'"method":"config/read"'*) printf '%s\\n' '{"id":104,"result":{"config":{},"layers":[]}}' ;;
+        *'"method":"thread/start"'*) printf '%s\\n' '{"id":2,"result":{"thread":{"id":"local-thread","daybreakEnabled":false},"model":"test-model","reasoningEffort":"medium"}}' ;;
+        *'"method":"turn/start"'*)
           printf '%s\\n' '{"id":3,"result":{"turn":{"id":"local-turn"}}}'
           printf '%s\\n' '{"method":"turn/completed","params":{"turn":{"id":"local-turn","status":"completed"}}}'
           ;;
@@ -104,7 +105,9 @@ defmodule Mix.Tasks.Workstream.RunTest do
         assert_raise Mix.Error, ~r/Workstream blocked/, fn -> Run.run(execution_arguments(context)) end
       end)
 
-    assert Jason.decode!(output)["status"] == "blocked"
+    report = Jason.decode!(output)
+    assert report["status"] == "blocked"
+    assert List.last(report["attempts"])["result"]["evidence"]["exit_status"] == 1
   end
 
   test "bad arguments and input files return usage errors", context do

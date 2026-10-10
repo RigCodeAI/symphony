@@ -114,7 +114,14 @@ declared string keys. Inputs must contain task data, never credentials.
 
 Agent YAML contains `version`, `name`, `model`, `reasoning_effort`, `daybreak`,
 `approval_policy`, `sandbox`, `instructions`, and `skills`. Version 1 requires
-`daybreak: false`, `approval_policy: never`, and `sandbox: workspace-write`.
+`approval_policy: never` and `sandbox: workspace-write`. `daybreak` is a boolean;
+normal dispatch rejects `true` until effective execution can be verified.
+An optional `authentication` map has exactly `mode: subscription` and a nonsecret
+`reference`. Legacy files omit it and inherit the worker subscription. Explicit
+references must match the service's resolved authentication reference. Named sessions
+check ChatGPT account type, exact advertised model/effort/access program and usage
+pauses before starting a thread; they disable provider fallback. See
+[worker qualification](worker-qualification.md) for the separate bounded probe.
 Instruction and `SKILL.md` references are relative to the agent file; agent
 references are relative to the workstream file. The loader canonicalizes paths
 and pins source text and SHA-256 hashes once per invocation. Agents receive the
