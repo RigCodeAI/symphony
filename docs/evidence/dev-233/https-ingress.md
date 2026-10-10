@@ -38,9 +38,9 @@ The active application remains `541279aeb6a5366571e1ee8935e134c728d91c63`.
 ## Checks and remaining work
 
 The post-apply scoped Terraform drift check returned exit 0, no changes.
-The first post-apply observation found backend health HEALTHY, only the expected
+The final check at 13:20 UTC found backend health HEALTHY, only the expected
 IAP domain grant, DNS A `8.232.241.86`, no AAAA, and no CAA restriction. Google
-certificate status was PROVISIONING and TLS was not yet usable. This observation
+certificate status remained PROVISIONING and TLS was not yet usable. This observation
 is superseded only by a later explicit receipt; certificate creation alone is
 not HTTPS success.
 

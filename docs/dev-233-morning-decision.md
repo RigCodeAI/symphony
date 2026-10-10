@@ -142,10 +142,10 @@ iap_google_managed_oauth_confirmed = true # Only after confirming organization/d
 ```
 
 Keep existing optional refs rather than replacing unrelated entries. The dashboard HTTPS
-plan was reviewed at 10 creates, 0 updates and 0 deletes with an explicit temporary
-metadata-ignore overlay. It is dashboard-only; it has no Linear webhook route. Confirm the
-VM, disk, IAM and routing details against the retained plan before applying. HTTPS was not
-yet live when this card was updated.
+plan applied 10 additions, 0 updates and 0 deletions with an explicit temporary
+metadata-ignore overlay. It is dashboard-only; it has no Linear webhook route. The
+post-apply scoped plan reports no drift, and both VM metadata maps are unchanged.
+Certificate/TLS and signed-in checks are tracked in the ingress evidence.
 Protect the source/workspace boundary: never launch a factory agent in this checkout.
 
 On the coordinator, install a fully filled dedicated workflow as root without clobbering:
