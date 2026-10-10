@@ -39,7 +39,18 @@ defmodule SymphonyElixir.WorkstreamStore do
   );
   """
 
-  @migrations [{1, @migration_v1}]
+  @migration_v2 """
+  CREATE TABLE linear_events (
+    delivery_id TEXT PRIMARY KEY,
+    payload BLOB NOT NULL
+  );
+  CREATE TABLE linear_tasks (
+    issue_id TEXT PRIMARY KEY,
+    payload BLOB NOT NULL
+  );
+  """
+
+  @migrations [{1, @migration_v1}, {2, @migration_v2}]
 
   defmodule State do
     @moduledoc false
@@ -82,6 +93,44 @@ defmodule SymphonyElixir.WorkstreamStore do
   def commit(server, run_map, event_id, event_map) do
     case validate_commit(run_map, event_id, event_map) do
       :ok -> safe_call(server, {:commit, run_map, event_id, event_map})
+      {:error, _reason} = error -> error
+    end
+  end
+
+  @doc "Stores a normalized Linear event once, returning its existing record on replay."
+  @spec linear_receive(GenServer.server(), String.t(), map()) ::
+          :ok | {:duplicate, map()} | {:error, term()}
+  def linear_receive(server, delivery_id, normalized_event)
+      when is_binary(delivery_id) and delivery_id != "" and is_map(normalized_event) do
+    if safe_persistent_term?(normalized_event) do
+      safe_call(server, {:linear_receive, delivery_id, normalized_event})
+    else
+      {:error, :invalid_linear_event}
+    end
+  end
+
+  def linear_receive(_server, _delivery_id, _normalized_event), do: {:error, :invalid_linear_event}
+
+  @doc "Loads all persisted Linear event and task maps keyed by their IDs."
+  @spec linear_load(GenServer.server()) ::
+          {:ok, %{events: %{optional(String.t()) => map()}, tasks: %{optional(String.t()) => map()}}}
+          | {:error, term()}
+  def linear_load(server), do: safe_call(server, :linear_load)
+
+  @doc "Atomically updates a known Linear event and optionally upserts its task."
+  @spec linear_commit(GenServer.server(), map(), map() | nil) :: :ok | {:error, term()}
+  def linear_commit(server, event_record, task_record_or_nil) do
+    case validate_linear_commit(event_record, task_record_or_nil) do
+      :ok -> safe_call(server, {:linear_commit, event_record, task_record_or_nil})
+      {:error, _reason} = error -> error
+    end
+  end
+
+  @doc "Upserts one Linear task map. Only the store owner may write."
+  @spec linear_task(GenServer.server(), map()) :: :ok | {:error, term()}
+  def linear_task(server, task_map) do
+    case validate_linear_task(task_map) do
+      :ok -> safe_call(server, {:linear_task, task_map})
       {:error, _reason} = error -> error
     end
   end
@@ -142,6 +191,57 @@ defmodule SymphonyElixir.WorkstreamStore do
 
         {:error, _reason} = error ->
           error
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call(:linear_load, _from, %State{db: db} = state) do
+    reply =
+      with {:ok, event_rows} <- query(db, "SELECT delivery_id, payload FROM linear_events ORDER BY delivery_id"),
+           {:ok, events} <- decode_linear_event_rows(event_rows, %{}),
+           {:ok, task_rows} <- query(db, "SELECT issue_id, payload FROM linear_tasks ORDER BY issue_id"),
+           {:ok, tasks} <- decode_linear_task_rows(task_rows, %{}) do
+        {:ok, %{events: events, tasks: tasks}}
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:linear_receive, delivery_id, normalized_event}, _from, %State{db: db} = state) do
+    record = %{id: delivery_id, event: normalized_event, status: :pending}
+
+    reply =
+      case transaction(db, "BEGIN IMMEDIATE", fn -> receive_linear_event(db, delivery_id, normalized_event, record) end) do
+        {:committed, :ok} -> :ok
+        {:rolled_back, {:duplicate, existing}} -> {:duplicate, existing}
+        {:rolled_back, {:error, reason}} -> {:error, reason}
+        {:error, reason} -> {:error, reason}
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:linear_commit, event_record, task_record_or_nil}, {caller, _tag}, %State{db: db, owner: owner} = state) do
+    reply =
+      if caller == owner do
+        commit_linear_transaction(db, event_record, task_record_or_nil)
+      else
+        {:error, :not_owner}
+      end
+
+    {:reply, reply, state}
+  end
+
+  def handle_call({:linear_task, task_map}, {caller, _tag}, %State{db: db, owner: owner} = state) do
+    reply =
+      if caller == owner do
+        case encode_term(task_map) do
+          {:ok, payload} -> upsert_linear_task(db, field(task_map, :issue_id), payload)
+          {:error, _reason} = error -> error
+        end
+      else
+        {:error, :not_owner}
       end
 
     {:reply, reply, state}
@@ -424,6 +524,217 @@ defmodule SymphonyElixir.WorkstreamStore do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp receive_linear_event(db, delivery_id, normalized_event, record) do
+    case query(db, "SELECT payload FROM linear_events WHERE delivery_id = ?1", [delivery_id]) do
+      {:ok, []} ->
+        with {:ok, payload} <- encode_term(record),
+             :ok <- insert_linear_event(db, delivery_id, payload) do
+          {:commit, :ok}
+        else
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:ok, [[payload]]} ->
+        case decode_linear_event(payload, delivery_id) do
+          {:ok, existing} ->
+            if field(existing, :event) === normalized_event do
+              {:rollback, {:duplicate, existing}}
+            else
+              {:rollback, {:error, :event_identity_conflict}}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:ok, _rows} ->
+        {:error, :invalid_linear_event_row}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp commit_linear_transaction(db, event_record, task_record_or_nil) do
+    case transaction(db, "BEGIN IMMEDIATE", fn ->
+           case persist_linear_commit(db, event_record, task_record_or_nil) do
+             :ok -> {:commit, :ok}
+             {:error, reason} -> {:error, reason}
+           end
+         end) do
+      {:committed, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp persist_linear_commit(db, event_record, task_record_or_nil) do
+    delivery_id = field(event_record, :id)
+
+    with {:ok, existing} <- fetch_linear_event(db, delivery_id),
+         :ok <- ensure_linear_event_identity(existing, event_record),
+         {:ok, event_payload} <- encode_term(event_record),
+         :ok <- upsert_linear_event(db, delivery_id, event_payload),
+         :ok <- maybe_upsert_linear_task(db, task_record_or_nil) do
+      :ok
+    end
+  end
+
+  defp fetch_linear_event(db, delivery_id) do
+    case query(db, "SELECT payload FROM linear_events WHERE delivery_id = ?1", [delivery_id]) do
+      {:ok, [[payload]]} -> decode_linear_event(payload, delivery_id)
+      {:ok, []} -> {:error, :linear_event_not_found}
+      {:ok, _rows} -> {:error, :invalid_linear_event_row}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp ensure_linear_event_identity(existing, incoming) do
+    cond do
+      field(existing, :id) != field(incoming, :id) -> {:error, :event_identity_conflict}
+      field(existing, :event) !== field(incoming, :event) -> {:error, :event_identity_conflict}
+      true -> :ok
+    end
+  end
+
+  defp maybe_upsert_linear_task(_db, nil), do: :ok
+
+  defp maybe_upsert_linear_task(db, task_map) do
+    with {:ok, payload} <- encode_term(task_map) do
+      upsert_linear_task(db, field(task_map, :issue_id), payload)
+    end
+  end
+
+  defp insert_linear_event(db, delivery_id, payload) do
+    execute_prepared(
+      db,
+      "INSERT INTO linear_events (delivery_id, payload) VALUES (?1, ?2)",
+      [delivery_id, {:blob, payload}]
+    )
+  end
+
+  defp upsert_linear_event(db, delivery_id, payload) do
+    execute_prepared(
+      db,
+      "INSERT INTO linear_events (delivery_id, payload) VALUES (?1, ?2) " <>
+        "ON CONFLICT(delivery_id) DO UPDATE SET payload = excluded.payload",
+      [delivery_id, {:blob, payload}]
+    )
+  end
+
+  defp upsert_linear_task(db, issue_id, payload) do
+    execute_prepared(
+      db,
+      "INSERT INTO linear_tasks (issue_id, payload) VALUES (?1, ?2) " <>
+        "ON CONFLICT(issue_id) DO UPDATE SET payload = excluded.payload",
+      [issue_id, {:blob, payload}]
+    )
+  end
+
+  defp validate_linear_commit(event_record, task_record_or_nil)
+       when is_map(event_record) and (is_map(task_record_or_nil) or is_nil(task_record_or_nil)) do
+    delivery_id = field(event_record, :id)
+    event = field(event_record, :event)
+
+    cond do
+      not (is_binary(delivery_id) and delivery_id != "") -> {:error, :invalid_linear_event_record}
+      not is_map(event) -> {:error, :invalid_linear_event_record}
+      not has_field?(event_record, :status) -> {:error, :invalid_linear_event_record}
+      not safe_persistent_term?(event_record) -> {:error, :invalid_linear_event_record}
+      is_map(task_record_or_nil) -> validate_linear_task(task_record_or_nil)
+      true -> :ok
+    end
+  end
+
+  defp validate_linear_commit(_event_record, _task_record_or_nil), do: {:error, :invalid_linear_commit}
+
+  defp validate_linear_task(task_map) when is_map(task_map) do
+    issue_id = field(task_map, :issue_id)
+
+    cond do
+      not (is_binary(issue_id) and issue_id != "") -> {:error, :invalid_linear_task}
+      not safe_persistent_term?(task_map) -> {:error, :invalid_linear_task}
+      true -> :ok
+    end
+  end
+
+  defp validate_linear_task(_task_map), do: {:error, :invalid_linear_task}
+
+  defp has_field?(map, key), do: Map.has_key?(map, key) or Map.has_key?(map, Atom.to_string(key))
+
+  defp safe_persistent_term?(term) when is_atom(term) or is_binary(term) or is_number(term), do: true
+
+  defp safe_persistent_term?(term) when is_list(term), do: Enum.all?(term, &safe_persistent_term?/1)
+
+  defp safe_persistent_term?(term) when is_map(term) do
+    not Map.has_key?(term, :__struct__) and
+      not Map.has_key?(term, "__struct__") and
+      Enum.all?(term, fn {key, value} ->
+        (is_atom(key) or is_binary(key)) and safe_persistent_term?(value)
+      end)
+  end
+
+  defp safe_persistent_term?(_term), do: false
+
+  defp decode_linear_event_rows([], events), do: {:ok, events}
+
+  defp decode_linear_event_rows([[delivery_id, payload] | rest], events) when is_binary(delivery_id) do
+    case decode_linear_event(payload, delivery_id) do
+      {:ok, record} -> decode_linear_event_rows(rest, Map.put(events, delivery_id, record))
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp decode_linear_event_rows(_rows, _events), do: {:error, :invalid_linear_event_row}
+
+  defp decode_linear_event(payload, delivery_id) when is_binary(payload) do
+    case decode_term(payload) do
+      {:ok, record} when is_map(record) ->
+        cond do
+          field(record, :id) != delivery_id -> {:error, :invalid_linear_event_payload}
+          not is_map(field(record, :event)) -> {:error, :invalid_linear_event_payload}
+          not has_field?(record, :status) -> {:error, :invalid_linear_event_payload}
+          not safe_persistent_term?(record) -> {:error, :invalid_linear_event_payload}
+          true -> {:ok, record}
+        end
+
+      {:ok, _record} ->
+        {:error, :invalid_linear_event_payload}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp decode_linear_event(_payload, _delivery_id), do: {:error, :invalid_linear_event_payload}
+
+  defp decode_linear_task_rows([], tasks), do: {:ok, tasks}
+
+  defp decode_linear_task_rows([[issue_id, payload] | rest], tasks) when is_binary(issue_id) do
+    case decode_linear_task(payload, issue_id) do
+      {:ok, task} -> decode_linear_task_rows(rest, Map.put(tasks, issue_id, task))
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp decode_linear_task_rows(_rows, _tasks), do: {:error, :invalid_linear_task_row}
+
+  defp decode_linear_task(payload, issue_id) when is_binary(payload) do
+    case decode_term(payload) do
+      {:ok, task} when is_map(task) ->
+        if field(task, :issue_id) == issue_id and safe_persistent_term?(task),
+          do: {:ok, task},
+          else: {:error, :invalid_linear_task_payload}
+
+      {:ok, _task} ->
+        {:error, :invalid_linear_task_payload}
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp decode_linear_task(_payload, _issue_id), do: {:error, :invalid_linear_task_payload}
 
   defp existing_event_run(db, event_id) do
     case query(db, "SELECT run_id FROM events WHERE event_id = ?1", [event_id]) do

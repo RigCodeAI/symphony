@@ -1,0 +1,310 @@
+{
+  "status": "passed",
+  "pass": {
+    "id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+    "status": "complete",
+    "definitions": {
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/agents/local-worker.yaml": "553d97a0e81f2d1c34471053696a69c618dd3ae34504c90bd5562047a2a5eb0d",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/instructions/local-rig.md": "313e4796343efae8ccd8a0990f293db639b48d563319d6d55c8b95ed26cd28eb",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/skills/local-rig/SKILL.md": "901ebd4154ab04bc957b3992267cd0ae2c5a3efa6bbe5eb3a8dffbdc70bb87f1",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/workstreams/local-recovery.yaml": "0bacd1c0c4be59a33c3d40dfc621e321b0318f517c8c0559946c9407fe3e7651"
+    },
+    "branch": "master",
+    "phase": "complete",
+    "session_id": "controlled-smoke",
+    "policy": {
+      "version": 1,
+      "lifecycle_sha256": "8e3dcff2a453c5988627ad6a59b0f2a32145e16b6dee7218af1e88a4b62d67d3",
+      "executor_sha256": "d5b21d962c95d19dfe02a2c02386987ffa6a25b1f5f2bc70df80edc6b80bd961",
+      "gate_policy": "exit-status-v1",
+      "validation_sha256": "a1270522bd3a18c367cea52d8bb8e96f33d790ccd777a9fcb3a1d6ce0024d301"
+    },
+    "outputs": {
+      "answer": "continue",
+      "candidate": {
+        "model": "controlled-worker-no-inference",
+        "requested_model": "gpt-6-luna",
+        "session_id": "controlled-smoke",
+        "thread_id": "controlled-run-8cc092f5d310b7454fc39ab8d2da75df",
+        "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/pass"
+      },
+      "validation": {
+        "exit_status": 0,
+        "output": "",
+        "timed_out": false,
+        "truncated": false
+      }
+    },
+    "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/pass",
+    "pending_wait": null,
+    "agents": {
+      "worker": {
+        "model": "gpt-6-luna",
+        "daybreak": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "thread_id": "controlled-run-8cc092f5d310b7454fc39ab8d2da75df",
+    "stage_id": "complete",
+    "current_attempt_id": null,
+    "issue_id": null,
+    "operations": {
+      "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1": {
+        "id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.190.0>",
+          "boot_id": "f807bd55542caf24557ca876f94a81e2"
+        },
+        "stage": "implement",
+        "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1",
+        "transport_retries": 0,
+        "side_effect_id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1"
+      },
+      "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2": {
+        "id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2",
+        "status": "completed",
+        "type": "check",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.194.0>",
+          "boot_id": "f807bd55542caf24557ca876f94a81e2"
+        },
+        "stage": "validate",
+        "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2",
+        "transport_retries": 0,
+        "side_effect_id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2"
+      }
+    },
+    "created_at": "2026-10-10T06:51:29.092277Z",
+    "task_id": "pass",
+    "validation_repair_rounds": 0,
+    "repairs": {},
+    "artifacts": {
+      "answer": {
+        "sha256": "4b570db91b285dd0997d54ade71f775d6f35ba7f4a9be9bfab17fbfd3fedf661",
+        "run_id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+        "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/decision/3"
+      },
+      "candidate": {
+        "sha256": "1e3ccf9a0266fc665c9ee68f4520e0d5a25561487aaa3b8f5bebb3681903e6ad",
+        "run_id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+        "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1"
+      },
+      "validation": {
+        "sha256": "df71038e53622689c191188b344c680574078ece6b976518b763fe793a113d24",
+        "run_id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+        "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2"
+      }
+    },
+    "attempts": [
+      {
+        "id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "model": "controlled-worker-no-inference",
+            "requested_model": "gpt-6-luna",
+            "session_id": "controlled-smoke",
+            "thread_id": "controlled-run-8cc092f5d310b7454fc39ab8d2da75df",
+            "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/pass"
+          }
+        },
+        "stage": "implement",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 1
+      },
+      {
+        "id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2",
+        "status": "completed",
+        "type": "check",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "exit_status": 0,
+            "output": "",
+            "timed_out": false,
+            "truncated": false
+          }
+        },
+        "stage": "validate",
+        "gate": "passed",
+        "gate_detail": null,
+        "ordinal": 2
+      },
+      {
+        "id": "run-8cc092f5d310b7454fc39ab8d2da75df/decision/3",
+        "status": "completed",
+        "type": "human_wait",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "reply": {
+              "answer": "continue"
+            },
+            "wait_id": "run-8cc092f5d310b7454fc39ab8d2da75df/decision/3/wait",
+            "artifact_ids": {
+              "candidate": {
+                "sha256": "1e3ccf9a0266fc665c9ee68f4520e0d5a25561487aaa3b8f5bebb3681903e6ad",
+                "run_id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+                "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/implement/1"
+              },
+              "validation": {
+                "sha256": "df71038e53622689c191188b344c680574078ece6b976518b763fe793a113d24",
+                "run_id": "run-8cc092f5d310b7454fc39ab8d2da75df",
+                "attempt_id": "run-8cc092f5d310b7454fc39ab8d2da75df/validate/2"
+              }
+            }
+          }
+        },
+        "stage": "decision",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 3
+      }
+    ],
+    "retry_operation_id": null,
+    "review_repair_rounds": 0,
+    "transport_retries": 0
+  },
+  "fail": {
+    "id": "run-42a835c6d0ec2234dea680ec06ea3afd",
+    "status": "blocked",
+    "definitions": {
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/agents/local-worker.yaml": "553d97a0e81f2d1c34471053696a69c618dd3ae34504c90bd5562047a2a5eb0d",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/instructions/local-rig.md": "313e4796343efae8ccd8a0990f293db639b48d563319d6d55c8b95ed26cd28eb",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/skills/local-rig/SKILL.md": "79b0039c99f5bbb5705a7a3de3eafa059f3dd4db06cf84d5f30d3954335d0a1c",
+      "/tmp/dev233-cancellation-recovery-smoke/definitions/workstreams/local-recovery.yaml": "0bacd1c0c4be59a33c3d40dfc621e321b0318f517c8c0559946c9407fe3e7651"
+    },
+    "branch": "master",
+    "phase": "blocked",
+    "session_id": "controlled-smoke",
+    "policy": {
+      "version": 1,
+      "lifecycle_sha256": "8e3dcff2a453c5988627ad6a59b0f2a32145e16b6dee7218af1e88a4b62d67d3",
+      "executor_sha256": "d5b21d962c95d19dfe02a2c02386987ffa6a25b1f5f2bc70df80edc6b80bd961",
+      "gate_policy": "exit-status-v1",
+      "validation_sha256": "a1270522bd3a18c367cea52d8bb8e96f33d790ccd777a9fcb3a1d6ce0024d301"
+    },
+    "outputs": {
+      "candidate": {
+        "model": "controlled-worker-no-inference",
+        "requested_model": "gpt-6-luna",
+        "session_id": "controlled-smoke",
+        "thread_id": "controlled-run-42a835c6d0ec2234dea680ec06ea3afd",
+        "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/fail"
+      }
+    },
+    "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/fail",
+    "pending_wait": null,
+    "agents": {
+      "worker": {
+        "model": "gpt-6-luna",
+        "daybreak": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "thread_id": "controlled-run-42a835c6d0ec2234dea680ec06ea3afd",
+    "stage_id": "blocked",
+    "current_attempt_id": null,
+    "issue_id": null,
+    "operations": {
+      "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1": {
+        "id": "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.208.0>",
+          "boot_id": "f807bd55542caf24557ca876f94a81e2"
+        },
+        "stage": "implement",
+        "attempt_id": "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1",
+        "transport_retries": 0,
+        "side_effect_id": "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1"
+      },
+      "run-42a835c6d0ec2234dea680ec06ea3afd/validate/2": {
+        "id": "run-42a835c6d0ec2234dea680ec06ea3afd/validate/2",
+        "status": "completed",
+        "type": "check",
+        "worker": {
+          "node": "nonode@nohost",
+          "pid": "#PID<0.210.0>",
+          "boot_id": "f807bd55542caf24557ca876f94a81e2"
+        },
+        "stage": "validate",
+        "attempt_id": "run-42a835c6d0ec2234dea680ec06ea3afd/validate/2",
+        "transport_retries": 0,
+        "side_effect_id": "run-42a835c6d0ec2234dea680ec06ea3afd/validate/2"
+      }
+    },
+    "created_at": "2026-10-10T06:51:29.165650Z",
+    "task_id": "fail",
+    "validation_repair_rounds": 0,
+    "repairs": {},
+    "artifacts": {
+      "candidate": {
+        "sha256": "3e8552a237c223ebe87cc4d5e306879d9a1359e411797b51da305a99f21ced11",
+        "run_id": "run-42a835c6d0ec2234dea680ec06ea3afd",
+        "attempt_id": "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1"
+      }
+    },
+    "attempts": [
+      {
+        "id": "run-42a835c6d0ec2234dea680ec06ea3afd/implement/1",
+        "status": "completed",
+        "type": "agent",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "model": "controlled-worker-no-inference",
+            "requested_model": "gpt-6-luna",
+            "session_id": "controlled-smoke",
+            "thread_id": "controlled-run-42a835c6d0ec2234dea680ec06ea3afd",
+            "workspace": "/tmp/dev233-cancellation-recovery-smoke/workspaces/fail"
+          }
+        },
+        "stage": "implement",
+        "gate": null,
+        "gate_detail": null,
+        "ordinal": 1
+      },
+      {
+        "id": "run-42a835c6d0ec2234dea680ec06ea3afd/validate/2",
+        "status": "completed",
+        "type": "check",
+        "result": {
+          "status": "ok",
+          "evidence": {
+            "exit_status": 1,
+            "output": "",
+            "timed_out": false,
+            "truncated": false
+          }
+        },
+        "stage": "validate",
+        "gate": "failed",
+        "gate_detail": null,
+        "ordinal": 2
+      }
+    ],
+    "retry_operation_id": null,
+    "review_repair_rounds": 0,
+    "transport_retries": 0
+  },
+  "controlled_workers": true,
+  "checks": [
+    "stage-boundary restart",
+    "pinned human-wait restart",
+    "duplicate queue/answer",
+    "one real executable side effect",
+    "failed migration rollback",
+    "changed files affect new runs",
+    "failing gate blocks"
+  ]
+}

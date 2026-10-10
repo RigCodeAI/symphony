@@ -50,9 +50,22 @@ defmodule SymphonyElixir.AgentRunner do
 
     stage = Map.fetch!(run.definition.stages, run.stage_id)
     executor = Keyword.get(opts, :stage_executor, &WorkstreamRunner.execute_stage/4)
-    result = executor.(stage, run.definition, run, Map.to_list(run.execution))
+    coordinator = Keyword.get(opts, :name, recipient)
+
+    execution =
+      Keyword.put(Map.to_list(run.execution), :on_process_start, fn identity ->
+        register_workstream_process(coordinator, run, identity)
+      end)
+
+    result = executor.(stage, run.definition, run, execution)
     Process.put(:symphony_workstream_result, result)
     deliver_workstream_receipt(identity, result, recipient)
+  end
+
+  defp register_workstream_process(coordinator, run, identity) do
+    GenServer.call(coordinator, {:workstream_process, run.id, run.current_attempt_id, self(), identity}, 5_000)
+  catch
+    :exit, _ -> {:error, :process_registration_unavailable}
   end
 
   defp deliver_workstream_receipt(identity, result, recipient) do

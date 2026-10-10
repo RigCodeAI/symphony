@@ -27,8 +27,42 @@ Transport retries preserve the side-effect identity and do not reset repair coun
 Transactional migrations fail startup clearly and preserve previously committed data.
 
 This is a controlled local alpha. Durable mode does not poll a tracker, publish PRs, merge,
-or implement remote-worker fencing and integrations. The existing tracker-mode workflow,
-supervision and in-memory scheduling behavior remain compatible and unchanged.
+or implement remote-worker fencing. The existing tracker-mode workflow, supervision and
+in-memory scheduling behavior remain compatible.
+
+### Opt-in native Linear delegation
+
+`linear_delegation` enables authenticated `POST /hooks/linear` intake into the same durable
+coordinator. The service verifies HMAC against the original request bytes and requires a
+signed timestamp within 60 seconds. Delivery identity and normalized event contents are
+persisted before HTTP acknowledgement; conflicting replay contents reject. Raw prompts and
+credentials are not persisted in receipt records.
+
+The authoritative issue must have the configured DEV team, `DEV-` identifier, explicit Rig
+label, active DEV status and installed app delegate. Project membership and human assignment
+do not authorize dispatch. The current agent session must belong to the configured app and
+issue. The human assignee is preserved. A created session selects the explicit software-change
+entry and cloud agent, pins one run per issue, and acknowledges using a persisted activity UUID
+before any stage launches. Unknown routing, unavailable readiness or unsafe credentials block.
+Production dispatch also requires contained worker execution control; it remains blocked
+until that control is integrated and qualified.
+Enqueue must match the resolved definition digest used for qualification; a source change in
+that interval blocks. Recovery requalifies an orphaned pinned run before linking its task.
+
+Ownership is checked again before each stage, with a short authorization lease. Stop or
+undelegation receipts persist a tombstone before cancellation; later queued events cannot
+restart that task. Restart replays pending stops before restoring workers and reuses an already
+pinned run if its task link was interrupted. External termination requires a trusted adapter;
+an unknown outcome remains visible and reserves capacity. Local controlled tests do not prove
+that a remote process tree stopped or that a Linear app is installed. See
+[configuration and live acceptance limits](docs/linear-delegation.md).
+
+A held executor can register its external operation identity through the current worker.
+The coordinator commits that identity before acknowledging release and preserves it across
+restart. The provisional local Linux adapter fences machine, OS boot, process group and
+process start identity before bounded signaling. It always reports unknown, since descendants
+can escape the group. Explicit reconciliation frees a stopped slot only after trusted
+termination proof; it never restarts the stopped task.
 
 Status: Draft v1 (language-agnostic)
 

@@ -431,5 +431,13 @@ or require Linear/GCP. Inspect the generated `waiting.json`, `report.json` and S
 database before deleting that one disposable directory. See
 [API, recovery rules and engineer test card](../docs/durable-workstreams.md).
 
+## Native Linear delegation
+
+An optional `linear_delegation` front-matter map starts the same coordinator in durable mode
+and enables `POST /hooks/linear` when the HTTP server is enabled. It verifies the original
+signed bytes, persists receipts, checks authoritative app ownership and explicit DEV/Rig scope,
+then routes one pinned software-change run. Human assignees are preserved. Tracker polling
+is disabled in this mode. See [configuration, local tests and live acceptance](../docs/linear-delegation.md).
+
 Trusted candidate validation is available locally through the pinned-policy runner and
 inline stage gates. See [trusted validation](../docs/trusted-validation.md) for development/final commands, evidence and limits.

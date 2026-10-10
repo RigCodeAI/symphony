@@ -49,6 +49,10 @@ The first increments are:
    stages through the remaining tickets. Integrate Coverage Factory's separate contracts
    and qualify capacity after the pilot works.
 
+Native Linear webhook intake and durable routing are available for controlled local tests.
+See [Linear delegation](docs/linear-delegation.md) for configuration and the remaining live
+app, endpoint and worker requirements. No live delegation acceptance is claimed.
+
 Use live ticket dependencies to schedule work. The local files
 `docs/rig-software-factory-spec.md` and `docs/factory-setup-ticket-drafts.md`, if present,
 are earlier drafts. They predate the workstream additions and published ticket updates;
